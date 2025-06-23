@@ -1,0 +1,121 @@
+
+import { useState } from "react";
+import { X, Upload } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+
+interface UploadModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: any) => void;
+}
+
+const UploadModal = ({ isOpen, onClose, onSubmit }: UploadModalProps) => {
+  const [step, setStep] = useState(1);
+  const [formData, setFormData] = useState({
+    file: null,
+    isInvoicePaid: true,
+    bankName: ""
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFormData({ ...formData, file });
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit(formData);
+    setFormData({ file: null, isInvoicePaid: true, bankName: "" });
+    setStep(1);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4">
+        <div className="flex items-center justify-between mb-6">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Upload Area */}
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+            <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <p className="text-gray-600 mb-2">Arraste e solte ou escolha o arquivo para enviar</p>
+            <p className="text-sm text-gray-500 mb-4">PDF, CSV, ou OFX</p>
+            <input
+              type="file"
+              accept=".pdf,.csv,.ofx"
+              onChange={handleFileChange}
+              className="hidden"
+              id="file-upload"
+            />
+            <Label
+              htmlFor="file-upload"
+              className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              Selecionar Arquivo
+            </Label>
+          </div>
+
+          <div>
+            <Label className="text-base font-medium">1 - Fatura foi paga?</Label>
+            <div className="flex items-center space-x-4 mt-2">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="isInvoicePaid"
+                  checked={formData.isInvoicePaid === true}
+                  onChange={() => setFormData({ ...formData, isInvoicePaid: true })}
+                  className="mr-2"
+                />
+                <span className="flex items-center">
+                  <span className="w-4 h-4 bg-green-500 rounded-full mr-2"></span>
+                  Sim
+                </span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="isInvoicePaid"
+                  checked={formData.isInvoicePaid === false}
+                  onChange={() => setFormData({ ...formData, isInvoicePaid: false })}
+                  className="mr-2"
+                />
+                <span className="flex items-center">
+                  <span className="w-4 h-4 bg-red-500 rounded-full mr-2"></span>
+                  Não
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="bankName" className="text-base font-medium">2 - Nome do Banco</Label>
+            <Input
+              id="bankName"
+              value={formData.bankName}
+              onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+              className="mt-2"
+              placeholder="Digite o nome do banco"
+            />
+          </div>
+
+          <Button type="submit" className="w-full bg-sage-300 hover:bg-sage-400 text-white">
+            Enviar
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default UploadModal;
