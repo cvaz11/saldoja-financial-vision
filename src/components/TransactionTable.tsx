@@ -1,9 +1,13 @@
 
 import { useState } from "react";
-import { ChevronDown, Search, Filter, ChevronRight, ChevronUp } from "lucide-react";
+import { ChevronDown, Search, Filter, ChevronRight, ChevronUp, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import TransactionRowCard from "./TransactionRowCard";
 
 interface Transaction {
@@ -28,6 +32,8 @@ const TransactionTable = ({ transactions, onAddTransaction, showCategories = fal
   const [activeTab, setActiveTab] = useState("Todos");
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const tabs = ["Todos", "Despesas", "Receitas", "Parcelas", "Categorias"];
 
@@ -53,6 +59,23 @@ const TransactionTable = ({ transactions, onAddTransaction, showCategories = fal
     });
   };
 
+  const parseTransactionDate = (dateString: string) => {
+    // Convert "15 de dezembro, 2024" format to Date
+    const months = {
+      'janeiro': 0, 'fevereiro': 1, 'março': 2, 'abril': 3, 'maio': 4, 'junho': 5,
+      'julho': 6, 'agosto': 7, 'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
+    };
+    
+    const parts = dateString.split(' ');
+    if (parts.length >= 4) {
+      const day = parseInt(parts[0]);
+      const month = months[parts[2] as keyof typeof months];
+      const year = parseInt(parts[3].replace(',', ''));
+      return new Date(year, month, day);
+    }
+    return new Date();
+  };
+
   const filteredTransactions = transactions.filter(transaction => {
     const matchesSearch = transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          transaction.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -73,7 +96,13 @@ const TransactionTable = ({ transactions, onAddTransaction, showCategories = fal
       }
     };
 
-    return matchesSearch && matchesTab();
+    const matchesDate = () => {
+      if (!dateFilter) return true;
+      const transactionDate = parseTransactionDate(transaction.date);
+      return transactionDate.toDateString() === dateFilter.toDateString();
+    };
+
+    return matchesSearch && matchesTab() && matchesDate();
   });
 
   // Group by category when "Categorias" tab is active
@@ -93,6 +122,11 @@ const TransactionTable = ({ transactions, onAddTransaction, showCategories = fal
       ...prev,
       [category]: !prev[category]
     }));
+  };
+
+  const clearDateFilter = () => {
+    setDateFilter(undefined);
+    setIsFilterOpen(false);
   };
 
   return (
@@ -126,15 +160,43 @@ const TransactionTable = ({ transactions, onAddTransaction, showCategories = fal
                 className="pl-10 w-full sm:w-64"
               />
             </div>
-            <div className="flex space-x-2">
-              <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
-                <Filter className="h-4 w-4 mr-2" />
-                Filtro
-              </Button>
-              <Button onClick={onAddTransaction} className="bg-sage-300 hover:bg-sage-400 text-white flex-1 sm:flex-none">
-                Adicionar Receita
-              </Button>
-            </div>
+            <Popover open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
+                  <Filter className="h-4 w-4 mr-2" />
+                  {dateFilter ? format(dateFilter, "dd/MM/yyyy") : "Filtro"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 bg-white border border-gray-200" align="end">
+                <div className="p-3 border-b border-gray-200">
+                  <h4 className="font-semibold text-sm">Filtrar por data</h4>
+                </div>
+                <CalendarComponent
+                  mode="single"
+                  selected={dateFilter}
+                  onSelect={setDateFilter}
+                  locale={ptBR}
+                  className="border-0"
+                />
+                <div className="p-3 border-t border-gray-200 flex space-x-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={clearDateFilter}
+                    className="flex-1"
+                  >
+                    Limpar
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    onClick={() => setIsFilterOpen(false)}
+                    className="flex-1 bg-sage-600 hover:bg-sage-700"
+                  >
+                    Aplicar
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       </div>
