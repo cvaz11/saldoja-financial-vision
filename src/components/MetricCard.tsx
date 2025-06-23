@@ -9,14 +9,15 @@ interface MetricCardProps {
   trend: "up" | "down";
   percentage: string;
   icon: React.ReactNode;
-  color: "green" | "blue" | "red";
+  color: "green" | "blue" | "red" | "orange";
 }
 
 const MetricCard = ({ title, value, previousValue, trend, percentage, icon, color }: MetricCardProps) => {
   const colorClasses = {
     green: "bg-sage-50 border-sage-200",
     blue: "bg-blue-50 border-blue-200", 
-    red: "bg-red-50 border-red-200"
+    red: "bg-red-50 border-red-200",
+    orange: "bg-orange-50 border-orange-200"
   };
 
   const trendColor = trend === "up" ? "text-green-600" : "text-red-600";
