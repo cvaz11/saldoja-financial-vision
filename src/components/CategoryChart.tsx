@@ -16,8 +16,8 @@ const data = [
 
 const CategoryChart = () => {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-4 sm:mb-6">
         <h3 className="text-lg font-semibold text-gray-900">Gastos por categorias</h3>
         <select className="border border-gray-300 rounded-md px-3 py-1 text-sm bg-white">
           <option>Junho</option>
@@ -26,10 +26,10 @@ const CategoryChart = () => {
         </select>
       </div>
 
-      <div className="h-80">
+      <div className="h-64 sm:h-80">
         <ScrollArea className="w-full">
-          <div className="w-[800px]">
-            <ResponsiveContainer width="100%" height={320}>
+          <div className="w-[600px] sm:w-[800px]">
+            <ResponsiveContainer width="100%" height={256}>
               <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis 

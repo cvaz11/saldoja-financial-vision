@@ -10,26 +10,24 @@ const data = [
 ];
 
 const BankPieChart = () => {
-  const total = data.reduce((sum, item) => sum + item.amount, 0);
-
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-4 sm:mb-6">
         <h3 className="text-lg font-semibold text-gray-900">Bancos</h3>
         <button className="text-gray-400 hover:text-gray-600 transition-colors">
           ↗
         </button>
       </div>
 
-      <div className="h-48 mb-4">
+      <div className="h-40 sm:h-48 mb-4">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={data}
               cx="50%"
               cy="50%"
-              innerRadius={40}
-              outerRadius={80}
+              innerRadius={30}
+              outerRadius={60}
               dataKey="value"
               startAngle={90}
               endAngle={450}
@@ -54,7 +52,7 @@ const BankPieChart = () => {
         </ResponsiveContainer>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         {data.map((item, index) => (
           <div key={index} className="flex items-center justify-between">
             <div className="flex items-center">
