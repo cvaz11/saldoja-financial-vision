@@ -2,12 +2,18 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 const data = [
-  { mes: 'Jul', receitas: 5200, despesas: 3800, resultado: 1400 },
-  { mes: 'Ago', receitas: 5500, despesas: 4100, resultado: 1400 },
-  { mes: 'Set', receitas: 5800, despesas: 4300, resultado: 1500 },
-  { mes: 'Out', receitas: 5400, despesas: 4600, resultado: 800 },
-  { mes: 'Nov', receitas: 6100, despesas: 4200, resultado: 1900 },
-  { mes: 'Dez', receitas: 6300, despesas: 1070, resultado: 5230 },
+  { mes: 'Jan', receitas: 8400, despesas: 6400 },
+  { mes: 'Fev', receitas: 7800, despesas: 5900 },
+  { mes: 'Mar', receitas: 8200, despesas: 6100 },
+  { mes: 'Abr', receitas: 8800, despesas: 6300 },
+  { mes: 'Mai', receitas: 8500, despesas: 6700 },
+  { mes: 'Jun', receitas: 9200, despesas: 5800 },
+  { mes: 'Jul', receitas: 8900, despesas: 6200 },
+  { mes: 'Ago', receitas: 9100, despesas: 6500 },
+  { mes: 'Set', receitas: 8700, despesas: 6000 },
+  { mes: 'Out', receitas: 9300, despesas: 6400 },
+  { mes: 'Nov', receitas: 8600, despesas: 5700 },
+  { mes: 'Dez', receitas: 9500, despesas: 6100 },
 ];
 
 const CashFlowChart = () => {
@@ -16,9 +22,9 @@ const CashFlowChart = () => {
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-gray-900">Fluxo de Caixa</h3>
         <select className="border border-gray-300 rounded-md px-3 py-1 text-sm bg-white">
-          <option>Últimos 6 meses</option>
-          <option>Último ano</option>
-          <option>Últimos 2 anos</option>
+          <option>2025</option>
+          <option>2024</option>
+          <option>2023</option>
         </select>
       </div>
 
@@ -34,7 +40,7 @@ const CashFlowChart = () => {
             <YAxis 
               stroke="#666"
               tick={{ fill: '#666', fontSize: 12 }}
-              tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+              tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
             />
             <Tooltip 
               contentStyle={{
@@ -43,33 +49,25 @@ const CashFlowChart = () => {
                 borderRadius: '8px',
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
               }}
-              formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
+              formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`, '']}
               labelStyle={{ color: '#374151', fontWeight: 'bold' }}
             />
             <Legend />
             <Line 
               type="monotone" 
               dataKey="receitas" 
-              stroke="#10b981" 
+              stroke="#A7BFAC" 
               strokeWidth={3}
-              name="Receitas"
-              dot={{ fill: '#10b981', strokeWidth: 2, r: 5 }}
+              name="Receita"
+              dot={{ fill: '#A7BFAC', strokeWidth: 2, r: 4 }}
             />
             <Line 
               type="monotone" 
               dataKey="despesas" 
-              stroke="#ef4444" 
+              stroke="#DDD5CC" 
               strokeWidth={3}
               name="Despesas"
-              dot={{ fill: '#ef4444', strokeWidth: 2, r: 5 }}
-            />
-            <Line 
-              type="monotone" 
-              dataKey="resultado" 
-              stroke="#A7BFAC" 
-              strokeWidth={3}
-              name="Resultado"
-              dot={{ fill: '#A7BFAC', strokeWidth: 2, r: 5 }}
+              dot={{ fill: '#DDD5CC', strokeWidth: 2, r: 4 }}
             />
           </LineChart>
         </ResponsiveContainer>

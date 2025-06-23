@@ -32,8 +32,8 @@ const TransactionTable = ({ transactions, onAddTransaction, showCategories = fal
   const getStatusBadge = (status: string) => {
     const statusColors = {
       "Pago": "bg-sage-100 text-sage-700",
-      "Não Pago": "bg-red-100 text-red-700", 
-      "Receita": "bg-blue-100 text-blue-700"
+      "Não Pago": "bg-orange-100 text-orange-700", 
+      "Receita": "bg-sage-200 text-sage-800"
     };
     
     return (
@@ -50,6 +50,41 @@ const TransactionTable = ({ transactions, onAddTransaction, showCategories = fal
       minimumFractionDigits: 2 
     });
   };
+
+  const filteredTransactions = transactions.filter(transaction => {
+    const matchesSearch = transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         transaction.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         transaction.bank.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesTab = () => {
+      switch (activeTab) {
+        case "Despesas":
+          return transaction.value < 0;
+        case "Receitas":
+          return transaction.value > 0;
+        case "Parcelas":
+          return transaction.installment !== "À vista" && transaction.installment !== "";
+        case "Categorias":
+          return true; // Show all, but grouped by category
+        default:
+          return true;
+      }
+    };
+
+    return matchesSearch && matchesTab();
+  });
+
+  // Group by category when "Categorias" tab is active
+  const groupedTransactions = activeTab === "Categorias" 
+    ? filteredTransactions.reduce((groups, transaction) => {
+        const category = transaction.category;
+        if (!groups[category]) {
+          groups[category] = [];
+        }
+        groups[category].push(transaction);
+        return groups;
+      }, {} as Record<string, Transaction[]>)
+    : null;
 
   return (
     <div className="bg-white rounded-lg border border-gray-200">
@@ -95,64 +130,108 @@ const TransactionTable = ({ transactions, onAddTransaction, showCategories = fal
 
       {/* Tabela */}
       <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-sage-100">
-            <tr>
-              <th className="text-left p-4 font-medium text-gray-700">
-                <input type="checkbox" className="mr-2" />
-                Descrição
-              </th>
-              <th className="text-left p-4 font-medium text-gray-700">
-                Valor <ChevronDown className="inline h-4 w-4" />
-              </th>
-              <th className="text-left p-4 font-medium text-gray-700">Parcela</th>
-              {showCategories && (
-                <th className="text-left p-4 font-medium text-gray-700">
-                  Categorias <ChevronDown className="inline h-4 w-4" />
-                </th>
-              )}
-              <th className="text-left p-4 font-medium text-gray-700">
-                Banco <ChevronDown className="inline h-4 w-4" />
-              </th>
-              <th className="text-left p-4 font-medium text-gray-700">Informações</th>
-              <th className="text-left p-4 font-medium text-gray-700">
-                Data <ChevronDown className="inline h-4 w-4" />
-              </th>
-              <th className="text-left p-4 font-medium text-gray-700">
-                Status <ChevronDown className="inline h-4 w-4" />
-              </th>
-              <th className="text-left p-4 font-medium text-gray-700"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.map((transaction, index) => (
-              <tr key={transaction.id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                <td className="p-4">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-sage-100 rounded-full flex items-center justify-center mr-3">
-                      💳
-                    </div>
-                    {transaction.description}
-                  </div>
-                </td>
-                <td className="p-4 font-medium">{formatCurrency(transaction.value)}</td>
-                <td className="p-4">{transaction.installment}</td>
-                {showCategories && (
-                  <td className="p-4">{transaction.category}</td>
-                )}
-                <td className="p-4">{transaction.bank}</td>
-                <td className="p-4 text-blue-600 cursor-pointer">Adicionar notas...</td>
-                <td className="p-4">{transaction.date}</td>
-                <td className="p-4">{getStatusBadge(transaction.status)}</td>
-                <td className="p-4">
-                  <button className="text-gray-400 hover:text-gray-600">
-                    ⋯
-                  </button>
-                </td>
-              </tr>
+        {activeTab === "Categorias" && groupedTransactions ? (
+          // Grouped view for categories
+          <div className="p-4 space-y-6">
+            {Object.entries(groupedTransactions).map(([category, categoryTransactions]) => (
+              <div key={category} className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="bg-sage-50 px-4 py-3 border-b border-gray-200">
+                  <h4 className="font-semibold text-gray-900">{category}</h4>
+                  <span className="text-sm text-gray-600">
+                    {categoryTransactions.length} transações
+                  </span>
+                </div>
+                <table className="w-full">
+                  <tbody>
+                    {categoryTransactions.map((transaction, index) => (
+                      <tr key={transaction.id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                        <td className="p-4">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 bg-sage-100 rounded-full flex items-center justify-center mr-3">
+                              💳
+                            </div>
+                            {transaction.description}
+                          </div>
+                        </td>
+                        <td className="p-4 font-medium">{formatCurrency(transaction.value)}</td>
+                        <td className="p-4">{transaction.installment}</td>
+                        <td className="p-4">{transaction.bank}</td>
+                        <td className="p-4 text-blue-600 cursor-pointer">Adicionar notas...</td>
+                        <td className="p-4">{transaction.date}</td>
+                        <td className="p-4">{getStatusBadge(transaction.status)}</td>
+                        <td className="p-4">
+                          <button className="text-gray-400 hover:text-gray-600">
+                            ⋯
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ))}
-          </tbody>
-        </table>
+          </div>
+        ) : (
+          // Regular table view
+          <table className="w-full">
+            <thead className="bg-sage-50">
+              <tr>
+                <th className="text-left p-4 font-medium text-gray-700">
+                  <input type="checkbox" className="mr-2" />
+                  Descrição
+                </th>
+                <th className="text-left p-4 font-medium text-gray-700">
+                  Valor <ChevronDown className="inline h-4 w-4" />
+                </th>
+                <th className="text-left p-4 font-medium text-gray-700">Parcela</th>
+                {showCategories && (
+                  <th className="text-left p-4 font-medium text-gray-700">
+                    Categorias <ChevronDown className="inline h-4 w-4" />
+                  </th>
+                )}
+                <th className="text-left p-4 font-medium text-gray-700">
+                  Banco <ChevronDown className="inline h-4 w-4" />
+                </th>
+                <th className="text-left p-4 font-medium text-gray-700">Informações</th>
+                <th className="text-left p-4 font-medium text-gray-700">
+                  Data <ChevronDown className="inline h-4 w-4" />
+                </th>
+                <th className="text-left p-4 font-medium text-gray-700">
+                  Status <ChevronDown className="inline h-4 w-4" />
+                </th>
+                <th className="text-left p-4 font-medium text-gray-700"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTransactions.map((transaction, index) => (
+                <tr key={transaction.id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <td className="p-4">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 bg-sage-100 rounded-full flex items-center justify-center mr-3">
+                        💳
+                      </div>
+                      {transaction.description}
+                    </div>
+                  </td>
+                  <td className="p-4 font-medium">{formatCurrency(transaction.value)}</td>
+                  <td className="p-4">{transaction.installment}</td>
+                  {showCategories && (
+                    <td className="p-4">{transaction.category}</td>
+                  )}
+                  <td className="p-4">{transaction.bank}</td>
+                  <td className="p-4 text-blue-600 cursor-pointer">Adicionar notas...</td>
+                  <td className="p-4">{transaction.date}</td>
+                  <td className="p-4">{getStatusBadge(transaction.status)}</td>
+                  <td className="p-4">
+                    <button className="text-gray-400 hover:text-gray-600">
+                      ⋯
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

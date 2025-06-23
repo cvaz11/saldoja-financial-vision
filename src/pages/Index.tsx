@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import MetricCard from "@/components/MetricCard";
@@ -141,7 +140,62 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Metrics Cards */}
+      {/* Layout reorganizado conforme o print */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Fluxo de Caixa - 2 colunas */}
+        <div className="lg:col-span-2">
+          <CashFlowChart />
+        </div>
+        
+        {/* Enviar Extratos - 1 coluna */}
+        <div className="bg-gradient-to-br from-sage-100 to-sage-200 rounded-xl p-6 text-center shadow-sm">
+          <Upload className="mx-auto h-16 w-16 text-sage-700 mb-4" />
+          <h3 className="font-semibold text-gray-900 mb-2">Enviar Extratos</h3>
+          <p className="text-sm text-gray-600 mb-4">Faça upload dos seus extratos em PDF</p>
+          <Button 
+            onClick={() => setIsUploadModalOpen(true)}
+            className="bg-sage-600 hover:bg-sage-700 text-white shadow-md w-full"
+          >
+            Upload PDF
+          </Button>
+        </div>
+      </div>
+
+      {/* Segunda linha */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Gastos por categoria - 2 colunas */}
+        <div className="lg:col-span-2">
+          <CategoryChart />
+        </div>
+        
+        {/* Bancos - 1 coluna */}
+        <BankPieChart />
+      </div>
+    </div>
+  );
+
+  const renderMovimentacoes = () => (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-gray-900">Movimentações</h1>
+        <div className="flex items-center space-x-2">
+          <Button variant="outline" size="sm" className="hover:bg-sage-50">
+            🔄 Atualizar
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setIsProfileOpen(true)}
+            className="hover:bg-sage-50"
+          >
+            <User className="h-4 w-4 mr-2" />
+            Perfil
+          </Button>
+        </div>
+      </div>
+
+      {/* Metrics Cards movidas para cá */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <MetricCard
           title="Total de Despesas no Mês"
@@ -149,8 +203,8 @@ const Index = () => {
           previousValue="R$ 985,30"
           trend="up"
           percentage="8.55%"
-          icon={<TrendingDown className="h-6 w-6 text-red-500" />}
-          color="red"
+          icon={<TrendingDown className="h-6 w-6 text-orange-600" />}
+          color="orange"
         />
         <MetricCard
           title="Total de Receitas no Mês"
@@ -158,7 +212,7 @@ const Index = () => {
           previousValue="R$ 5.500,00"
           trend="up"
           percentage="14.55%"
-          icon={<DollarSign className="h-6 w-6 text-green-600" />}
+          icon={<DollarSign className="h-6 w-6 text-sage-600" />}
           color="green"
         />
         <MetricCard
@@ -188,7 +242,7 @@ const Index = () => {
           previousValue="R$ 652,40"
           trend="up"
           percentage="6.11%"
-          icon={<CreditCard className="h-6 w-6 text-blue-600" />}
+          icon={<CreditCard className="h-6 w-6 text-sage-600" />}
           color="blue"
         />
         <MetricCard
@@ -197,85 +251,8 @@ const Index = () => {
           previousValue="R$ 6.850,20"
           trend="up"
           percentage="5.64%"
-          icon={<TrendingUp className="h-6 w-6 text-red-600" />}
-          color="red"
-        />
-      </div>
-
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <CashFlowChart />
-        </div>
-        <div className="space-y-6">
-          <div className="bg-gradient-to-br from-sage-100 to-sage-200 rounded-xl p-6 text-center shadow-sm">
-            <Upload className="mx-auto h-12 w-12 text-sage-700 mb-4" />
-            <h3 className="font-semibold text-gray-900 mb-2">Enviar Extratos</h3>
-            <p className="text-sm text-gray-600 mb-4">Faça upload dos seus extratos em PDF</p>
-            <Button 
-              onClick={() => setIsUploadModalOpen(true)}
-              className="bg-sage-600 hover:bg-sage-700 text-white shadow-md"
-            >
-              Upload PDF
-            </Button>
-          </div>
-          <BankPieChart />
-        </div>
-      </div>
-
-      <CategoryChart />
-    </div>
-  );
-
-  const renderMovimentacoes = () => (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Movimentações</h1>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" className="hover:bg-sage-50">
-            🔄 Atualizar
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setIsProfileOpen(true)}
-            className="hover:bg-sage-50"
-          >
-            <User className="h-4 w-4 mr-2" />
-            Perfil
-          </Button>
-        </div>
-      </div>
-
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <MetricCard
-          title="Total de Despesas no Mês"
-          value="R$ 1.069,54"
-          previousValue="R$ 985,30"
-          trend="up"
-          percentage="8.55%"
-          icon={<TrendingDown className="h-6 w-6 text-red-500" />}
-          color="red"
-        />
-        <MetricCard
-          title="Total de Receitas no Mês"
-          value="R$ 6.300,00"
-          previousValue="R$ 5.500,00"
-          trend="up"
-          percentage="14.55%"
-          icon={<DollarSign className="h-6 w-6 text-green-600" />}
-          color="green"
-        />
-        <MetricCard
-          title="Resultado do Mês"
-          value="R$ 5.230,46"
-          previousValue="R$ 4.514,70"
-          trend="up"
-          percentage="15.87%"
-          icon={<TrendingUp className="h-6 w-6 text-sage-600" />}
-          color="blue"
+          icon={<TrendingUp className="h-6 w-6 text-orange-600" />}
+          color="orange"
         />
       </div>
 

@@ -2,11 +2,11 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 const data = [
-  { name: 'Nubank', value: 35, amount: 374.40, color: '#8A2BE2' },
-  { name: 'Inter', value: 25, amount: 267.43, color: '#FF7F00' },
-  { name: 'Santander', value: 20, amount: 213.94, color: '#FF0000' },
-  { name: 'C6 Bank', value: 12, amount: 128.36, color: '#000000' },
-  { name: 'Outros', value: 8, amount: 85.58, color: '#A7BFAC' },
+  { name: 'BancoInter', value: 35, amount: 2100, color: '#A7BFAC' },
+  { name: 'Nubank', value: 30, amount: 1800, color: '#8ba290' },
+  { name: 'Digio', value: 20, amount: 1200, color: '#DDD5CC' },
+  { name: 'C6 Bank', value: 10, amount: 600, color: '#6d8471' },
+  { name: 'Santander', value: 5, amount: 300, color: '#546659' },
 ];
 
 const BankPieChart = () => {
@@ -15,7 +15,7 @@ const BankPieChart = () => {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900">Gastos por Banco</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Bancos</h3>
         <button className="text-gray-400 hover:text-gray-600 transition-colors">
           ↗
         </button>
@@ -46,7 +46,7 @@ const BankPieChart = () => {
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
               }}
               formatter={(value: number, name: string, props: any) => [
-                `R$ ${props.payload.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                `R$ ${props.payload.amount.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`,
                 `${value}%`
               ]}
             />
@@ -66,21 +66,12 @@ const BankPieChart = () => {
             </div>
             <div className="text-right">
               <span className="text-sm font-semibold text-gray-900">
-                R$ {item.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                R$ {item.amount.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
               </span>
               <div className="text-xs text-gray-500">{item.value}%</div>
             </div>
           </div>
         ))}
-      </div>
-
-      <div className="mt-4 pt-4 border-t border-gray-200">
-        <div className="flex justify-between text-sm">
-          <span className="font-medium text-gray-900">Total</span>
-          <span className="font-bold text-gray-900">
-            R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </span>
-        </div>
       </div>
     </div>
   );
