@@ -1,12 +1,52 @@
 
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface UploadSectionProps {
   onUpload: () => void;
 }
 
 const UploadSection = ({ onUpload }: UploadSectionProps) => {
+  const { user } = useAuth();
+
+  // Fetch user statements
+  const { data: statements, isLoading } = useQuery({
+    queryKey: ['statements', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from('statements')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('uploaded_at', { ascending: false })
+        .limit(6);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user
+  });
+
+  const getStatusBadge = (status: string, parsedAt: string | null) => {
+    if (status === 'processing') {
+      return <Badge className="bg-orange-100 text-orange-700">Processando</Badge>;
+    } else if (status === 'ready' && parsedAt) {
+      return <Badge className="bg-sage-100 text-sage-700">Pronto</Badge>;
+    } else if (status === 'error') {
+      return <Badge className="bg-red-100 text-red-700">Erro</Badge>;
+    }
+    return <Badge className="bg-gray-100 text-gray-700">Desconhecido</Badge>;
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR');
+  };
+
   return (
     <div className="space-y-6">
       <div className="text-center">
@@ -34,7 +74,7 @@ const UploadSection = ({ onUpload }: UploadSectionProps) => {
           <div className="bg-sage-100 p-4">
             <div className="hidden md:grid md:grid-cols-4 gap-4 font-medium text-gray-700">
               <span>Descrição</span>
-              <span>Informações</span>
+              <span>Banco</span>
               <span>Data</span>
               <span>Status</span>
             </div>
@@ -44,51 +84,45 @@ const UploadSection = ({ onUpload }: UploadSectionProps) => {
           </div>
           
           <div className="divide-y divide-gray-100">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className="p-4">
-                {/* Mobile Layout */}
-                <div className="md:hidden space-y-2">
-                  <div className="flex items-center justify-between">
+            {isLoading ? (
+              <div className="p-4 text-center text-gray-500">Carregando...</div>
+            ) : statements && statements.length > 0 ? (
+              statements.map((statement) => (
+                <div key={statement.id} className="p-4">
+                  {/* Mobile Layout */}
+                  <div className="md:hidden space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 bg-sage-100 rounded-full flex items-center justify-center mr-3">
+                          📄
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{statement.filename}</p>
+                          <p className="text-xs text-gray-500">{formatDate(statement.uploaded_at!)}</p>
+                        </div>
+                      </div>
+                      {getStatusBadge(statement.status!, statement.parsed_at)}
+                    </div>
+                    <p className="text-xs text-blue-600 ml-11">{statement.bank || 'Banco não identificado'}</p>
+                  </div>
+
+                  {/* Desktop Layout */}
+                  <div className="hidden md:grid md:grid-cols-4 gap-4 items-center">
                     <div className="flex items-center">
                       <div className="w-8 h-8 bg-sage-100 rounded-full flex items-center justify-center mr-3">
-                        💳
+                        📄
                       </div>
-                      <div>
-                        <p className="font-medium text-sm">BancoInter fatura 06-24</p>
-                        <p className="text-xs text-gray-500">20 de junho, 2024</p>
-                      </div>
+                      <span className="text-sm font-medium">{statement.filename}</span>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      index % 3 === 0 ? 'bg-sage-100 text-sage-700' : 
-                      index % 3 === 1 ? 'bg-orange-100 text-orange-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
-                      {index % 3 === 0 ? 'Pago' : index % 3 === 1 ? 'Não Pago' : 'Erro'}
-                    </span>
+                    <span className="text-sm text-blue-600">{statement.bank || 'Não identificado'}</span>
+                    <span className="text-sm">{formatDate(statement.uploaded_at!)}</span>
+                    {getStatusBadge(statement.status!, statement.parsed_at)}
                   </div>
-                  <p className="text-xs text-blue-600 ml-11">Adicionar notas...</p>
                 </div>
-
-                {/* Desktop Layout */}
-                <div className="hidden md:grid md:grid-cols-4 gap-4 items-center">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-sage-100 rounded-full flex items-center justify-center mr-3">
-                      💳
-                    </div>
-                    <span className="text-sm font-medium">BancoInter fatura 06-24</span>
-                  </div>
-                  <span className="text-sm text-blue-600">Adicionar notas...</span>
-                  <span className="text-sm">20 de junho, 2024</span>
-                  <span className={`text-xs px-2 py-1 rounded-full w-fit ${
-                    index % 3 === 0 ? 'bg-sage-100 text-sage-700' : 
-                    index % 3 === 1 ? 'bg-orange-100 text-orange-700' :
-                    'bg-red-100 text-red-700'
-                  }`}>
-                    {index % 3 === 0 ? 'Pago' : index % 3 === 1 ? 'Não Pago' : 'Erro'}
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="p-4 text-center text-gray-500">Nenhum extrato encontrado</div>
+            )}
           </div>
         </div>
       </div>
