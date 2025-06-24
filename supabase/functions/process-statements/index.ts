@@ -27,34 +27,98 @@ serve(async (req) => {
     console.log('Starting statement processing...');
     
     // Initialize Supabase client with service role key
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const serviceRoleKey = Deno.env.get('SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceRoleKey = Deno.env.get('SERVICE_ROLE_KEY');
+    
+    console.log('Environment variables check:');
+    console.log('SUPABASE_URL:', supabaseUrl ? 'SET' : 'NOT SET');
+    console.log('SERVICE_ROLE_KEY:', serviceRoleKey ? 'SET (length: ' + serviceRoleKey.length + ')' : 'NOT SET');
+    
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error('Missing required environment variables');
+      return new Response(
+        JSON.stringify({ error: 'Missing required environment variables' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // Get AWS credentials
-    const awsAccessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID')!;
-    const awsSecretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY')!;
-    const awsRegion = Deno.env.get('AWS_REGION')!;
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY')!;
+    const awsAccessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID');
+    const awsSecretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY');
+    const awsRegion = Deno.env.get('AWS_REGION');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+
+    console.log('AWS and OpenAI credentials check:');
+    console.log('AWS_ACCESS_KEY_ID:', awsAccessKeyId ? 'SET' : 'NOT SET');
+    console.log('AWS_SECRET_ACCESS_KEY:', awsSecretAccessKey ? 'SET' : 'NOT SET');
+    console.log('AWS_REGION:', awsRegion ? 'SET' : 'NOT SET');
+    console.log('OPENAI_API_KEY:', openaiApiKey ? 'SET' : 'NOT SET');
+
+    if (!awsAccessKeyId || !awsSecretAccessKey || !awsRegion || !openaiApiKey) {
+      console.error('Missing AWS or OpenAI credentials');
+      return new Response(
+        JSON.stringify({ error: 'Missing AWS or OpenAI credentials' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
 
     console.log('Environment variables loaded successfully');
 
     // 1. Select statements with status 'processing' (max 5)
+    console.log('Executing query: SELECT * FROM statements WHERE status = processing LIMIT 5');
+    
     const { data: statements, error: selectError } = await supabase
       .from('statements')
       .select('*')
       .eq('status', 'processing')
       .limit(5);
 
+    console.log('Query executed. Results:');
+    console.log('selectError:', selectError);
+    console.log('statements:', statements);
+    console.log('statements length:', statements ? statements.length : 'null/undefined');
+
     if (selectError) {
       console.error('Error selecting statements:', selectError);
-      throw selectError;
+      return new Response(
+        JSON.stringify({ error: 'Database query failed', details: selectError }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     if (!statements || statements.length === 0) {
-      console.log('No statements to process');
+      console.log('No statements found with status = processing');
+      
+      // Let's also check what statements exist in total
+      const { data: allStatements, error: allError } = await supabase
+        .from('statements')
+        .select('id, status, filename')
+        .limit(10);
+      
+      console.log('All statements check:');
+      console.log('allError:', allError);
+      console.log('allStatements:', allStatements);
+      
       return new Response(
-        JSON.stringify({ processed: 0, message: 'No statements to process' }),
+        JSON.stringify({ 
+          processed: 0, 
+          message: 'No statements to process',
+          debug: {
+            totalStatementsFound: allStatements ? allStatements.length : 0,
+            allStatements: allStatements
+          }
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -64,7 +128,7 @@ serve(async (req) => {
 
     for (const statement of statements) {
       try {
-        console.log(`Processing statement ${statement.id}`);
+        console.log(`Processing statement ${statement.id} (${statement.filename})`);
 
         // 2a. Download PDF from storage bucket using signed URL
         const { data: signedUrlData, error: urlError } = await supabase.storage
@@ -81,7 +145,7 @@ serve(async (req) => {
         // Download the PDF file
         const pdfResponse = await fetch(signedUrlData.signedUrl);
         if (!pdfResponse.ok) {
-          console.error(`Error downloading PDF for ${statement.id}`);
+          console.error(`Error downloading PDF for ${statement.id}: ${pdfResponse.status} ${pdfResponse.statusText}`);
           continue;
         }
 
