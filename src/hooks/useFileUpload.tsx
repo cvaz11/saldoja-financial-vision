@@ -1,8 +1,8 @@
 
-import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './useAuth';
-import { useToast } from './use-toast';
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "./useAuth";
+import { useToast } from "./use-toast";
 
 interface UploadData {
   file: File;
@@ -10,6 +10,11 @@ interface UploadData {
   isInvoicePaid: boolean;
 }
 
+/**
+ * Faz upload de um PDF para o bucket privado `statements`.
+ * Cada usuário grava apenas dentro da pasta `${user.id}/…` (enforcement via RLS).
+ * Depois insere um registro na tabela `public.statements` com status `processing`.
+ */
 export const useFileUpload = () => {
   const [uploading, setUploading] = useState(false);
   const { user } = useAuth();
@@ -20,106 +25,81 @@ export const useFileUpload = () => {
       toast({
         title: "Erro",
         description: "Usuário não autenticado",
-        variant: "destructive"
+        variant: "destructive",
       });
-      return { success: false };
+      return { success: false } as const;
     }
 
     setUploading(true);
 
     try {
-      // First, let's check if the bucket exists, if not create it
-      const { data: buckets } = await supabase.storage.listBuckets();
-      const bucketExists = buckets?.some(bucket => bucket.name === 'documents');
-      
-      if (!bucketExists) {
-        const { error: bucketError } = await supabase.storage.createBucket('documents', {
-          public: false,
-          fileSizeLimit: 52428800, // 50MB
-          allowedMimeTypes: ['application/pdf', 'text/csv', 'application/vnd.ms-excel']
-        });
-        
-        if (bucketError) {
-          console.error('Error creating bucket:', bucketError);
-          toast({
-            title: "Erro ao criar bucket",
-            description: "Não foi possível criar o espaço de armazenamento",
-            variant: "destructive"
-          });
-          return { success: false };
-        }
-      }
+      /* -------------------- 1. Upload -------------------- */
+      const bucketName = "statements"; // bucket já existe; não criar pelo client
+      const fileExt = data.file.name.split(".").pop();
+      const filePath = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
 
-      // Create unique file path
-      const fileExt = data.file.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-
-      // Upload file to Supabase Storage
       const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(fileName, data.file);
+        .from(bucketName)
+        .upload(filePath, data.file, {
+          cacheControl: "3600",
+        });
 
       if (uploadError) {
-        console.error('Upload error:', uploadError);
         toast({
           title: "Erro no upload",
           description: uploadError.message,
-          variant: "destructive"
+          variant: "destructive",
         });
-        return { success: false };
+        return { success: false } as const;
       }
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('documents')
-        .getPublicUrl(fileName);
+      /* -------------------- 2. URL assinada opcional -------------------- */
+      const { data: signed } = await supabase.storage
+        .from(bucketName)
+        .createSignedUrl(filePath, 300); // 5 min
+      const signedUrl = signed?.signedUrl ?? "";
 
-      // Save document info to statements table (using existing schema)
-      const currentDate = new Date();
-      const { error: dbError } = await supabase
-        .from('statements')
-        .insert({
-          user_id: user.id,
-          filename: data.file.name,
-          file_url: publicUrl,
-          bank: data.bankName,
-          status: data.isInvoicePaid ? 'processed' : 'pending',
-          uploaded_at: currentDate.toISOString(),
-          month: currentDate.getMonth() + 1,
-          year: currentDate.getFullYear()
-        });
+      /* -------------------- 3. Insert na tabela -------------------- */
+      const now = new Date();
+      const { error: dbError } = await supabase.from("statements").insert({
+        user_id: user.id,
+        filename: data.file.name,
+        file_url: filePath, // salvamos somente o path, não URL pública
+        bank: data.bankName,
+        status: "processing",
+        uploaded_at: now.toISOString(),
+        month: now.getMonth() + 1,
+        year: now.getFullYear(),
+      });
 
       if (dbError) {
-        console.error('Database error:', dbError);
         toast({
-          title: "Erro ao salvar",
+          title: "Erro ao salvar no banco",
           description: dbError.message,
-          variant: "destructive"
+          variant: "destructive",
         });
-        return { success: false };
+        return { success: false } as const;
       }
 
       toast({
         title: "Upload realizado com sucesso!",
-        description: "Seu extrato foi enviado e está sendo processado."
+        description: "Seu extrato foi enviado e está sendo processado.",
       });
 
-      return { success: true, url: publicUrl };
-    } catch (error) {
-      console.error('Unexpected error:', error);
+      return { success: true, url: signedUrl } as const;
+    } catch (err) {
+      console.error(err);
       toast({
         title: "Erro inesperado",
-        description: "Ocorreu um erro durante o upload",
-        variant: "destructive"
+        description: "Ocorreu um erro durante o upload.",
+        variant: "destructive",
       });
-      return { success: false };
+      return { success: false } as const;
     } finally {
       setUploading(false);
     }
   };
 
-  return {
-    uploadFile,
-    uploading
-  };
+  return { uploadFile, uploading } as const;
 };
+
