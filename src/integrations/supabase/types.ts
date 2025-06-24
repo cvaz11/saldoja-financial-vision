@@ -9,7 +9,122 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string | null
+          pdf_uploads_this_month: number | null
+          plan: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          pdf_uploads_this_month?: number | null
+          plan?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          pdf_uploads_this_month?: number | null
+          plan?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      statements: {
+        Row: {
+          bank: string | null
+          file_url: string
+          filename: string
+          id: string
+          month: number | null
+          parsed_at: string | null
+          status: string | null
+          total_credit: number | null
+          total_debit: number | null
+          uploaded_at: string | null
+          user_id: string | null
+          year: number | null
+        }
+        Insert: {
+          bank?: string | null
+          file_url: string
+          filename: string
+          id?: string
+          month?: number | null
+          parsed_at?: string | null
+          status?: string | null
+          total_credit?: number | null
+          total_debit?: number | null
+          uploaded_at?: string | null
+          user_id?: string | null
+          year?: number | null
+        }
+        Update: {
+          bank?: string | null
+          file_url?: string
+          filename?: string
+          id?: string
+          month?: number | null
+          parsed_at?: string | null
+          status?: string | null
+          total_credit?: number | null
+          total_debit?: number | null
+          uploaded_at?: string | null
+          user_id?: string | null
+          year?: number | null
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          category: string | null
+          description: string | null
+          id: string
+          installment_number: number | null
+          installment_total: number | null
+          is_credit: boolean | null
+          raw: Json | null
+          statement_id: string | null
+          transaction_date: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          category?: string | null
+          description?: string | null
+          id?: string
+          installment_number?: number | null
+          installment_total?: number | null
+          is_credit?: boolean | null
+          raw?: Json | null
+          statement_id?: string | null
+          transaction_date: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          category?: string | null
+          description?: string | null
+          id?: string
+          installment_number?: number | null
+          installment_total?: number | null
+          is_credit?: boolean | null
+          raw?: Json | null
+          statement_id?: string | null
+          transaction_date?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

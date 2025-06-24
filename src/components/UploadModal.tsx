@@ -4,17 +4,18 @@ import { X, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { useFileUpload } from "@/hooks/useFileUpload";
 
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit?: (data: any) => void;
 }
 
 const UploadModal = ({ isOpen, onClose, onSubmit }: UploadModalProps) => {
-  const [step, setStep] = useState(1);
+  const { uploadFile, uploading } = useFileUpload();
   const [formData, setFormData] = useState({
-    file: null,
+    file: null as File | null,
     isInvoicePaid: true,
     bankName: ""
   });
@@ -26,12 +27,26 @@ const UploadModal = ({ isOpen, onClose, onSubmit }: UploadModalProps) => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
-    setFormData({ file: null, isInvoicePaid: true, bankName: "" });
-    setStep(1);
-    onClose();
+    
+    if (!formData.file || !formData.bankName) {
+      return;
+    }
+
+    const result = await uploadFile({
+      file: formData.file,
+      bankName: formData.bankName,
+      isInvoicePaid: formData.isInvoicePaid
+    });
+
+    if (result.success) {
+      setFormData({ file: null, isInvoicePaid: true, bankName: "" });
+      onClose();
+      if (onSubmit) {
+        onSubmit(formData);
+      }
+    }
   };
 
   if (!isOpen) return null;
@@ -40,6 +55,7 @@ const UploadModal = ({ isOpen, onClose, onSubmit }: UploadModalProps) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4">
         <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold">Enviar Extrato</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="h-5 w-5" />
           </button>
@@ -64,6 +80,11 @@ const UploadModal = ({ isOpen, onClose, onSubmit }: UploadModalProps) => {
             >
               Selecionar Arquivo
             </Label>
+            {formData.file && (
+              <p className="mt-2 text-sm text-green-600">
+                Arquivo selecionado: {formData.file.name}
+              </p>
+            )}
           </div>
 
           <div>
@@ -106,11 +127,16 @@ const UploadModal = ({ isOpen, onClose, onSubmit }: UploadModalProps) => {
               onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
               className="mt-2"
               placeholder="Digite o nome do banco"
+              required
             />
           </div>
 
-          <Button type="submit" className="w-full bg-sage-300 hover:bg-sage-400 text-white">
-            Enviar
+          <Button 
+            type="submit" 
+            className="w-full bg-sage-600 hover:bg-sage-700 text-white"
+            disabled={uploading || !formData.file || !formData.bankName}
+          >
+            {uploading ? "Enviando..." : "Enviar"}
           </Button>
         </form>
       </div>

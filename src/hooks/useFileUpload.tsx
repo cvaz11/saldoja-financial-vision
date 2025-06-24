@@ -1,0 +1,101 @@
+
+import { useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './useAuth';
+import { useToast } from './use-toast';
+
+interface UploadData {
+  file: File;
+  bankName: string;
+  isInvoicePaid: boolean;
+}
+
+export const useFileUpload = () => {
+  const [uploading, setUploading] = useState(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const uploadFile = async (data: UploadData) => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive"
+      });
+      return { success: false };
+    }
+
+    setUploading(true);
+
+    try {
+      // Create unique file path
+      const fileExt = data.file.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+      // Upload file to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(fileName, data.file);
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        toast({
+          title: "Erro no upload",
+          description: uploadError.message,
+          variant: "destructive"
+        });
+        return { success: false };
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('documents')
+        .getPublicUrl(fileName);
+
+      // Save document info to database
+      const { error: dbError } = await supabase
+        .from('documents')
+        .insert({
+          user_id: user.id,
+          file_name: data.file.name,
+          file_path: fileName,
+          file_size: data.file.size,
+          file_type: data.file.type,
+          bank_name: data.bankName,
+          is_invoice_paid: data.isInvoicePaid
+        });
+
+      if (dbError) {
+        console.error('Database error:', dbError);
+        toast({
+          title: "Erro ao salvar",
+          description: dbError.message,
+          variant: "destructive"
+        });
+        return { success: false };
+      }
+
+      toast({
+        title: "Upload realizado com sucesso!",
+        description: "Seu extrato foi enviado e está sendo processado."
+      });
+
+      return { success: true, url: publicUrl };
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      toast({
+        title: "Erro inesperado",
+        description: "Ocorreu um erro durante o upload",
+        variant: "destructive"
+      });
+      return { success: false };
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return {
+    uploadFile,
+    uploading
+  };
+};
