@@ -52,17 +52,19 @@ export const useFileUpload = () => {
         .from('documents')
         .getPublicUrl(fileName);
 
-      // Save document info to database
+      // Save document info to statements table (using existing schema)
+      const currentDate = new Date();
       const { error: dbError } = await supabase
-        .from('documents')
+        .from('statements')
         .insert({
           user_id: user.id,
-          file_name: data.file.name,
-          file_path: fileName,
-          file_size: data.file.size,
-          file_type: data.file.type,
-          bank_name: data.bankName,
-          is_invoice_paid: data.isInvoicePaid
+          filename: data.file.name,
+          file_url: publicUrl,
+          bank: data.bankName,
+          status: data.isInvoicePaid ? 'processed' : 'pending',
+          uploaded_at: currentDate.toISOString(),
+          month: currentDate.getMonth() + 1,
+          year: currentDate.getFullYear()
         });
 
       if (dbError) {
