@@ -28,6 +28,28 @@ export const useFileUpload = () => {
     setUploading(true);
 
     try {
+      // First, let's check if the bucket exists, if not create it
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const bucketExists = buckets?.some(bucket => bucket.name === 'documents');
+      
+      if (!bucketExists) {
+        const { error: bucketError } = await supabase.storage.createBucket('documents', {
+          public: false,
+          fileSizeLimit: 52428800, // 50MB
+          allowedMimeTypes: ['application/pdf', 'text/csv', 'application/vnd.ms-excel']
+        });
+        
+        if (bucketError) {
+          console.error('Error creating bucket:', bucketError);
+          toast({
+            title: "Erro ao criar bucket",
+            description: "Não foi possível criar o espaço de armazenamento",
+            variant: "destructive"
+          });
+          return { success: false };
+        }
+      }
+
       // Create unique file path
       const fileExt = data.file.name.split('.').pop();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
