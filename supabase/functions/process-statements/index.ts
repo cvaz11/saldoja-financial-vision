@@ -10,7 +10,7 @@ import {
 GlobalWorkerOptions.workerSrc =
   "https://esm.sh/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
 
-console.log("[PDFJS] workerSrc set ✔");
+console.log("[PDFJS] workerSrc set to remote URL");
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,7 +37,7 @@ const extractTextFromPDF = async (fileData: Blob): Promise<string> => {
     console.log(`[PDF] size=${pdfBuffer.length} bytes`);
     
     // Load the PDF document
-    const pdf = await getDocument({ data: pdfBuffer }).promise;
+    const pdf = await getDocument({ data: new Uint8Array(pdfBuffer) }).promise;
     console.log(`[PDF] pages=${pdf.numPages}`);
     
     let fullText = "";
