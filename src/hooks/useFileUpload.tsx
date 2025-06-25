@@ -33,10 +33,14 @@ export const useFileUpload = () => {
     setUploading(true);
 
     try {
+      console.log('Starting file upload for user:', user.id);
+      
       /* -------------------- 1. Upload -------------------- */
-      const bucketName = "statements"; // bucket já existe; não criar pelo client
+      const bucketName = "statements";
       const fileExt = data.file.name.split(".").pop();
       const filePath = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
+
+      console.log('Uploading file to path:', filePath);
 
       const { error: uploadError } = await supabase.storage
         .from(bucketName)
@@ -45,6 +49,7 @@ export const useFileUpload = () => {
         });
 
       if (uploadError) {
+        console.error('Upload error:', uploadError);
         toast({
           title: "Erro no upload",
           description: uploadError.message,
@@ -53,26 +58,29 @@ export const useFileUpload = () => {
         return { success: false } as const;
       }
 
-      /* -------------------- 2. URL assinada opcional -------------------- */
-      const { data: signed } = await supabase.storage
-        .from(bucketName)
-        .createSignedUrl(filePath, 300); // 5 min
-      const signedUrl = signed?.signedUrl ?? "";
+      console.log('File uploaded successfully');
 
-      /* -------------------- 3. Insert na tabela -------------------- */
+      /* -------------------- 2. Insert na tabela -------------------- */
       const now = new Date();
-      const { error: dbError } = await supabase.from("statements").insert({
+      const insertData = {
         user_id: user.id,
         filename: data.file.name,
-        file_url: filePath, // salvamos somente o path, não URL pública
+        file_url: filePath,
         bank: data.bankName,
         status: "processing",
         uploaded_at: now.toISOString(),
         month: now.getMonth() + 1,
         year: now.getFullYear(),
-      });
+      };
+
+      console.log('Inserting statement record:', insertData);
+
+      const { error: dbError } = await supabase
+        .from("statements")
+        .insert(insertData);
 
       if (dbError) {
+        console.error('Database insert error:', dbError);
         toast({
           title: "Erro ao salvar no banco",
           description: dbError.message,
@@ -81,15 +89,30 @@ export const useFileUpload = () => {
         return { success: false } as const;
       }
 
+      console.log('Statement record inserted successfully');
+
       // Enhanced success toast with processing info
       toast({
         title: "🚀 Arquivo enviado! Analisando...",
         description: "Nossa IA está processando seu extrato (5-8 min). Você será redirecionado automaticamente.",
       });
 
-      return { success: true, url: signedUrl } as const;
+      // Trigger the processing function
+      console.log('Triggering process-statements function...');
+      try {
+        const { error: functionError } = await supabase.functions.invoke('process-statements');
+        if (functionError) {
+          console.error('Error invoking process-statements function:', functionError);
+        } else {
+          console.log('Process-statements function invoked successfully');
+        }
+      } catch (funcError) {
+        console.error('Error calling process-statements function:', funcError);
+      }
+
+      return { success: true } as const;
     } catch (err) {
-      console.error(err);
+      console.error('Unexpected error in file upload:', err);
       toast({
         title: "Erro inesperado",
         description: "Ocorreu um erro durante o upload.",

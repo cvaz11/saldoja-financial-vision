@@ -26,7 +26,10 @@ const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangeP
   const [mode, setMode] = useState<DateRangeMode>('single');
   const [isOpen, setIsOpen] = useState(false);
   const [selectedMonths, setSelectedMonths] = useState<Date[]>([new Date()]);
-  const [customRange, setCustomRange] = useState<{ from?: Date; to?: Date }>({});
+  const [customRange, setCustomRange] = useState<{ from?: Date; to?: Date }>({
+    from: dateRange.from,
+    to: dateRange.to
+  });
 
   const handleModeChange = (newMode: DateRangeMode) => {
     setMode(newMode);
@@ -36,6 +39,9 @@ const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangeP
       const monthStart = startOfMonth(now);
       const monthEnd = endOfMonth(now);
       onDateRangeChange({ from: monthStart, to: monthEnd });
+    } else if (newMode === 'range') {
+      // Initialize custom range with current dateRange
+      setCustomRange({ from: dateRange.from, to: dateRange.to });
     }
   };
 
@@ -62,6 +68,13 @@ const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangeP
     if (customRange.from && customRange.to) {
       onDateRangeChange({ from: customRange.from, to: customRange.to });
       setIsOpen(false);
+    }
+  };
+
+  const handleRangeSelect = (range: { from?: Date; to?: Date } | undefined) => {
+    console.log('Range selected:', range);
+    if (range) {
+      setCustomRange(range);
     }
   };
 
@@ -116,7 +129,7 @@ const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangeP
               mode="multiple"
               selected={selectedMonths}
               onSelect={(dates) => setSelectedMonths(dates || [])}
-              className={cn("p-3 pointer-events-auto")}
+              className="p-3 pointer-events-auto"
               showOutsideDays={false}
             />
             <Button 
@@ -137,10 +150,20 @@ const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangeP
             <Calendar
               mode="range"
               selected={{ from: customRange.from, to: customRange.to }}
-              onSelect={(range) => setCustomRange(range || {})}
-              className={cn("p-3 pointer-events-auto")}
+              onSelect={handleRangeSelect}
+              className="p-3 pointer-events-auto"
               showOutsideDays={false}
+              numberOfMonths={2}
             />
+            <div className="px-3 text-xs text-gray-600">
+              {customRange.from && customRange.to ? (
+                `${format(customRange.from, "dd/MM/yyyy", { locale: ptBR })} - ${format(customRange.to, "dd/MM/yyyy", { locale: ptBR })}`
+              ) : customRange.from ? (
+                `Início: ${format(customRange.from, "dd/MM/yyyy", { locale: ptBR })}`
+              ) : (
+                "Selecione o período inicial e final"
+              )}
+            </div>
             <Button 
               onClick={handleCustomRangeApply}
               disabled={!customRange.from || !customRange.to}

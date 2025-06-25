@@ -32,7 +32,10 @@ const UploadSection = ({ onUpload }: UploadSectionProps) => {
         .order('uploaded_at', { ascending: false })
         .limit(6);
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching statements:', error);
+        throw error;
+      }
       return data || [];
     },
     enabled: !!user
@@ -41,6 +44,8 @@ const UploadSection = ({ onUpload }: UploadSectionProps) => {
   // Setup realtime subscription for statements
   useEffect(() => {
     if (!user) return;
+
+    console.log('Setting up realtime subscription for user:', user.id);
 
     const channel = supabase
       .channel('statements-changes')
@@ -72,9 +77,12 @@ const UploadSection = ({ onUpload }: UploadSectionProps) => {
           refetch();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Realtime channel status:', status);
+      });
 
     return () => {
+      console.log('Cleaning up realtime subscription');
       supabase.removeChannel(channel);
     };
   }, [user, refetch]);
