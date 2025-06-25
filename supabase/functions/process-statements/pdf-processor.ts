@@ -7,51 +7,96 @@ export const extractTextFromPDF = async (fileData: Blob): Promise<string> => {
     const arrayBuffer = await fileData.arrayBuffer();
     console.log(`[PDF] PDF file size: ${arrayBuffer.byteLength} bytes`);
     
-    // For now, we'll use a simple text extraction approach
-    // that works reliably in Edge Functions environment
+    // Convert to Uint8Array for processing
     const uint8Array = new Uint8Array(arrayBuffer);
     
-    // Convert PDF bytes to text using a simple approach
+    // Try to extract text using multiple approaches
     let extractedText = '';
-    const decoder = new TextDecoder('utf-8', { fatal: false });
     
-    // Extract readable text from PDF buffer
-    // This is a simplified approach that works with most PDF formats
-    const textChunks = [];
-    for (let i = 0; i < uint8Array.length - 4; i++) {
-      // Look for text patterns in PDF
-      if (uint8Array[i] === 0x42 && uint8Array[i + 1] === 0x54) { // "BT" (Begin Text)
-        let chunk = '';
-        for (let j = i + 2; j < Math.min(i + 200, uint8Array.length); j++) {
-          const char = uint8Array[j];
-          if (char >= 32 && char <= 126) { // Printable ASCII
-            chunk += String.fromCharCode(char);
-          } else if (char === 10 || char === 13) { // Line breaks
-            chunk += '\n';
-          }
-        }
-        if (chunk.trim().length > 3) {
-          textChunks.push(chunk.trim());
+    // Method 1: Look for text streams in PDF
+    const textDecoder = new TextDecoder('utf-8', { fatal: false });
+    const pdfString = textDecoder.decode(uint8Array);
+    
+    // Extract text between BT (Begin Text) and ET (End Text) markers
+    const textBlocks = [];
+    const btPattern = /BT\s+(.*?)\s+ET/gs;
+    let match;
+    
+    while ((match = btPattern.exec(pdfString)) !== null) {
+      const textBlock = match[1];
+      if (textBlock && textBlock.length > 5) {
+        // Clean up the text block
+        const cleanText = textBlock
+          .replace(/\s+/g, ' ')
+          .replace(/[^\x20-\x7E\u00A0-\u00FF]/g, ' ')
+          .trim();
+        
+        if (cleanText.length > 10) {
+          textBlocks.push(cleanText);
         }
       }
     }
     
-    // Also try simple string extraction
-    const rawText = decoder.decode(uint8Array).replace(/[^\x20-\x7E\n\r]/g, ' ');
-    const lines = rawText.split(/[\n\r]+/).filter(line => 
-      line.trim().length > 5 && 
-      /[a-zA-Z0-9]/.test(line) &&
-      !line.includes('obj') &&
-      !line.includes('endobj')
-    );
+    // Method 2: Look for Tj operators (show text)
+    const tjPattern = /\((.*?)\)\s*Tj/g;
+    const tjTexts = [];
     
-    extractedText = [...textChunks, ...lines].join('\n').trim();
+    while ((match = tjPattern.exec(pdfString)) !== null) {
+      const text = match[1];
+      if (text && text.length > 2) {
+        tjTexts.push(text);
+      }
+    }
+    
+    // Method 3: Extract readable ASCII text
+    const asciiText = [];
+    let currentText = '';
+    
+    for (let i = 0; i < uint8Array.length; i++) {
+      const byte = uint8Array[i];
+      
+      if (byte >= 32 && byte <= 126) { // Printable ASCII
+        currentText += String.fromCharCode(byte);
+      } else if (byte === 10 || byte === 13) { // Line breaks
+        if (currentText.trim().length > 5) {
+          asciiText.push(currentText.trim());
+        }
+        currentText = '';
+      } else {
+        if (currentText.trim().length > 5) {
+          asciiText.push(currentText.trim());
+        }
+        currentText = '';
+      }
+    }
+    
+    // Add final text if exists
+    if (currentText.trim().length > 5) {
+      asciiText.push(currentText.trim());
+    }
+    
+    // Combine all extracted text
+    const allText = [
+      ...textBlocks,
+      ...tjTexts,
+      ...asciiText.filter(text => 
+        text.length > 10 && 
+        !/^[0-9\s\.\-\+\/\\<>]+$/.test(text) && // Skip pure numbers/symbols
+        !text.includes('obj') &&
+        !text.includes('endobj') &&
+        !text.includes('stream') &&
+        !text.includes('endstream')
+      )
+    ];
+    
+    extractedText = allText.join('\n').trim();
     
     console.log(`[PDF] Extracted text length: ${extractedText.length} characters`);
-    console.log(`[PDF] Sample text: ${extractedText.substring(0, 200)}...`);
+    console.log(`[PDF] Sample text preview:`, extractedText.substring(0, 500));
     
     if (extractedText.length === 0) {
-      throw new Error('No text could be extracted from the PDF');
+      console.log('[PDF] No text extracted, PDF might be image-based or encrypted');
+      throw new Error('No text could be extracted from the PDF. The PDF might be image-based or encrypted.');
     }
     
     return extractedText;

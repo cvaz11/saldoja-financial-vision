@@ -21,21 +21,21 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
       throw new Error('Downloaded file is empty');
     }
     
-    console.log('[PARSE] File downloaded successfully');
+    console.log('[PARSE] File downloaded successfully, size:', fileData.size);
     
     // Extract text from PDF
     const extractedText = await extractTextFromPDF(fileData);
-    console.log(`[PARSE] Text extracted: ${extractedText.length} characters`);
+    console.log(`[PARSE] Text extracted successfully: ${extractedText.length} characters`);
     
     // Process text with OpenAI
     const validTransactions = await processTextWithOpenAI(extractedText);
-    console.log(`[PARSE] Found ${validTransactions.length} valid transactions`);
+    console.log(`[PARSE] OpenAI processing complete: ${validTransactions.length} transactions found`);
     
     return validTransactions;
     
   } catch (error) {
-    console.error('[PARSE] Error:', error);
-    return [];
+    console.error('[PARSE] Error processing statement:', error);
+    throw error; // Re-throw to be handled by the calling function
   }
 };
 
@@ -46,14 +46,20 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
     console.log(`\n=== PROCESSING STATEMENT ${statement.id} ===`);
     console.log(`File: ${statement.filename}`);
     console.log(`User: ${statement.user_id}`);
+    console.log(`File URL: ${statement.file_url}`);
 
     // Parse the statement
     const extractedTransactions = await parseStatementContent(statement.file_url, supabase);
     
-    console.log(`[PROCESS] Processing ${extractedTransactions.length} transactions`);
+    console.log(`[PROCESS] Found ${extractedTransactions.length} transactions to process`);
 
-    // Insert transactions (even if empty)
-    await insertTransactions(supabase, extractedTransactions, statement.id, statement.user_id);
+    // Insert transactions 
+    if (extractedTransactions.length > 0) {
+      await insertTransactions(supabase, extractedTransactions, statement.id, statement.user_id);
+      console.log(`[PROCESS] Successfully inserted ${extractedTransactions.length} transactions`);
+    } else {
+      console.log(`[PROCESS] No transactions to insert`);
+    }
 
     // Update statement status to ready
     await updateStatementStatus(supabase, statement.id, 'ready', extractedTransactions);

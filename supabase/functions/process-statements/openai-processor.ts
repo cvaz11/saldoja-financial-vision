@@ -38,40 +38,42 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
     }
     
     console.log(`[GPT] Processing text of ${extractedText.length} characters`);
+    console.log(`[GPT] Text preview for analysis:`, extractedText.substring(0, 1000));
     
-    // If text is too short or seems invalid, return empty
-    if (extractedText.length < 50) {
+    // If text is too short, return empty
+    if (extractedText.length < 20) {
       console.log('[GPT] Text too short, returning empty array');
       return [];
     }
     
-    const prompt = `Analise o seguinte extrato bancário brasileiro e extraia APENAS as transações de DÉBITO (saídas de dinheiro).
+    const prompt = `Analise o seguinte extrato bancário brasileiro e extraia APENAS as transações de DÉBITO/SAÍDA (gastos).
 
-REGRAS CRÍTICAS:
-- Extraia apenas transações reais de DÉBITO/SAÍDA (valores negativos)
-- IGNORE completamente receitas, depósitos, salários, PIX recebidos e qualquer entrada de dinheiro
-- Retorne apenas transações com amount NEGATIVO (valores positivos serão ignorados)
+REGRAS IMPORTANTES:
+- Extraia apenas transações REAIS que estão no texto
+- IGNORE receitas, depósitos, transferências recebidas, salários recebidos
+- Retorne apenas transações com valor NEGATIVO (débitos/gastos)
 - Para cada transação, identifique: data, descrição, valor negativo e categoria
+- Use o formato de data YYYY-MM-DD
+- Valores devem ser negativos (ex: -150.50 para um gasto de R$ 150,50)
+- Descrições devem ser claras e concisas
 - Use apenas estas categorias: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Outros"
-- Datas no formato YYYY-MM-DD
-- Descrições claras e objetivas (máximo 50 caracteres)
-- Se não encontrar transações de débito válidas, retorne um array vazio []
-- NÃO INVENTE dados que não estão no extrato
 
 FORMATO DE RESPOSTA (JSON válido):
 [
   {
     "date": "YYYY-MM-DD",
     "description": "Descrição da transação",
-    "amount": -valor_numérico_negativo,
+    "amount": -valor_numerico_negativo,
     "category": "categoria_apropriada"
   }
 ]
 
-EXTRATO BANCÁRIO:
+TEXTO DO EXTRATO:
 ${extractedText}
 
-RETORNE APENAS O JSON ARRAY com transações de DÉBITO (valores negativos), sem texto adicional. Se não houver débitos, retorne [].`;
+IMPORTANTE: Retorne APENAS o JSON array. Se não encontrar transações de débito, retorne []. NÃO adicione explicações ou texto extra.`;
+    
+    console.log('[GPT] Sending request to OpenAI...');
     
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -84,7 +86,7 @@ RETORNE APENAS O JSON ARRAY com transações de DÉBITO (valores negativos), sem
         messages: [
           {
             role: 'system',
-            content: 'Você é um especialista em análise de extratos bancários brasileiros. NUNCA invente dados. Sempre retorne apenas um JSON array válido com as transações de DÉBITO encontradas no texto. Ignore completamente receitas e entradas de dinheiro. Se não encontrar débitos válidos, retorne um array vazio [].'
+            content: 'Você é um especialista em análise de extratos bancários brasileiros. Extraia apenas transações de DÉBITO reais do texto fornecido. Sempre retorne um JSON array válido, mesmo que vazio. NUNCA invente dados que não estão no texto.'
           },
           {
             role: 'user',
@@ -114,14 +116,14 @@ RETORNE APENAS O JSON ARRAY com transações de DÉBITO (valores negativos), sem
       .replace(/```/g, '')
       .trim();
     
-    console.log('[GPT] Cleaned response preview:', extractedTransactionsText.substring(0, 300) + '...');
+    console.log('[GPT] Cleaned response:', extractedTransactionsText.substring(0, 500));
     
     let transactions: any[];
     try {
       transactions = JSON.parse(extractedTransactionsText);
     } catch (parseError) {
       console.error('[GPT] JSON parse error:', parseError);
-      console.log('[GPT] Failed text:', extractedTransactionsText);
+      console.log('[GPT] Failed to parse text:', extractedTransactionsText);
       return [];
     }
     
@@ -130,20 +132,21 @@ RETORNE APENAS O JSON ARRAY com transações de DÉBITO (valores negativos), sem
       return [];
     }
     
+    console.log(`[GPT] Parsed ${transactions.length} transactions from OpenAI`);
+    
     // Filter to ensure only negative amounts (debits)
     const debitTransactions = transactions.filter(t => t.amount && t.amount < 0);
-    console.log(`[GPT] Filtered to ${debitTransactions.length} debit transactions from ${transactions.length} total`);
+    console.log(`[GPT] Filtered to ${debitTransactions.length} debit transactions`);
     
     const validTransactions = debitTransactions.filter(validateTransaction);
     
-    console.log(`[VALIDATION] Found ${validTransactions.length} valid debit transactions out of ${debitTransactions.length} filtered`);
+    console.log(`[VALIDATION] Found ${validTransactions.length} valid debit transactions`);
     
     if (validTransactions.length === 0) {
-      console.log('[VALIDATION] No valid debit transactions found');
-      return [];
+      console.log('[VALIDATION] No valid debit transactions found in the text');
+    } else {
+      console.log('[VALIDATION] Sample valid transaction:', validTransactions[0]);
     }
-    
-    console.log('[VALIDATION] Sample transaction:', validTransactions[0]);
     
     return validTransactions;
     
