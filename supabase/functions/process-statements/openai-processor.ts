@@ -52,8 +52,6 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
             role: 'system',
             content: `Você é um especialista em análise de extratos bancários brasileiros. Analise o extrato fornecido e extraia TODAS as transações financeiras.
 
-IMPORTANTE: Retorne APENAS transações reais e válidas encontradas no extrato.
-
 FORMATO DE RESPOSTA (JSON válido):
 [
   {
@@ -64,17 +62,17 @@ FORMATO DE RESPOSTA (JSON válido):
   }
 ]
 
-REGRAS:
-- date: formato YYYY-MM-DD
+REGRAS IMPORTANTES:
+- date: formato YYYY-MM-DD (converta datas DD/MM/YYYY)
 - amount: positivo para entradas, negativo para saídas
 - category: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Salário", "Outros"
-- description: máximo 50 caracteres, descritiva
+- description: máximo 50 caracteres, sem acentos especiais
 
-RETORNE APENAS O JSON, sem texto adicional.`
+RETORNE APENAS O JSON ARRAY, sem texto adicional.`
           },
           {
             role: 'user',
-            content: `Extraia as transações deste extrato:\n\n${extractedText}`
+            content: `Extraia as transações deste extrato bancário:\n\n${extractedText}`
           }
         ],
         max_tokens: 4000,
@@ -85,7 +83,7 @@ RETORNE APENAS O JSON, sem texto adicional.`
     if (!openAIResponse.ok) {
       const errorText = await openAIResponse.text();
       console.error('[GPT] API error:', errorText);
-      throw new Error(`OpenAI API error: ${openAIResponse.status}`);
+      throw new Error(`OpenAI API error: ${openAIResponse.status} - ${errorText}`);
     }
     
     const openAIResult = await openAIResponse.json();
@@ -101,7 +99,7 @@ RETORNE APENAS O JSON, sem texto adicional.`
       extractedTransactionsText = extractedTransactionsText.replace(/```\n?/g, '');
     }
     
-    console.log('[GPT] Cleaned response:', extractedTransactionsText.substring(0, 500));
+    console.log('[GPT] Cleaned response preview:', extractedTransactionsText.substring(0, 200) + '...');
     
     let transactions: any[];
     try {
@@ -109,11 +107,11 @@ RETORNE APENAS O JSON, sem texto adicional.`
     } catch (parseError) {
       console.error('[GPT] JSON parse error:', parseError);
       console.log('[GPT] Failed text:', extractedTransactionsText);
-      throw new Error('Failed to parse OpenAI response as JSON');
+      throw new Error(`Failed to parse OpenAI response as JSON: ${parseError.message}`);
     }
     
     if (!Array.isArray(transactions)) {
-      console.error('[GPT] Response is not an array');
+      console.error('[GPT] Response is not an array:', typeof transactions);
       throw new Error('OpenAI response is not an array');
     }
     

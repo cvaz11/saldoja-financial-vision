@@ -11,26 +11,16 @@ export const useTransactions = (dateRange: DateRange) => {
     queryKey: ['transactions', user?.id, dateRange.from.toISOString(), dateRange.to.toISOString()],
     queryFn: async () => {
       if (!user) {
-        console.log('No user found, returning empty array');
+        console.log('[TRANSACTIONS] No user found, returning empty array');
         return [];
       }
       
       const fromDate = dateRange.from.toISOString().split('T')[0];
       const toDate = dateRange.to.toISOString().split('T')[0];
       
-      console.log('Fetching transactions for user:', user.id);
-      console.log('Date range:', fromDate, 'to', toDate);
+      console.log('[TRANSACTIONS] Fetching for user:', user.id);
+      console.log('[TRANSACTIONS] Date range:', fromDate, 'to', toDate);
       
-      // First, let's check if we have any transactions at all for this user
-      const { data: allTransactions, error: allError } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', user.id);
-      
-      console.log('All transactions for user:', allTransactions);
-      console.log('All transactions error:', allError);
-      
-      // Now get transactions in date range
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
@@ -40,14 +30,15 @@ export const useTransactions = (dateRange: DateRange) => {
         .order('transaction_date', { ascending: false });
       
       if (error) {
-        console.error('Error fetching transactions:', error);
+        console.error('[TRANSACTIONS] Error fetching:', error);
         throw error;
       }
       
-      console.log('Fetched transactions in date range:', data);
+      console.log(`[TRANSACTIONS] Fetched ${data?.length || 0} transactions`);
       return data || [];
     },
     enabled: !!user,
-    refetchInterval: 5000, // Refetch every 5 seconds to catch new transactions
+    refetchInterval: 3000, // Check for new transactions every 3 seconds
+    staleTime: 1000, // Consider data stale after 1 second
   });
 };

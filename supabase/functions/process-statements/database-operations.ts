@@ -9,6 +9,22 @@ export const insertTransactions = async (
 ) => {
   console.log(`[DB] Preparing to insert ${transactions.length} transactions...`);
   
+  // First, check if we already have transactions for this statement
+  const { data: existingTransactions, error: checkError } = await supabase
+    .from('transactions')
+    .select('id')
+    .eq('statement_id', statementId);
+
+  if (checkError) {
+    console.error(`[DB] Error checking existing transactions:`, checkError);
+    throw new Error(`Database check failed: ${checkError.message}`);
+  }
+
+  if (existingTransactions && existingTransactions.length > 0) {
+    console.log(`[DB] Statement ${statementId} already has ${existingTransactions.length} transactions, skipping insert`);
+    return existingTransactions;
+  }
+
   const transactionInserts = transactions.map(transaction => ({
     statement_id: statementId,
     user_id: userId,
@@ -23,10 +39,13 @@ export const insertTransactions = async (
 
   console.log(`[DB] Sample transaction insert:`, transactionInserts[0]);
   
-  // Insert transactions
+  // Insert transactions with ON CONFLICT handling
   const { error: insertError, data: insertedData } = await supabase
     .from('transactions')
-    .insert(transactionInserts)
+    .upsert(transactionInserts, { 
+      onConflict: 'user_id,transaction_date,description,amount,category',
+      ignoreDuplicates: true 
+    })
     .select();
 
   if (insertError) {
@@ -35,7 +54,7 @@ export const insertTransactions = async (
   }
 
   const insertedCount = insertedData?.length || 0;
-  console.log(`[DB] Successfully inserted ${insertedCount} transactions`);
+  console.log(`[DB] Successfully inserted/updated ${insertedCount} transactions`);
   return insertedData;
 };
 
