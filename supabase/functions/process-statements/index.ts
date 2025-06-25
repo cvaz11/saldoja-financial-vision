@@ -17,9 +17,45 @@ interface Transaction {
   installment_total?: number;
 }
 
+const extractTextFromPDF = async (fileData: Blob): Promise<string> => {
+  try {
+    console.log('[PDF] Starting text extraction...');
+    
+    // Convert blob to array buffer
+    const arrayBuffer = await fileData.arrayBuffer();
+    const pdfBuffer = new Uint8Array(arrayBuffer);
+    
+    console.log(`[PDF] size=${pdfBuffer.length} bytes`);
+    
+    // Import pdfjs-dist for text extraction
+    const pdfjsLib = await import('https://esm.sh/pdfjs-dist@4.0.379/build/pdf.min.mjs');
+    
+    // Load the PDF document
+    const pdf = await pdfjsLib.getDocument({ data: pdfBuffer }).promise;
+    console.log(`[PDF] pages=${pdf.numPages}`);
+    
+    let fullText = "";
+    
+    // Extract text from each page
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map((item: any) => item.str).join(" ");
+      fullText += pageText + "\n";
+    }
+    
+    console.log(`[PDF] Extracted text length: ${fullText.length} characters`);
+    return fullText.trim();
+    
+  } catch (error) {
+    console.error('[PDF] Error extracting text:', error);
+    throw new Error(`Failed to extract text from PDF: ${error.message}`);
+  }
+};
+
 const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`Downloading PDF from: ${fileUrl}`);
+    console.log(`[PDF] Downloading from: ${fileUrl}`);
     
     // Download the PDF file from Supabase storage
     const { data: fileData, error: downloadError } = await supabase.storage
@@ -27,19 +63,30 @@ const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Tr
       .download(fileUrl);
     
     if (downloadError) {
-      console.error('Error downloading PDF:', downloadError);
+      console.error('[PDF] Error downloading:', downloadError);
       throw new Error(`Failed to download PDF: ${downloadError.message}`);
     }
     
-    console.log('PDF downloaded successfully, size:', fileData.size);
+    console.log('[PDF] Downloaded successfully');
     
-    // Convert the file to base64 for processing
-    const arrayBuffer = await fileData.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    // Extract text from PDF
+    const extractedText = await extractTextFromPDF(fileData);
     
-    console.log('PDF converted to base64, starting OpenAI processing...');
+    if (!extractedText || extractedText.length < 50) {
+      console.error('[PDF] Extracted text is too short or empty');
+      throw new Error('PDF text extraction failed - no meaningful content found');
+    }
     
-    // Use OpenAI to extract transaction data from the PDF
+    console.log('[GPT] Starting OpenAI processing...');
+    
+    // Prepare text for OpenAI (limit to ~15k tokens, roughly 60k characters)
+    const textForGPT = extractedText.length > 60000 
+      ? extractedText.substring(0, 60000) + '...'
+      : extractedText;
+    
+    console.log(`[GPT] Text length for processing: ${textForGPT.length} characters`);
+    
+    // Use OpenAI to extract transaction data from the text
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -51,33 +98,27 @@ const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Tr
         messages: [
           {
             role: 'system',
-            content: `Você é um especialista em análise de extratos bancários brasileiros. Analise o extrato em PDF e extraia TODAS as transações encontradas.
+            content: `Você é um especialista em análise de extratos bancários brasileiros. Analise o texto do extrato e extraia TODAS as transações encontradas.
 
 Para cada transação, retorne um JSON com:
 - date: data no formato YYYY-MM-DD
-- description: descrição da transação (sem abreviações desnecessárias)
+- description: descrição da transação (limpa, sem códigos desnecessários)
 - amount: valor (positivo para créditos/entradas, negativo para débitos/saídas)
-- category: categoria baseada na descrição (Mercado, Restaurante, Transporte, Assinaturas, Transferência, Salário, Freelance, Eletrônicos, etc.)
+- category: categoria baseada na descrição (Mercado, Restaurante, Transporte, Assinaturas, Transferência, Salário, Freelance, Eletrônicos, Saúde, etc.)
 - installment_number: número da parcela (se aplicável)
 - installment_total: total de parcelas (se aplicável)
 
-Retorne APENAS um array JSON válido, sem texto adicional. Exemplo:
-[{"date":"2025-01-15","description":"Supermercado Extra","amount":-150.30,"category":"Mercado"},{"date":"2025-01-14","description":"Salário - Empresa XYZ","amount":3500.00,"category":"Salário"}]`
+IMPORTANTE: 
+- Extraia APENAS transações reais do extrato
+- NÃO invente ou crie dados fictícios
+- Se não encontrar transações, retorne array vazio []
+- Valores devem estar corretos conforme o extrato
+
+Retorne APENAS um array JSON válido, sem texto adicional.`
           },
           {
             role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Analise este extrato bancário e extraia todas as transações:'
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:application/pdf;base64,${base64}`
-                }
-              }
-            ]
+            content: `Analise este extrato bancário e extraia todas as transações:\n\n${textForGPT}`
           }
         ],
         max_tokens: 4000,
@@ -87,28 +128,33 @@ Retorne APENAS um array JSON válido, sem texto adicional. Exemplo:
     
     if (!openAIResponse.ok) {
       const errorText = await openAIResponse.text();
-      console.error('OpenAI API error:', errorText);
+      console.error('[GPT] API error:', errorText);
       throw new Error(`OpenAI API error: ${openAIResponse.status} - ${errorText}`);
     }
     
     const openAIResult = await openAIResponse.json();
-    console.log('OpenAI response received:', JSON.stringify(openAIResult, null, 2));
+    console.log(`[GPT] tokens_in=${openAIResult.usage?.prompt_tokens || 'unknown'} tokens_out=${openAIResult.usage?.completion_tokens || 'unknown'}`);
     
-    const extractedText = openAIResult.choices[0].message.content;
-    console.log('Extracted transactions text:', extractedText);
+    const extractedTransactionsText = openAIResult.choices[0].message.content;
+    console.log('[GPT] Raw response:', extractedTransactionsText);
     
     // Parse the JSON response from OpenAI
     let transactions: Transaction[];
     try {
-      transactions = JSON.parse(extractedText);
-      console.log(`Successfully parsed ${transactions.length} transactions from OpenAI`);
+      transactions = JSON.parse(extractedTransactionsText);
+      console.log(`[GPT] Successfully parsed ${transactions.length} transactions`);
     } catch (parseError) {
-      console.error('Error parsing OpenAI JSON response:', parseError);
-      console.log('Raw response that failed to parse:', extractedText);
+      console.error('[GPT] Error parsing JSON response:', parseError);
+      console.log('[GPT] Raw response that failed to parse:', extractedTransactionsText);
       throw new Error('Failed to parse transaction data from OpenAI response');
     }
     
-    // Validate and clean the transaction data
+    // Validate transactions
+    if (!Array.isArray(transactions)) {
+      throw new Error('OpenAI response is not an array of transactions');
+    }
+    
+    // Filter and validate transaction data
     const validTransactions = transactions.filter(transaction => {
       return transaction.date && 
              transaction.description && 
@@ -116,22 +162,17 @@ Retorne APENAS um array JSON válido, sem texto adicional. Exemplo:
              transaction.category;
     });
     
-    console.log(`Filtered to ${validTransactions.length} valid transactions`);
+    console.log(`[VALIDATION] Filtered to ${validTransactions.length} valid transactions`);
+    
+    if (validTransactions.length === 0) {
+      console.log('[VALIDATION] No valid transactions found in PDF');
+    }
     
     return validTransactions;
     
   } catch (error) {
-    console.error('Error parsing statement content:', error);
-    // Fallback to a few example transactions if PDF parsing fails
-    console.log('Falling back to example transactions due to parsing error');
-    return [
-      {
-        date: new Date().toISOString().split('T')[0],
-        description: 'Erro ao processar PDF - Transação de exemplo',
-        amount: -50.00,
-        category: 'Outros'
-      }
-    ];
+    console.error('[ERROR] Error parsing statement content:', error);
+    throw error; // Re-throw to mark statement as error
   }
 };
 
@@ -190,7 +231,6 @@ serve(async (req) => {
     console.log('Query results:');
     console.log('selectError:', selectError);
     console.log('statements count:', statements ? statements.length : 'null/undefined');
-    console.log('statements data:', JSON.stringify(statements, null, 2));
 
     if (selectError) {
       console.error('Error selecting statements:', selectError);
@@ -204,26 +244,11 @@ serve(async (req) => {
     }
 
     if (!statements || statements.length === 0) {
-      console.log('No statements to process, checking all statements...');
-      
-      // Debug: Check what statements exist in total
-      const { data: allStatements, error: allError } = await supabase
-        .from('statements')
-        .select('id, status, filename, user_id')
-        .limit(10);
-      
-      console.log('All statements debug:');
-      console.log('allError:', allError);
-      console.log('allStatements:', JSON.stringify(allStatements, null, 2));
-      
+      console.log('No statements to process');
       return new Response(
         JSON.stringify({ 
           processed: 0, 
-          message: 'No statements to process',
-          debug: {
-            totalStatementsFound: allStatements ? allStatements.length : 0,
-            allStatements: allStatements
-          }
+          message: 'No statements to process'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -236,11 +261,20 @@ serve(async (req) => {
       try {
         console.log(`\n--- Processing statement ${statement.id} (${statement.filename}) ---`);
 
-        // Parse the actual PDF content using OpenAI
-        console.log(`Parsing PDF content for ${statement.id} from file: ${statement.file_url}`);
+        // Parse the actual PDF content using text extraction
+        console.log(`[PROCESSING] Starting extraction for ${statement.id}`);
         const extractedTransactions = await parseStatementContent(statement.file_url, supabase);
         
-        console.log(`Extracted ${extractedTransactions.length} transactions from PDF for ${statement.id}`);
+        console.log(`[PROCESSING] Extracted ${extractedTransactions.length} transactions from PDF`);
+
+        if (extractedTransactions.length === 0) {
+          console.log(`[PROCESSING] No transactions found, marking as error`);
+          await supabase
+            .from('statements')
+            .update({ status: 'error' })
+            .eq('id', statement.id);
+          continue;
+        }
 
         // Insert transactions into database using upsert to handle duplicates
         const transactionInserts = extractedTransactions.map(transaction => ({
@@ -255,8 +289,7 @@ serve(async (req) => {
           is_credit: transaction.amount > 0
         }));
 
-        console.log('Inserting transactions with upsert for deduplication...');
-        console.log('Sample of transactions to insert:', JSON.stringify(transactionInserts.slice(0, 3), null, 2));
+        console.log(`[DB] Inserting ${transactionInserts.length} transactions...`);
         
         // Use upsert with ignoreDuplicates to handle the unique constraint
         const { error: insertError, data: insertedData } = await supabase
@@ -268,11 +301,15 @@ serve(async (req) => {
           .select();
 
         if (insertError) {
-          console.error(`Error inserting transactions for ${statement.id}:`, insertError);
+          console.error(`[DB] Error inserting transactions for ${statement.id}:`, insertError);
+          await supabase
+            .from('statements')
+            .update({ status: 'error' })
+            .eq('id', statement.id);
           continue;
         }
 
-        console.log(`Successfully inserted/updated ${insertedData?.length || 0} transactions for ${statement.id}`);
+        console.log(`[DB] Successfully inserted/updated ${insertedData?.length || 0} transactions`);
 
         // Update statement status to 'ready'
         const totalCredit = extractedTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
@@ -289,7 +326,7 @@ serve(async (req) => {
           .eq('id', statement.id);
 
         if (updateError) {
-          console.error(`Error updating statement ${statement.id}:`, updateError);
+          console.error(`[DB] Error updating statement ${statement.id}:`, updateError);
           continue;
         }
 

@@ -1,231 +1,265 @@
+import React, { useState, useEffect, useRef } from "react";
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { FileText, Upload, Trash2 } from "lucide-react";
 
-import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useFileUpload } from "@/hooks/useFileUpload";
 import { useAuth } from "@/hooks/useAuth";
-import { useEffect, useState } from "react";
-import PostUploadDialog from "./PostUploadDialog";
+import { supabase } from "@/integrations/supabase/client";
+import { formatCurrency } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface UploadSectionProps {
   onUpload: () => void;
-  onNavigateToMovimentacoes?: () => void;
+  onNavigateToMovimentacoes: () => void;
 }
 
 const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionProps) => {
+  const [file, setFile] = useState<File | null>(null);
+  const [bankName, setBankName] = useState("");
+  const [isInvoicePaid, setIsInvoicePaid] = useState(false);
+  const [statements, setStatements] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { uploadFile, uploading } = useFileUpload();
   const { user } = useAuth();
-  const [showPostUploadDialog, setShowPostUploadDialog] = useState(false);
-  const [recentUploadId, setRecentUploadId] = useState<string | null>(null);
+  const { toast } = useToast();
 
-  // Fetch user statements with realtime updates
-  const { data: statements, isLoading, refetch } = useQuery({
-    queryKey: ['statements', user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      
-      console.log('Fetching statements for user:', user.id);
-      
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'ready':
+        return <Badge variant="default" className="bg-green-500 text-white">Concluído</Badge>;
+      case 'processing':
+        return <Badge variant="secondary" className="bg-yellow-500 text-white">Processando</Badge>;
+      case 'error':
+        return <Badge variant="destructive">Falha</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  useEffect(() => {
+    const fetchStatements = async () => {
+      if (!user) return;
+
       const { data, error } = await supabase
         .from('statements')
         .select('*')
         .eq('user_id', user.id)
-        .order('uploaded_at', { ascending: false })
-        .limit(6);
-      
+        .order('uploaded_at', { ascending: false });
+
       if (error) {
-        console.error('Error fetching statements:', error);
-        throw error;
+        console.error("Error fetching statements:", error);
+        return;
       }
-      
-      console.log('Fetched statements:', data);
-      return data || [];
-    },
-    enabled: !!user
-  });
 
-  // Setup realtime subscription for statements
-  useEffect(() => {
-    if (!user) return;
-
-    console.log('Setting up realtime subscription for user:', user.id);
-
-    const channel = supabase
-      .channel(`statements-changes-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'statements',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('Statement updated via realtime:', payload);
-          refetch();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'statements',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('New statement via realtime:', payload);
-          setRecentUploadId(payload.new.id);
-          setShowPostUploadDialog(true);
-          refetch();
-        }
-      )
-      .subscribe((status) => {
-        console.log('Realtime channel status:', status);
-      });
-
-    return () => {
-      console.log('Cleaning up realtime subscription');
-      supabase.removeChannel(channel);
+      setStatements(data);
     };
-  }, [user, refetch]);
 
-  const getStatusBadge = (status: string, parsedAt: string | null) => {
-    if (status === 'processing') {
-      return <Badge className="bg-orange-100 text-orange-700 animate-pulse">Processando...</Badge>;
-    } else if (status === 'ready' && parsedAt) {
-      return <Badge className="bg-sage-100 text-sage-700">Concluído</Badge>;
-    } else if (status === 'error') {
-      return <Badge className="bg-red-100 text-red-700">Erro</Badge>;
+    fetchStatements();
+  }, [user]);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files.length > 0) {
+      setFile(event.target.files[0]);
     }
-    return <Badge className="bg-gray-100 text-gray-700">Desconhecido</Badge>;
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR');
-  };
+  const handleSubmit = async () => {
+    if (!file || !bankName) {
+      alert("Por favor, selecione um arquivo e insira o nome do banco.");
+      return;
+    }
 
-  const handleViewTransactions = () => {
-    console.log('PostUploadDialog - View transactions clicked, calling onNavigateToMovimentacoes');
-    setShowPostUploadDialog(false);
-    if (onNavigateToMovimentacoes) {
-      onNavigateToMovimentacoes();
+    const result = await uploadFile({
+      file: file,
+      bankName: bankName,
+      isInvoicePaid: isInvoicePaid,
+    });
+
+    if (result?.success) {
+      onUpload();
+      setFile(null);
+      setBankName("");
+      setIsInvoicePaid(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""; // reset file input
+      }
     }
   };
 
   const handleManualProcess = async () => {
-    console.log('Manually triggering process-statements function...');
+    console.log('Manual process triggered');
     try {
-      const { data, error } = await supabase.functions.invoke('process-statements');
-      if (error) {
-        console.error('Error invoking process-statements function:', error);
+      const { error: functionError } = await supabase.functions.invoke('process-statements');
+      if (functionError) {
+        console.error('Error invoking process-statements function:', functionError);
       } else {
-        console.log('Process-statements function result:', data);
-        refetch(); // Refresh the statements list
+        console.log('Process-statements function invoked successfully');
       }
-    } catch (error) {
-      console.error('Error calling process-statements function:', error);
+    } catch (funcError) {
+      console.error('Error calling process-statements function:', funcError);
+    }
+  };
+
+  const handleDelete = async (statementId: string) => {
+    const confirmDelete = window.confirm("Tem certeza que deseja excluir este extrato?");
+    if (!confirmDelete) return;
+
+    try {
+      const { error } = await supabase
+        .from('statements')
+        .delete()
+        .eq('id', statementId);
+
+      if (error) {
+        console.error("Error deleting statement:", error);
+        alert("Erro ao excluir o extrato.");
+        return;
+      }
+
+      setStatements(statements.filter(statement => statement.id !== statementId));
+      alert("Extrato excluído com sucesso!");
+    } catch (err) {
+      console.error("Unexpected error deleting statement:", err);
+      alert("Ocorreu um erro inesperado ao excluir o extrato.");
+    }
+  };
+
+  const handleStatementClick = (statement: any) => {
+    if (statement.status === 'error') {
+      toast({
+        title: "Erro no processamento",
+        description: "Não foi possível analisar este PDF. Tente fazer o upload novamente.",
+        variant: "destructive",
+      });
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Extratos (upload)</h2>
-        <p className="text-gray-600">
-          Envie extratos de meses anteriores - nossa IA evita duplicatas automaticamente
-        </p>
-      </div>
-
-      {/* Upload Section - Redesigned for better proportions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Upload Card - Takes 1 column on large screens */}
-        <div className="lg:col-span-1 bg-gradient-to-br from-sage-100 to-sage-200 rounded-xl p-6 flex flex-col justify-center items-center text-center min-h-[250px] md:min-h-[300px]">
-          <Upload className="h-12 w-12 md:h-16 md:w-16 text-sage-700 mb-4" />
-          <h3 className="font-semibold text-gray-900 mb-2 text-lg">Enviar Extratos</h3>
-          <p className="text-sm text-gray-600 mb-6">Faça upload dos seus extratos em PDF, CSV ou OFX</p>
-          <div className="space-y-3 w-full">
-            <Button 
-              onClick={onUpload}
-              className="bg-sage-600 hover:bg-sage-700 text-white shadow-md w-full py-3"
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Selecionar Arquivo
-            </Button>
-            <Button 
-              onClick={handleManualProcess}
-              variant="outline"
-              className="w-full py-2 text-sm"
-            >
-              🔄 Processar Manualmente
-            </Button>
+      {/* Upload Section */}
+      <div className="bg-white rounded-lg border p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-gray-900">Enviar Novo Extrato</h2>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="bankName">Nome do Banco</Label>
+            <Input
+              type="text"
+              id="bankName"
+              placeholder="Ex: Banco do Brasil"
+              value={bankName}
+              onChange={(e) => setBankName(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="fileUpload">Arquivo PDF</Label>
+            <Input
+              type="file"
+              id="fileUpload"
+              accept="application/pdf"
+              onChange={handleFileChange}
+              ref={fileInputRef}
+            />
           </div>
         </div>
+        
+        <Button
+          className="bg-sage-600 hover:bg-sage-700 text-white shadow-md w-full"
+          onClick={handleSubmit}
+          disabled={uploading || !file || !bankName}
+        >
+          {uploading ? "Enviando..." : "Enviar Extrato"}
+        </Button>
+      </div>
 
-        {/* Transaction List - Takes 2 columns on large screens */}
-        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="bg-sage-100 p-4">
-            <div className="hidden md:grid md:grid-cols-4 gap-4 font-medium text-gray-700">
-              <span>Descrição</span>
-              <span>Banco</span>
-              <span>Data</span>
-              <span>Status</span>
-            </div>
-            <div className="md:hidden">
-              <span className="font-medium text-gray-700">Extratos Recentes</span>
-            </div>
-          </div>
-          
-          <div className="divide-y divide-gray-100">
-            {isLoading ? (
-              <div className="p-4 text-center text-gray-500">Carregando...</div>
-            ) : statements && statements.length > 0 ? (
-              statements.map((statement) => (
-                <div key={statement.id} className="p-4">
-                  {/* Mobile Layout */}
-                  <div className="md:hidden space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 bg-sage-100 rounded-full flex items-center justify-center mr-3">
-                          📄
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">{statement.filename}</p>
-                          <p className="text-xs text-gray-500">{formatDate(statement.uploaded_at!)}</p>
-                        </div>
+      {/* Statements List */}
+      {statements && statements.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900">Extratos Enviados</h3>
+          <div className="grid gap-4">
+            {statements.map((statement: any) => (
+              <div 
+                key={statement.id} 
+                className={`bg-white rounded-lg border p-4 hover:shadow-sm transition-shadow ${
+                  statement.status === 'error' ? 'cursor-pointer hover:bg-red-50' : ''
+                }`}
+                onClick={() => handleStatementClick(statement)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3">
+                      <FileText className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="font-medium text-gray-900">{statement.filename}</p>
+                        <p className="text-xs text-gray-500">
+                          Enviado em {format(new Date(statement.uploaded_at), 'dd/MM/yyyy às HH:mm', { locale: ptBR })}
+                        </p>
                       </div>
-                      {getStatusBadge(statement.status!, statement.parsed_at)}
                     </div>
-                    <p className="text-xs text-blue-600 ml-11">{statement.bank || 'Banco não identificado'}</p>
                   </div>
-
-                  {/* Desktop Layout */}
-                  <div className="hidden md:grid md:grid-cols-4 gap-4 items-center">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 bg-sage-100 rounded-full flex items-center justify-center mr-3">
-                        📄
-                      </div>
-                      <span className="text-sm font-medium">{statement.filename}</span>
-                    </div>
-                    <span className="text-sm text-blue-600">{statement.bank || 'Não identificado'}</span>
-                    <span className="text-sm">{formatDate(statement.uploaded_at!)}</span>
-                    {getStatusBadge(statement.status!, statement.parsed_at)}
+                  <div className="flex items-center space-x-2">
+                    {getStatusBadge(statement.status)}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(statement.id);
+                      }}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="p-4 text-center text-gray-500">Nenhum extrato encontrado</div>
-            )}
+                
+                {statement.status === 'ready' && (
+                  <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
+                    <div className="flex space-x-4">
+                      {statement.total_credit > 0 && (
+                        <span className="text-green-600">
+                          Entradas: {formatCurrency(statement.total_credit)}
+                        </span>
+                      )}
+                      {statement.total_debit > 0 && (
+                        <span className="text-red-600">
+                          Saídas: {formatCurrency(statement.total_debit)}
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigateToMovimentacoes();
+                      }}
+                      className="text-xs"
+                    >
+                      Ver Transações
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
+          
+          {/* Manual Process Button */}
+          {process.env.NODE_ENV === 'development' && (
+            <Button 
+              onClick={handleManualProcess}
+              className="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+            >
+              Processar Extratos (DEV ONLY)
+            </Button>
+          )}
         </div>
-      </div>
-
-      {/* Post Upload Dialog */}
-      <PostUploadDialog 
-        isOpen={showPostUploadDialog}
-        onClose={() => setShowPostUploadDialog(false)}
-        onViewTransactions={handleViewTransactions}
-      />
+      )}
     </div>
   );
 };
