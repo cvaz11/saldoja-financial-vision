@@ -37,14 +37,17 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
 
   const getCategoryBadge = (category: string) => {
     const categoryColors: Record<string, string> = {
-      'Mercado': 'bg-blue-100 text-blue-700',
-      'Restaurante': 'bg-orange-100 text-orange-700',
+      'Alimentação': 'bg-blue-100 text-blue-700',
       'Transporte': 'bg-purple-100 text-purple-700',
-      'Assinaturas': 'bg-pink-100 text-pink-700',
-      'Salário': 'bg-green-100 text-green-700',
-      'Freelance': 'bg-teal-100 text-teal-700',
-      'Eletrônicos': 'bg-indigo-100 text-indigo-700',
-      'Transferência': 'bg-gray-100 text-gray-700',
+      'Saúde': 'bg-red-100 text-red-700',
+      'Lazer': 'bg-pink-100 text-pink-700',
+      'Educação': 'bg-indigo-100 text-indigo-700',
+      'Casa': 'bg-orange-100 text-orange-700',
+      'Vestuário': 'bg-green-100 text-green-700',
+      'Tecnologia': 'bg-teal-100 text-teal-700',
+      'Financeiro': 'bg-yellow-100 text-yellow-700',
+      'Salário': 'bg-green-200 text-green-800',
+      'Outros': 'bg-gray-100 text-gray-700',
     };
     
     return categoryColors[category] || 'bg-gray-100 text-gray-700';
@@ -103,8 +106,13 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
       </div>
 
       {/* Debug Info */}
-      <div className="bg-gray-50 p-2 rounded text-xs text-gray-600">
-        Debug: {transactions.length} transações encontradas no período selecionado
+      <div className="bg-blue-50 p-3 rounded border border-blue-200 text-sm">
+        <div className="text-blue-800 font-medium mb-1">Status do Sistema:</div>
+        <div className="text-blue-700">
+          • {transactions.length} transações encontradas no período selecionado<br/>
+          • Período: {dateRange.from.toLocaleDateString('pt-BR')} a {dateRange.to.toLocaleDateString('pt-BR')}<br/>
+          • {transactions.length === 0 ? 'Aguardando processamento de extratos...' : 'Transações carregadas com sucesso!'}
+        </div>
       </div>
 
       {/* Transactions Display */}
@@ -114,8 +122,11 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             Nenhuma transação encontrada
           </h3>
-          <p className="text-gray-500">
-            Não há transações no período selecionado.
+          <p className="text-gray-500 mb-4">
+            Faça upload de seus extratos em PDF para ver as transações aqui.
+          </p>
+          <p className="text-sm text-blue-600">
+            As transações aparecerão automaticamente após o processamento dos extratos.
           </p>
         </div>
       ) : (
