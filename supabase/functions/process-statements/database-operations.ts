@@ -7,6 +7,8 @@ export const insertTransactions = async (
   statementId: string,
   userId: string
 ) => {
+  console.log(`[DB] Preparing to insert ${transactions.length} transactions...`);
+  
   const transactionInserts = transactions.map(transaction => ({
     statement_id: statementId,
     user_id: userId,
@@ -19,9 +21,9 @@ export const insertTransactions = async (
     is_credit: transaction.amount > 0
   }));
 
-  console.log(`[DB] Inserting ${transactionInserts.length} transactions...`);
+  console.log(`[DB] Sample transaction insert:`, transactionInserts[0]);
   
-  // Use upsert with ignoreDuplicates to handle the unique constraint
+  // Use upsert with conflict resolution
   const { error: insertError, data: insertedData } = await supabase
     .from('transactions')
     .upsert(transactionInserts, { 
@@ -32,10 +34,11 @@ export const insertTransactions = async (
 
   if (insertError) {
     console.error(`[DB] Error inserting transactions:`, insertError);
-    throw insertError;
+    throw new Error(`Database insert failed: ${insertError.message}`);
   }
 
-  console.log(`[DB] Successfully inserted/updated ${insertedData?.length || 0} transactions`);
+  const insertedCount = insertedData?.length || 0;
+  console.log(`[DB] Successfully inserted/updated ${insertedCount} transactions`);
   return insertedData;
 };
 
@@ -45,6 +48,8 @@ export const updateStatementStatus = async (
   status: string,
   transactions?: Transaction[]
 ) => {
+  console.log(`[DB] Updating statement ${statementId} status to ${status}`);
+  
   const updateData: any = { 
     status,
     parsed_at: new Date().toISOString()
@@ -55,6 +60,8 @@ export const updateStatementStatus = async (
     const totalDebit = Math.abs(transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0));
     updateData.total_credit = totalCredit;
     updateData.total_debit = totalDebit;
+    
+    console.log(`[DB] Statement totals - Credit: ${totalCredit}, Debit: ${totalDebit}`);
   }
 
   const { error: updateError } = await supabase
@@ -64,8 +71,8 @@ export const updateStatementStatus = async (
 
   if (updateError) {
     console.error(`[DB] Error updating statement ${statementId}:`, updateError);
-    throw updateError;
+    throw new Error(`Database update failed: ${updateError.message}`);
   }
 
-  console.log(`[DB] Updated statement ${statementId} status to ${status}`);
+  console.log(`[DB] Statement ${statementId} updated successfully`);
 };
