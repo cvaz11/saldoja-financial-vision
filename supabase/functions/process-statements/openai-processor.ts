@@ -29,7 +29,6 @@ const validateTransaction = (transaction: any): transaction is Transaction => {
 };
 
 const parseNubankDate = (dateStr: string): string => {
-  // Convert dates like "12 Jun", "12 Jun 2024" to YYYY-MM-DD
   const months = {
     'Jan': '01', 'Fev': '02', 'Mar': '03', 'Abr': '04', 'Mai': '05', 'Jun': '06',
     'Jul': '07', 'Ago': '08', 'Set': '09', 'Out': '10', 'Nov': '11', 'Dez': '12'
@@ -39,15 +38,16 @@ const parseNubankDate = (dateStr: string): string => {
   if (parts.length >= 2) {
     const day = parts[0].padStart(2, '0');
     const month = months[parts[1] as keyof typeof months] || '01';
-    const year = parts[2] || '2025'; // Default to current year if not specified
+    const year = parts[2] || '2025';
     return `${year}-${month}-${day}`;
   }
   
-  return '2025-01-01'; // Fallback date
+  return '2025-01-01';
 };
 
 const extractDirectTransactions = (text: string): Transaction[] => {
   console.log('[DIRECT] Starting direct transaction extraction...');
+  console.log('[DIRECT] Text preview:', text.slice(0, 500));
   
   const transactions: Transaction[] = [];
   const lines = text.split('\n');
@@ -55,97 +55,84 @@ const extractDirectTransactions = (text: string): Transaction[] => {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     
-    // Skip empty lines and obvious headers/footers
     if (!line || line.length < 10) continue;
     
-    // Look for money patterns with R$
-    const moneyPattern = /R\$\s*([\d.,]+)/g;
-    const moneyMatch = moneyPattern.exec(line);
+    // Skip obvious credits/payments received
+    if (/IOF|Pagamento recebido|Crédito|USD refund|Payment received|Credit|Transferência recebida/i.test(line)) {
+      continue;
+    }
     
-    if (moneyMatch) {
-      // Check if this is a debit transaction (exclude credits/payments received)
-      const isCredit = /IOF|Pagamento recebido|Crédito|USD refund|Payment received|Credit/i.test(line);
-      
-      if (!isCredit) {
-        // Look for date pattern in the line or nearby lines
-        const datePattern = /(\d{1,2})\s+(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)(\s+\d{4})?/i;
-        
-        let dateMatch = datePattern.exec(line);
-        let dateLine = line;
-        
-        // If no date in current line, check previous/next lines
-        if (!dateMatch && i > 0) {
-          dateMatch = datePattern.exec(lines[i - 1]);
-          if (dateMatch) dateLine = lines[i - 1];
-        }
-        if (!dateMatch && i < lines.length - 1) {
-          dateMatch = datePattern.exec(lines[i + 1]);
-          if (dateMatch) dateLine = lines[i + 1];
-        }
-        
-        if (dateMatch) {
-          const dateStr = parseNubankDate(dateMatch[0]);
-          
-          // Extract description (text between date and amount)
-          let description = line
-            .replace(datePattern, '')
-            .replace(/R\$\s*[\d.,]+/g, '')
-            .trim();
-          
-          // Clean up description
-          description = description
-            .replace(/\s+/g, ' ')
-            .replace(/^[-\s]+|[-\s]+$/g, '')
-            .trim();
-          
-          if (description.length === 0) {
-            description = 'Transação';
-          }
-          
-          // Parse amount as negative (debit)
-          const amountStr = moneyMatch[1].replace(/\./g, '').replace(',', '.');
-          const amount = -parseFloat(amountStr);
-          
-          if (!isNaN(amount) && amount < 0) {
-            // Determine category based on description
-            let category = 'Outros';
-            const desc = description.toLowerCase();
-            
-            if (desc.includes('uber') || desc.includes('99') || desc.includes('taxi')) {
-              category = 'Transporte';
-            } else if (desc.includes('ifood') || desc.includes('restaurante') || desc.includes('padaria') || desc.includes('supermercado')) {
-              category = 'Alimentação';
-            } else if (desc.includes('farmacia') || desc.includes('hospital') || desc.includes('clinica')) {
-              category = 'Saúde';
-            } else if (desc.includes('shopping') || desc.includes('loja') || desc.includes('magazine')) {
-              category = 'Compras';
-            } else if (desc.includes('netflix') || desc.includes('spotify') || desc.includes('cinema')) {
-              category = 'Lazer';
-            } else if (desc.includes('parcela') || desc.includes('financiamento')) {
-              category = 'Financeiro';
-            }
-            
-            // Check for installments
-            const installmentMatch = /parcela\s+(\d+)\/(\d+)/i.exec(description);
-            
-            const transaction: Transaction = {
-              date: dateStr,
-              description,
-              amount,
-              category
-            };
-            
-            if (installmentMatch) {
-              transaction.installment_number = parseInt(installmentMatch[1]);
-              transaction.installment_total = parseInt(installmentMatch[2]);
-            }
-            
-            transactions.push(transaction);
-            console.log(`[DIRECT] Found transaction: ${description} - R$ ${Math.abs(amount).toFixed(2)}`);
-          }
-        }
+    // Look for money patterns
+    const moneyMatches = line.match(/R\$\s*([\d.,]+)/g);
+    if (!moneyMatches) continue;
+    
+    // Look for date pattern
+    const dateMatch = line.match(/(\d{1,2})\s+(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)(\s+\d{4})?/i);
+    if (!dateMatch) continue;
+    
+    const dateStr = parseNubankDate(dateMatch[0]);
+    
+    // Extract the largest amount (likely the transaction amount)
+    let maxAmount = 0;
+    let amountStr = '';
+    
+    for (const match of moneyMatches) {
+      const cleanAmount = match.replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
+      const amount = parseFloat(cleanAmount);
+      if (!isNaN(amount) && amount > maxAmount) {
+        maxAmount = amount;
+        amountStr = cleanAmount;
       }
     }
+    
+    if (maxAmount <= 0) continue;
+    
+    // Extract description
+    let description = line
+      .replace(/(\d{1,2})\s+(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)(\s+\d{4})?/i, '')
+      .replace(/R\$\s*[\d.,]+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    if (description.length === 0) {
+      description = 'Transação';
+    }
+    
+    // Determine category
+    let category = 'Outros';
+    const desc = description.toLowerCase();
+    
+    if (desc.includes('uber') || desc.includes('99') || desc.includes('taxi')) {
+      category = 'Transporte';
+    } else if (desc.includes('ifood') || desc.includes('restaurante') || desc.includes('padaria')) {
+      category = 'Alimentação';
+    } else if (desc.includes('farmacia') || desc.includes('hospital')) {
+      category = 'Saúde';
+    } else if (desc.includes('shopping') || desc.includes('loja')) {
+      category = 'Compras';
+    } else if (desc.includes('netflix') || desc.includes('spotify')) {
+      category = 'Lazer';
+    } else if (desc.includes('parcela') || desc.includes('financiamento')) {
+      category = 'Financeiro';
+    }
+    
+    // Check for installments
+    const installmentMatch = description.match(/parcela\s+(\d+)\/(\d+)/i);
+    
+    const transaction: Transaction = {
+      date: dateStr,
+      description,
+      amount: -maxAmount, // Always negative for debits
+      category
+    };
+    
+    if (installmentMatch) {
+      transaction.installment_number = parseInt(installmentMatch[1]);
+      transaction.installment_total = parseInt(installmentMatch[2]);
+    }
+    
+    transactions.push(transaction);
+    console.log(`[DIRECT] Found transaction: ${description} - R$ ${maxAmount.toFixed(2)}`);
   }
   
   console.log(`[DIRECT] Extracted ${transactions.length} transactions directly`);
@@ -178,26 +165,32 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
     const prompt = `Analise este extrato bancário do NUBANK e extraia APENAS as transações de DÉBITO (saídas/gastos).
 
 TEXTO DO EXTRATO:
-${extractedText}
+${extractedText.slice(0, 6000)} // Limit to avoid token limits
 
 REGRAS IMPORTANTES:
 1. IGNORE completamente: IOF, "Pagamento recebido", "Crédito", "USD refund", transferências recebidas
-2. EXTRAIA apenas: compras, pagamentos feitos, saques, transferências enviadas, parcelas
+2. EXTRAIA apenas: compras, pagamentos feitos, saques, transferências enviadas, parcelas, Uber, iFood, etc.
 3. Para cada transação de débito encontrada:
-   - Data no formato YYYY-MM-DD
-   - Descrição clara
+   - Data no formato YYYY-MM-DD (converta datas como "12 Jun" para "2025-06-12")
+   - Descrição clara da transação
    - Valor SEMPRE NEGATIVO (ex: -150.50)
    - Categoria apropriada
 
-CATEGORIAS VÁLIDAS: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Compras", "Outros"
+CATEGORIAS: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Compras", "Outros"
 
-FORMATO DE RESPOSTA (JSON):
+EXEMPLO DE RESPOSTA:
 [
   {
     "date": "2025-06-12",
-    "description": "Descrição da transação",
-    "amount": -150.50,
-    "category": "Categoria"
+    "description": "Uber - Viagem",
+    "amount": -25.50,
+    "category": "Transporte"
+  },
+  {
+    "date": "2025-06-11", 
+    "description": "iFood - Pedido",
+    "amount": -45.80,
+    "category": "Alimentação"
   }
 ]
 
@@ -210,11 +203,11 @@ Retorne APENAS o JSON array. Se não encontrar transações de débito, retorne 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4.1-2025-04-14',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: 'Você é um especialista em análise de extratos bancários. Extraia apenas transações de débito reais. Retorne sempre um JSON array válido.'
+            content: 'Você é um especialista em análise de extratos bancários do Nubank. Extraia apenas transações de débito reais. Retorne sempre um JSON array válido.'
           },
           {
             role: 'user',
@@ -241,13 +234,14 @@ Retorne APENAS o JSON array. Se não encontrar transações de débito, retorne 
       .replace(/```/g, '')
       .trim();
     
-    console.log('[GPT] OpenAI response:', responseText);
+    console.log('[GPT] OpenAI response:', responseText.slice(0, 1000));
     
     let transactions: any[];
     try {
       transactions = JSON.parse(responseText);
     } catch (parseError) {
       console.error('[GPT] JSON parse error:', parseError);
+      console.log('[GPT] Raw response that failed to parse:', responseText);
       return directTransactions;
     }
     
