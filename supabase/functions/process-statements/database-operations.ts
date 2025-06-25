@@ -23,7 +23,6 @@ export const insertTransactions = async (
 
   if (deleteError) {
     console.error('[DB] Error cleaning existing transactions:', deleteError);
-    // Continue anyway, upsert will handle duplicates
   }
 
   // Convert transactions to database format
@@ -36,30 +35,22 @@ export const insertTransactions = async (
     category: transaction.category,
     installment_number: transaction.installment_number || null,
     installment_total: transaction.installment_total || null,
-    is_credit: false, // All transactions are debits now
+    is_credit: false, // All transactions are debits
   }));
 
   console.log('[DB] Sample transaction insert:', dbTransactions[0]);
 
-  // Use upsert to handle potential duplicates gracefully
+  // Insert transactions
   const { error: insertError } = await supabase
     .from('transactions')
-    .upsert(dbTransactions, {
-      onConflict: 'user_id,transaction_date,description,amount,category',
-      ignoreDuplicates: true
-    });
+    .insert(dbTransactions);
 
   if (insertError) {
     console.error('[DB] Error inserting transactions:', insertError);
-    // If it's a duplicate key error, just log and continue
-    if (insertError.code === '23505') {
-      console.log('[DB] Duplicate transactions detected, continuing with existing data...');
-    } else {
-      throw new Error(`Database insert failed: ${insertError.message}`);
-    }
-  } else {
-    console.log(`[DB] Successfully inserted ${transactions.length} transactions`);
+    throw new Error(`Database insert failed: ${insertError.message}`);
   }
+
+  console.log(`[DB] Successfully inserted ${transactions.length} transactions`);
 };
 
 export const updateStatementStatus = async (
@@ -78,7 +69,7 @@ export const updateStatementStatus = async (
   if (transactions && transactions.length > 0) {
     // Calculate totals - only debits (negative amounts)
     const totalDebit = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-    const totalCredit = 0; // No credits processed anymore
+    const totalCredit = 0; // No credits processed
     
     updateData.total_debit = totalDebit;
     updateData.total_credit = totalCredit;

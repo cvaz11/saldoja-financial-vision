@@ -35,8 +35,6 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     
   } catch (error) {
     console.error('[PARSE] Error:', error);
-    // Return empty array instead of throwing error
-    console.log('[PARSE] Returning empty transactions due to error');
     return [];
   }
 };
@@ -57,7 +55,7 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
     // Insert transactions (even if empty)
     await insertTransactions(supabase, extractedTransactions, statement.id, statement.user_id);
 
-    // Update statement status to ready (always successful now)
+    // Update statement status to ready
     await updateStatementStatus(supabase, statement.id, 'ready', extractedTransactions);
 
     const processingTime = Date.now() - startTime;

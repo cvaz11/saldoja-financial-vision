@@ -66,7 +66,7 @@ serve(async (req) => {
       .from('statements')
       .select('*')
       .eq('status', 'processing')
-      .limit(10)
+      .limit(5) // Process 5 at a time to avoid timeouts
       .order('uploaded_at', { ascending: true });
 
     if (selectError) {

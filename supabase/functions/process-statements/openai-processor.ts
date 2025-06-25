@@ -39,9 +39,15 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
     
     console.log(`[GPT] Processing text of ${extractedText.length} characters`);
     
+    // If text is too short or seems invalid, return empty
+    if (extractedText.length < 50) {
+      console.log('[GPT] Text too short, returning empty array');
+      return [];
+    }
+    
     const prompt = `Analise o seguinte extrato bancário brasileiro e extraia APENAS as transações de DÉBITO (saídas de dinheiro).
 
-REGRAS IMPORTANTES:
+REGRAS CRÍTICAS:
 - Extraia apenas transações reais de DÉBITO/SAÍDA (valores negativos)
 - IGNORE completamente receitas, depósitos, salários, PIX recebidos e qualquer entrada de dinheiro
 - Retorne apenas transações com amount NEGATIVO (valores positivos serão ignorados)
@@ -50,6 +56,7 @@ REGRAS IMPORTANTES:
 - Datas no formato YYYY-MM-DD
 - Descrições claras e objetivas (máximo 50 caracteres)
 - Se não encontrar transações de débito válidas, retorne um array vazio []
+- NÃO INVENTE dados que não estão no extrato
 
 FORMATO DE RESPOSTA (JSON válido):
 [
@@ -77,7 +84,7 @@ RETORNE APENAS O JSON ARRAY com transações de DÉBITO (valores negativos), sem
         messages: [
           {
             role: 'system',
-            content: 'Você é um especialista em análise de extratos bancários brasileiros. Sempre retorne apenas um JSON array válido com as transações de DÉBITO encontradas. Ignore completamente receitas e entradas de dinheiro. Se não encontrar débitos válidos, retorne um array vazio [].'
+            content: 'Você é um especialista em análise de extratos bancários brasileiros. NUNCA invente dados. Sempre retorne apenas um JSON array válido com as transações de DÉBITO encontradas no texto. Ignore completamente receitas e entradas de dinheiro. Se não encontrar débitos válidos, retorne um array vazio [].'
           },
           {
             role: 'user',
@@ -107,7 +114,7 @@ RETORNE APENAS O JSON ARRAY com transações de DÉBITO (valores negativos), sem
       .replace(/```/g, '')
       .trim();
     
-    console.log('[GPT] Cleaned response preview:', extractedTransactionsText.substring(0, 200) + '...');
+    console.log('[GPT] Cleaned response preview:', extractedTransactionsText.substring(0, 300) + '...');
     
     let transactions: any[];
     try {
