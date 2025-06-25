@@ -28,15 +28,13 @@ serve(async (req) => {
     
     console.log('🔧 Environment Check:');
     console.log(`  SUPABASE_URL: ${supabaseUrl ? '✅ SET' : '❌ MISSING'}`);
-    console.log(`  SERVICE_ROLE_KEY: ${serviceRoleKey ? `✅ SET (${serviceRoleKey.length} chars)` : '❌ MISSING'}`);
+    console.log(`  SERVICE_ROLE_KEY: ${serviceRoleKey ? '✅ SET' : '❌ MISSING'}`);
     console.log(`  OPENAI_API_KEY: ${openAIKey ? '✅ SET' : '❌ MISSING'}`);
     
     if (!supabaseUrl || !serviceRoleKey) {
-      console.error('❌ Missing Supabase environment variables');
       return new Response(
         JSON.stringify({ 
-          error: 'Missing Supabase configuration',
-          details: 'SUPABASE_URL or SERVICE_ROLE_KEY not configured'
+          error: 'Missing Supabase configuration' 
         }),
         { 
           status: 500,
@@ -46,11 +44,9 @@ serve(async (req) => {
     }
 
     if (!openAIKey) {
-      console.error('❌ Missing OpenAI API key');
       return new Response(
         JSON.stringify({ 
-          error: 'OpenAI API key not configured',
-          details: 'OPENAI_API_KEY environment variable is required'
+          error: 'OpenAI API key not configured' 
         }),
         { 
           status: 500,
@@ -70,7 +66,7 @@ serve(async (req) => {
       .from('statements')
       .select('*')
       .eq('status', 'processing')
-      .limit(5)
+      .limit(10)
       .order('uploaded_at', { ascending: true });
 
     if (selectError) {
@@ -87,7 +83,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`📋 Query Results: ${statements?.length || 0} statements found`);
+    console.log(`📋 Found ${statements?.length || 0} statements to process`);
 
     if (!statements || statements.length === 0) {
       console.log('ℹ️  No statements to process');
@@ -146,13 +142,11 @@ serve(async (req) => {
     console.log(`\n🏁 PROCESSING COMPLETE`);
     console.log(`   Total time: ${totalTime}ms`);
     console.log(`   Processed: ${processedCount}/${statements.length}`);
-    console.log(`   Success rate: ${((processedCount / statements.length) * 100).toFixed(1)}%`);
 
     return new Response(
       JSON.stringify({ 
         processed: processedCount,
         total: statements.length,
-        successRate: ((processedCount / statements.length) * 100).toFixed(1) + '%',
         totalProcessingTime: totalTime,
         results: results,
         message: `Successfully processed ${processedCount} out of ${statements.length} statements`

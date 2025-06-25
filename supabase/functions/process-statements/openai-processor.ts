@@ -37,9 +37,9 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
     }
     
     // Limit text size for processing
-    const maxLength = 50000;
+    const maxLength = 30000;
     const textForGPT = extractedText.length > maxLength 
-      ? extractedText.substring(0, maxLength) + '...'
+      ? extractedText.substring(0, maxLength)
       : extractedText;
     
     console.log(`[GPT] Processing text of ${textForGPT.length} characters`);
@@ -51,62 +51,57 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: `Você é um especialista em análise de extratos bancários brasileiros. Sua tarefa é extrair TODAS as transações financeiras do texto fornecido.
+            content: `Você é um especialista em análise de extratos bancários brasileiros. Analise o texto fornecido e extraia TODAS as transações financeiras encontradas.
 
-INSTRUÇÕES CRÍTICAS:
-1. Analise o texto completo e identifique TODAS as transações
-2. Para cada transação encontrada, extraia as informações no formato JSON
-3. Use apenas transações REAIS encontradas no extrato
-4. NÃO invente ou crie dados fictícios
-5. Se não encontrar transações, retorne um array vazio []
+INSTRUÇÕES IMPORTANTES:
+1. Procure por padrões de transações bancárias (PIX, TED, DOC, débitos, créditos, etc.)
+2. Identifique datas no formato DD/MM/YYYY, DD-MM-YYYY ou YYYY-MM-DD
+3. Encontre valores monetários (R$, vírgulas, pontos decimais)
+4. Extraia descrições das transações
+5. Categorize apropriadamente cada transação
 
 FORMATO DE RESPOSTA:
-Retorne APENAS um array JSON válido com objetos contendo:
-- date: data no formato YYYY-MM-DD (obrigatório)
-- description: descrição limpa da transação (obrigatório)
-- amount: valor numérico (positivo para créditos/entradas, negativo para débitos/saídas) (obrigatório)
-- category: categoria apropriada (obrigatório)
-- installment_number: número da parcela (opcional, apenas se identificado)
-- installment_total: total de parcelas (opcional, apenas se identificado)
-
-CATEGORIAS VÁLIDAS:
-- Alimentação (restaurantes, delivery, mercado)
-- Transporte (uber, combustível, passagem)
-- Saúde (farmácia, médicos, planos)
-- Lazer (cinema, streaming, jogos)
-- Educação (cursos, livros, escola)
-- Casa (aluguel, condomínio, utilities)
-- Vestuário (roupas, calçados)
-- Tecnologia (celular, internet, eletrônicos)
-- Financeiro (taxas, juros, transferências)
-- Salário (pagamentos recebidos)
-- Outros (para itens não categorizados)
-
-EXEMPLO DE RESPOSTA VÁLIDA:
+Retorne APENAS um array JSON válido com esta estrutura:
 [
   {
-    "date": "2024-01-15",
-    "description": "Pagamento PIX - Mercado ABC",
-    "amount": -150.50,
-    "category": "Alimentação"
-  },
-  {
-    "date": "2024-01-16",
-    "description": "Salário - Empresa XYZ",
-    "amount": 3500.00,
-    "category": "Salário"
+    "date": "YYYY-MM-DD",
+    "description": "Descrição da transação",
+    "amount": valor_numérico,
+    "category": "categoria"
   }
 ]
 
-ATENÇÃO: Retorne APENAS o array JSON, sem texto adicional, sem markdown, sem formatação. Apenas JSON puro.`
+REGRAS:
+- date: sempre no formato YYYY-MM-DD
+- amount: positivo para entradas/créditos, negativo para saídas/débitos
+- category: use uma das opções: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Salário", "Outros"
+- description: seja descritivo mas conciso
+
+EXEMPLO:
+[
+  {
+    "date": "2024-01-15",
+    "description": "PIX Recebido - Salário",
+    "amount": 5000.00,
+    "category": "Salário"
+  },
+  {
+    "date": "2024-01-16",
+    "description": "Pagamento PIX - Supermercado",
+    "amount": -150.50,
+    "category": "Alimentação"
+  }
+]
+
+IMPORTANTE: Retorne APENAS o JSON, sem texto adicional ou formatação markdown.`
           },
           {
             role: 'user',
-            content: `Analise este extrato bancário brasileiro e extraia TODAS as transações encontradas:\n\n${textForGPT}`
+            content: `Analise este extrato bancário e extraia todas as transações:\n\n${textForGPT}`
           }
         ],
         max_tokens: 4000,
@@ -121,12 +116,12 @@ ATENÇÃO: Retorne APENAS o array JSON, sem texto adicional, sem markdown, sem f
     }
     
     const openAIResult = await openAIResponse.json();
-    console.log(`[GPT] Tokens used - input: ${openAIResult.usage?.prompt_tokens || 'unknown'}, output: ${openAIResult.usage?.completion_tokens || 'unknown'}`);
+    console.log(`[GPT] OpenAI response received`);
     
     let extractedTransactionsText = openAIResult.choices[0].message.content;
-    console.log('[GPT] Raw response from OpenAI:', extractedTransactionsText.substring(0, 500) + '...');
+    console.log('[GPT] Raw response:', extractedTransactionsText.substring(0, 1000));
     
-    // Clean the response - remove any markdown formatting
+    // Clean the response
     extractedTransactionsText = extractedTransactionsText.trim();
     if (extractedTransactionsText.startsWith('```json')) {
       extractedTransactionsText = extractedTransactionsText.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
@@ -139,16 +134,16 @@ ATENÇÃO: Retorne APENAS o array JSON, sem texto adicional, sem markdown, sem f
     let transactions: any[];
     try {
       transactions = JSON.parse(extractedTransactionsText);
-      console.log(`[GPT] Successfully parsed ${transactions.length} transactions from response`);
+      console.log(`[GPT] Successfully parsed ${transactions.length} transactions`);
     } catch (parseError) {
-      console.error('[GPT] Error parsing JSON response:', parseError);
-      console.log('[GPT] Response that failed to parse:', extractedTransactionsText);
+      console.error('[GPT] Error parsing JSON:', parseError);
+      console.log('[GPT] Failed text:', extractedTransactionsText);
       throw new Error('Failed to parse transaction data from OpenAI response');
     }
     
     // Validate transactions
     if (!Array.isArray(transactions)) {
-      console.error('[GPT] Response is not an array:', typeof transactions);
+      console.error('[GPT] Response is not an array');
       throw new Error('OpenAI response is not an array of transactions');
     }
     
@@ -164,8 +159,8 @@ ATENÇÃO: Retorne APENAS o array JSON, sem texto adicional, sem markdown, sem f
     console.log(`[VALIDATION] Found ${validTransactions.length} valid transactions out of ${transactions.length} total`);
     
     if (validTransactions.length === 0) {
-      console.log('[VALIDATION] No valid transactions found in the extracted data');
-      throw new Error('No valid transactions found in the statement');
+      console.log('[VALIDATION] No valid transactions found, returning empty array');
+      return [];
     }
     
     console.log('[VALIDATION] Sample valid transaction:', validTransactions[0]);
