@@ -42,18 +42,6 @@ serve(async (req) => {
         }
       );
     }
-
-    if (!openAIKey) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'OpenAI API key not configured' 
-        }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
     
     // Initialize Supabase client
     const supabase = createClient(supabaseUrl, serviceRoleKey);
@@ -66,7 +54,7 @@ serve(async (req) => {
       .from('statements')
       .select('*')
       .eq('status', 'processing')
-      .limit(5) // Process 5 at a time to avoid timeouts
+      .limit(10) // Process up to 10 at a time
       .order('uploaded_at', { ascending: true });
 
     if (selectError) {

@@ -26,16 +26,17 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     // Extract text from PDF
     const extractedText = await extractTextFromPDF(fileData);
     console.log(`[PARSE] Text extracted successfully: ${extractedText.length} characters`);
+    console.log(`[PARSE] Sample extracted text:`, extractedText.slice(0, 500));
     
-    // Process text with OpenAI
+    // Process text to find transactions
     const validTransactions = await processTextWithOpenAI(extractedText);
-    console.log(`[PARSE] OpenAI processing complete: ${validTransactions.length} transactions found`);
+    console.log(`[PARSE] Processing complete: ${validTransactions.length} debit transactions found`);
     
     return validTransactions;
     
   } catch (error) {
     console.error('[PARSE] Error processing statement:', error);
-    throw error; // Re-throw to be handled by the calling function
+    throw error;
   }
 };
 
@@ -51,18 +52,21 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
     // Parse the statement
     const extractedTransactions = await parseStatementContent(statement.file_url, supabase);
     
-    console.log(`[PROCESS] Found ${extractedTransactions.length} transactions to process`);
+    console.log(`[PROCESS] Found ${extractedTransactions.length} debit transactions to process`);
 
-    // Insert transactions 
+    // Insert transactions if found
     if (extractedTransactions.length > 0) {
       await insertTransactions(supabase, extractedTransactions, statement.id, statement.user_id);
       console.log(`[PROCESS] Successfully inserted ${extractedTransactions.length} transactions`);
+      
+      // Update statement status to ready
+      await updateStatementStatus(supabase, statement.id, 'ready', extractedTransactions);
     } else {
-      console.log(`[PROCESS] No transactions to insert`);
+      console.log(`[PROCESS] No debit transactions found - marking as no_data`);
+      
+      // Update statement status to no_data
+      await updateStatementStatus(supabase, statement.id, 'no_data');
     }
-
-    // Update statement status to ready
-    await updateStatementStatus(supabase, statement.id, 'ready', extractedTransactions);
 
     const processingTime = Date.now() - startTime;
     console.log(`✅ STATEMENT ${statement.id} COMPLETED in ${processingTime}ms`);

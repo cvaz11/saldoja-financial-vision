@@ -28,66 +28,181 @@ const validateTransaction = (transaction: any): transaction is Transaction => {
   );
 };
 
+const parseNubankDate = (dateStr: string): string => {
+  // Convert dates like "12 Jun", "12 Jun 2024" to YYYY-MM-DD
+  const months = {
+    'Jan': '01', 'Fev': '02', 'Mar': '03', 'Abr': '04', 'Mai': '05', 'Jun': '06',
+    'Jul': '07', 'Ago': '08', 'Set': '09', 'Out': '10', 'Nov': '11', 'Dez': '12'
+  };
+  
+  const parts = dateStr.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    const day = parts[0].padStart(2, '0');
+    const month = months[parts[1] as keyof typeof months] || '01';
+    const year = parts[2] || '2025'; // Default to current year if not specified
+    return `${year}-${month}-${day}`;
+  }
+  
+  return '2025-01-01'; // Fallback date
+};
+
+const extractDirectTransactions = (text: string): Transaction[] => {
+  console.log('[DIRECT] Starting direct transaction extraction...');
+  
+  const transactions: Transaction[] = [];
+  const lines = text.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Skip empty lines and obvious headers/footers
+    if (!line || line.length < 10) continue;
+    
+    // Look for money patterns with R$
+    const moneyPattern = /R\$\s*([\d.,]+)/g;
+    const moneyMatch = moneyPattern.exec(line);
+    
+    if (moneyMatch) {
+      // Check if this is a debit transaction (exclude credits/payments received)
+      const isCredit = /IOF|Pagamento recebido|Crédito|USD refund|Payment received|Credit/i.test(line);
+      
+      if (!isCredit) {
+        // Look for date pattern in the line or nearby lines
+        const datePattern = /(\d{1,2})\s+(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)(\s+\d{4})?/i;
+        
+        let dateMatch = datePattern.exec(line);
+        let dateLine = line;
+        
+        // If no date in current line, check previous/next lines
+        if (!dateMatch && i > 0) {
+          dateMatch = datePattern.exec(lines[i - 1]);
+          if (dateMatch) dateLine = lines[i - 1];
+        }
+        if (!dateMatch && i < lines.length - 1) {
+          dateMatch = datePattern.exec(lines[i + 1]);
+          if (dateMatch) dateLine = lines[i + 1];
+        }
+        
+        if (dateMatch) {
+          const dateStr = parseNubankDate(dateMatch[0]);
+          
+          // Extract description (text between date and amount)
+          let description = line
+            .replace(datePattern, '')
+            .replace(/R\$\s*[\d.,]+/g, '')
+            .trim();
+          
+          // Clean up description
+          description = description
+            .replace(/\s+/g, ' ')
+            .replace(/^[-\s]+|[-\s]+$/g, '')
+            .trim();
+          
+          if (description.length === 0) {
+            description = 'Transação';
+          }
+          
+          // Parse amount as negative (debit)
+          const amountStr = moneyMatch[1].replace(/\./g, '').replace(',', '.');
+          const amount = -parseFloat(amountStr);
+          
+          if (!isNaN(amount) && amount < 0) {
+            // Determine category based on description
+            let category = 'Outros';
+            const desc = description.toLowerCase();
+            
+            if (desc.includes('uber') || desc.includes('99') || desc.includes('taxi')) {
+              category = 'Transporte';
+            } else if (desc.includes('ifood') || desc.includes('restaurante') || desc.includes('padaria') || desc.includes('supermercado')) {
+              category = 'Alimentação';
+            } else if (desc.includes('farmacia') || desc.includes('hospital') || desc.includes('clinica')) {
+              category = 'Saúde';
+            } else if (desc.includes('shopping') || desc.includes('loja') || desc.includes('magazine')) {
+              category = 'Compras';
+            } else if (desc.includes('netflix') || desc.includes('spotify') || desc.includes('cinema')) {
+              category = 'Lazer';
+            } else if (desc.includes('parcela') || desc.includes('financiamento')) {
+              category = 'Financeiro';
+            }
+            
+            // Check for installments
+            const installmentMatch = /parcela\s+(\d+)\/(\d+)/i.exec(description);
+            
+            const transaction: Transaction = {
+              date: dateStr,
+              description,
+              amount,
+              category
+            };
+            
+            if (installmentMatch) {
+              transaction.installment_number = parseInt(installmentMatch[1]);
+              transaction.installment_total = parseInt(installmentMatch[2]);
+            }
+            
+            transactions.push(transaction);
+            console.log(`[DIRECT] Found transaction: ${description} - R$ ${Math.abs(amount).toFixed(2)}`);
+          }
+        }
+      }
+    }
+  }
+  
+  console.log(`[DIRECT] Extracted ${transactions.length} transactions directly`);
+  return transactions;
+};
+
 export const processTextWithOpenAI = async (extractedText: string): Promise<Transaction[]> => {
   try {
-    console.log('[GPT] Starting OpenAI processing...');
+    console.log('[GPT] Starting transaction processing...');
+    console.log(`[GPT] Processing text of ${extractedText.length} characters`);
+    console.log(`[GPT] Sample text:`, extractedText.slice(0, 500));
     
+    // First try direct extraction
+    const directTransactions = extractDirectTransactions(extractedText);
+    
+    if (directTransactions.length > 0) {
+      console.log(`[GPT] Direct extraction successful: ${directTransactions.length} transactions`);
+      return directTransactions;
+    }
+    
+    // If direct extraction fails, try OpenAI
     const openAIKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIKey) {
-      throw new Error('OpenAI API key not configured');
+      console.log('[GPT] No OpenAI key, returning direct results');
+      return directTransactions;
     }
     
-    console.log(`[GPT] Processing text of ${extractedText.length} characters`);
-    console.log(`[GPT] Full text for analysis:`, extractedText);
+    console.log('[GPT] Trying OpenAI extraction...');
     
-    // If text is too short, return empty
-    if (extractedText.length < 20) {
-      console.log('[GPT] Text too short, returning empty array');
-      return [];
-    }
-    
-    const prompt = `Você é um especialista em análise de extratos bancários do NUBANK. Analise o texto fornecido e extraia APENAS transações de DÉBITO/SAÍDA (gastos) reais.
+    const prompt = `Analise este extrato bancário do NUBANK e extraia APENAS as transações de DÉBITO (saídas/gastos).
 
-TEXTO FORNECIDO:
+TEXTO DO EXTRATO:
 ${extractedText}
 
-INSTRUÇÕES CRÍTICAS:
-1. Analise TODO o texto fornecido acima procurando por transações de DÉBITO/GASTOS
-2. Procure por padrões como:
-   - Compras no cartão de crédito/débito
-   - Pagamentos via PIX
-   - Transferências enviadas
-   - Saques
-   - Taxas bancárias
-   - Compras em estabelecimentos (ex: PADARIA, SUPERMERCADO, etc.)
-   - Pagamentos de serviços
-3. IGNORE: depósitos, PIX recebidos, salários, transferências recebidas, créditos
-4. Para cada transação encontrada, extraia:
-   - Data (formato YYYY-MM-DD)
-   - Descrição clara do gasto
-   - Valor (SEMPRE NEGATIVO para gastos, ex: -150.50)
+REGRAS IMPORTANTES:
+1. IGNORE completamente: IOF, "Pagamento recebido", "Crédito", "USD refund", transferências recebidas
+2. EXTRAIA apenas: compras, pagamentos feitos, saques, transferências enviadas, parcelas
+3. Para cada transação de débito encontrada:
+   - Data no formato YYYY-MM-DD
+   - Descrição clara
+   - Valor SEMPRE NEGATIVO (ex: -150.50)
    - Categoria apropriada
-5. Use apenas estas categorias: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Outros"
 
-FORMATO DE RESPOSTA (JSON válido):
+CATEGORIAS VÁLIDAS: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Compras", "Outros"
+
+FORMATO DE RESPOSTA (JSON):
 [
   {
-    "date": "YYYY-MM-DD",
-    "description": "Descrição clara da transação",
-    "amount": -valor_negativo,
-    "category": "categoria_apropriada"
+    "date": "2025-06-12",
+    "description": "Descrição da transação",
+    "amount": -150.50,
+    "category": "Categoria"
   }
 ]
 
-IMPORTANTE: 
-- Retorne APENAS o JSON array válido
-- Se não encontrar transações de débito, retorne []
-- NÃO adicione explicações ou texto extra
-- Seja rigoroso: só extraia transações que claramente representem gastos/débitos
-- Analise TODO o texto fornecido, não apenas uma parte`;
-    
-    console.log('[GPT] Sending request to OpenAI...');
-    
+Retorne APENAS o JSON array. Se não encontrar transações de débito, retorne [].`;
+
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -95,11 +210,11 @@ IMPORTANTE:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4.1-2025-04-14',
         messages: [
           {
             role: 'system',
-            content: 'Você é um especialista em análise de extratos bancários brasileiros do NUBANK. Extraia apenas transações de DÉBITO reais do texto fornecido. Sempre retorne um JSON array válido, mesmo que vazio. NUNCA invente dados que não estão no texto. Seja extremamente rigoroso na identificação de débitos vs créditos. Analise TODO o texto fornecido.'
+            content: 'Você é um especialista em análise de extratos bancários. Extraia apenas transações de débito reais. Retorne sempre um JSON array válido.'
           },
           {
             role: 'user',
@@ -112,63 +227,45 @@ IMPORTANTE:
     });
     
     if (!openAIResponse.ok) {
-      const errorText = await openAIResponse.text();
-      console.error('[GPT] API error:', errorText);
-      throw new Error(`OpenAI API error: ${openAIResponse.status} - ${errorText}`);
+      console.error('[GPT] OpenAI API error:', openAIResponse.status);
+      return directTransactions;
     }
     
-    const openAIResult = await openAIResponse.json();
-    console.log(`[GPT] OpenAI response received`);
+    const result = await openAIResponse.json();
+    let responseText = result.choices[0].message.content.trim();
     
-    let extractedTransactionsText = openAIResult.choices[0].message.content.trim();
-    
-    // Clean the response
-    extractedTransactionsText = extractedTransactionsText
+    // Clean JSON response
+    responseText = responseText
       .replace(/```json\n?/g, '')
       .replace(/```\n?$/g, '')
       .replace(/```/g, '')
       .trim();
     
-    console.log('[GPT] Cleaned OpenAI response:', extractedTransactionsText);
+    console.log('[GPT] OpenAI response:', responseText);
     
     let transactions: any[];
     try {
-      transactions = JSON.parse(extractedTransactionsText);
+      transactions = JSON.parse(responseText);
     } catch (parseError) {
       console.error('[GPT] JSON parse error:', parseError);
-      console.log('[GPT] Failed to parse text:', extractedTransactionsText);
-      return [];
+      return directTransactions;
     }
     
     if (!Array.isArray(transactions)) {
-      console.error('[GPT] Response is not an array:', typeof transactions);
-      return [];
+      console.error('[GPT] Response is not an array');
+      return directTransactions;
     }
     
-    console.log(`[GPT] Parsed ${transactions.length} transactions from OpenAI`);
-    console.log('[GPT] Raw transactions:', transactions);
+    // Validate and filter transactions
+    const validTransactions = transactions.filter(validateTransaction);
     
-    // Filter to ensure only negative amounts (debits)
-    const debitTransactions = transactions.filter(t => t.amount && t.amount < 0);
-    console.log(`[GPT] Filtered to ${debitTransactions.length} debit transactions`);
+    console.log(`[GPT] OpenAI found ${validTransactions.length} valid transactions`);
     
-    const validTransactions = debitTransactions.filter(validateTransaction);
-    
-    console.log(`[VALIDATION] Found ${validTransactions.length} valid debit transactions`);
-    
-    if (validTransactions.length === 0) {
-      console.log('[VALIDATION] No valid debit transactions found in the text');
-      console.log('[DEBUG] Sample of original transactions:', transactions.slice(0, 5));
-      console.log('[DEBUG] Sample of debit transactions:', debitTransactions.slice(0, 5));
-    } else {
-      console.log('[VALIDATION] Sample valid transaction:', validTransactions[0]);
-      console.log('[VALIDATION] All valid transactions:', validTransactions);
-    }
-    
-    return validTransactions;
+    // Return the better result
+    return validTransactions.length > directTransactions.length ? validTransactions : directTransactions;
     
   } catch (error) {
-    console.error('[GPT] Error processing with OpenAI:', error);
+    console.error('[GPT] Error in processing:', error);
     return [];
   }
 };

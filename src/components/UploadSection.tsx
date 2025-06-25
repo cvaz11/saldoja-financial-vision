@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { FileText, Upload, Trash2 } from "lucide-react";
+import { FileText, Upload, Trash2, AlertCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,10 +35,31 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
         return <Badge variant="default" className="bg-green-500 text-white">Concluído</Badge>;
       case 'processing':
         return <Badge variant="secondary" className="bg-yellow-500 text-white">Processando</Badge>;
+      case 'no_data':
+        return <Badge variant="outline" className="border-orange-500 text-orange-600">Sem dados</Badge>;
       case 'error':
         return <Badge variant="destructive">Falha</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getStatusMessage = (statement: any) => {
+    switch (statement.status) {
+      case 'ready':
+        if (statement.total_debit > 0) {
+          return `${statement.total_debit > 0 ? `Saídas: ${formatCurrency(statement.total_debit)}` : ''} ${statement.total_credit > 0 ? `Entradas: ${formatCurrency(statement.total_credit)}` : ''}`.trim();
+        } else {
+          return 'Nenhuma despesa identificada';
+        }
+      case 'processing':
+        return 'Processando extrato... Isso pode levar alguns minutos.';
+      case 'no_data':
+        return 'Nenhuma despesa identificada – verifique se o extrato contém movimentações no período.';
+      case 'error':
+        return 'Erro no processamento. Clique para tentar novamente.';
+      default:
+        return '';
     }
   };
 
@@ -97,8 +119,17 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
       const { error: functionError } = await supabase.functions.invoke('process-statements');
       if (functionError) {
         console.error('Error invoking process-statements function:', functionError);
+        toast({
+          title: "Erro",
+          description: "Erro ao processar extratos",
+          variant: "destructive",
+        });
       } else {
         console.log('Process-statements function invoked successfully');
+        toast({
+          title: "Sucesso",
+          description: "Processamento iniciado com sucesso",
+        });
       }
     } catch (funcError) {
       console.error('Error calling process-statements function:', funcError);
@@ -136,6 +167,8 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
         description: "Não foi possível analisar este PDF. Tente fazer o upload novamente.",
         variant: "destructive",
       });
+    } else if (statement.status === 'ready' && statement.total_debit > 0) {
+      onNavigateToMovimentacoes();
     }
   };
 
@@ -151,7 +184,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
             <Input
               type="text"
               id="bankName"
-              placeholder="Ex: Banco do Brasil"
+              placeholder="Ex: Nubank"
               value={bankName}
               onChange={(e) => setBankName(e.target.value)}
             />
@@ -186,8 +219,8 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
               <div 
                 key={statement.id} 
                 className={`bg-white rounded-lg border p-4 transition-shadow ${
-                  statement.status === 'error' ? 'cursor-pointer hover:bg-red-50 hover:shadow-sm' : 'hover:shadow-sm'
-                }`}
+                  statement.status === 'error' || (statement.status === 'ready' && statement.total_debit > 0) ? 'cursor-pointer hover:shadow-sm' : ''
+                } ${statement.status === 'error' ? 'hover:bg-red-50' : 'hover:bg-gray-50'}`}
                 onClick={() => handleStatementClick(statement)}
               >
                 <div className="flex items-center justify-between">
@@ -218,45 +251,32 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
                   </div>
                 </div>
                 
-                {statement.status === 'ready' && (
-                  <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
-                    <div className="flex space-x-4">
-                      {statement.total_debit > 0 && (
-                        <span className="text-red-600">
-                          Saídas: {formatCurrency(statement.total_debit)}
-                        </span>
-                      )}
-                      {statement.total_credit > 0 && (
-                        <span className="text-green-600">
-                          Entradas: {formatCurrency(statement.total_credit)}
-                        </span>
-                      )}
-                      {(!statement.total_debit || statement.total_debit === 0) && 
-                       (!statement.total_credit || statement.total_credit === 0) && (
-                        <span className="text-gray-500">
-                          Nenhuma transação encontrada
-                        </span>
+                <div className="mt-3 text-sm text-gray-600">
+                  {statement.status === 'no_data' && (
+                    <div className="flex items-center space-x-2 text-orange-600">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>{getStatusMessage(statement)}</span>
+                    </div>
+                  )}
+                  {statement.status !== 'no_data' && (
+                    <div className="flex items-center justify-between">
+                      <span>{getStatusMessage(statement)}</span>
+                      {statement.status === 'ready' && statement.total_debit > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onNavigateToMovimentacoes();
+                          }}
+                          className="text-xs"
+                        >
+                          Ver Movimentações
+                        </Button>
                       )}
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onNavigateToMovimentacoes();
-                      }}
-                      className="text-xs"
-                    >
-                      Ver Movimentações
-                    </Button>
-                  </div>
-                )}
-
-                {statement.status === 'processing' && (
-                  <div className="mt-3 text-sm text-blue-600">
-                    Processando extrato... Isso pode levar alguns minutos.
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             ))}
           </div>

@@ -10,7 +10,7 @@ export const insertTransactions = async (
   console.log(`[DB] Preparing to insert ${transactions.length} transactions for statement ${statementId}...`);
 
   if (transactions.length === 0) {
-    console.log('[DB] No transactions to insert - marking statement as ready with empty data');
+    console.log('[DB] No transactions to insert');
     return;
   }
 
@@ -38,12 +38,14 @@ export const insertTransactions = async (
     is_credit: false, // All transactions are debits
   }));
 
-  console.log('[DB] Sample transaction insert:', dbTransactions[0]);
+  console.log('[DB] Sample transaction to insert:', dbTransactions[0]);
 
-  // Insert transactions
+  // Insert transactions with upsert to avoid duplicates
   const { error: insertError } = await supabase
     .from('transactions')
-    .insert(dbTransactions);
+    .upsert(dbTransactions, {
+      onConflict: 'user_id,transaction_date,description,amount,category'
+    });
 
   if (insertError) {
     console.error('[DB] Error inserting transactions:', insertError);
@@ -56,7 +58,7 @@ export const insertTransactions = async (
 export const updateStatementStatus = async (
   supabase: any,
   statementId: string,
-  status: 'ready' | 'error' | 'processing',
+  status: 'ready' | 'error' | 'processing' | 'no_data',
   transactions?: Transaction[]
 ): Promise<void> => {
   console.log(`[DB] Updating statement ${statementId} status to ${status}`);
