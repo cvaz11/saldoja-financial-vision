@@ -1,19 +1,20 @@
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
+// Dados zerados - serão preenchidos quando as transações reais chegarem
 const data = [
-  { mes: 'Jan', receitas: 8400, despesas: 6400 },
-  { mes: 'Fev', receitas: 7800, despesas: 5900 },
-  { mes: 'Mar', receitas: 8200, despesas: 6100 },
-  { mes: 'Abr', receitas: 8800, despesas: 6300 },
-  { mes: 'Mai', receitas: 8500, despesas: 6700 },
-  { mes: 'Jun', receitas: 9200, despesas: 5800 },
-  { mes: 'Jul', receitas: 8900, despesas: 6200 },
-  { mes: 'Ago', receitas: 9100, despesas: 6500 },
-  { mes: 'Set', receitas: 8700, despesas: 6000 },
-  { mes: 'Out', receitas: 9300, despesas: 6400 },
-  { mes: 'Nov', receitas: 8600, despesas: 5700 },
-  { mes: 'Dez', receitas: 9500, despesas: 6100 },
+  { mes: 'Jan', receitas: 0, despesas: 0 },
+  { mes: 'Fev', receitas: 0, despesas: 0 },
+  { mes: 'Mar', receitas: 0, despesas: 0 },
+  { mes: 'Abr', receitas: 0, despesas: 0 },
+  { mes: 'Mai', receitas: 0, despesas: 0 },
+  { mes: 'Jun', receitas: 0, despesas: 0 },
+  { mes: 'Jul', receitas: 0, despesas: 0 },
+  { mes: 'Ago', receitas: 0, despesas: 0 },
+  { mes: 'Set', receitas: 0, despesas: 0 },
+  { mes: 'Out', receitas: 0, despesas: 0 },
+  { mes: 'Nov', receitas: 0, despesas: 0 },
+  { mes: 'Dez', receitas: 0, despesas: 0 },
 ];
 
 const CashFlowChart = () => {
@@ -40,7 +41,7 @@ const CashFlowChart = () => {
             <YAxis 
               stroke="#666"
               tick={{ fill: '#666', fontSize: 12 }}
-              tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+              tickFormatter={(value) => value === 0 ? '0' : `${(value / 1000).toFixed(0)}k`}
             />
             <Tooltip 
               contentStyle={{
@@ -71,6 +72,10 @@ const CashFlowChart = () => {
             />
           </LineChart>
         </ResponsiveContainer>
+      </div>
+      
+      <div className="mt-4 text-center text-sm text-gray-500">
+        📊 Gráfico será atualizado automaticamente quando você processar seus extratos
       </div>
     </div>
   );

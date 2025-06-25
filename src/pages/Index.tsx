@@ -123,32 +123,32 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Metrics Cards - Stack on mobile, grid on desktop - Using only project colors */}
+      {/* Metrics Cards - Zerados até dados reais chegarem */}
       <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
         <MetricCard
           title="Total de Despesas no Mês"
-          value="R$ 1.069,54"
-          previousValue="R$ 985,30"
+          value="R$ 0,00"
+          previousValue="R$ 0,00"
           trend="up"
-          percentage="8.55%"
+          percentage="0%"
           icon={<TrendingDown className="h-6 w-6 text-sage-600" />}
           color="green"
         />
         <MetricCard
           title="Total de Receitas no Mês"
-          value="R$ 6.300,00"
-          previousValue="R$ 5.500,00"
+          value="R$ 0,00"
+          previousValue="R$ 0,00"
           trend="up"
-          percentage="14.55%"
+          percentage="0%"
           icon={<DollarSign className="h-6 w-6 text-sage-600" />}
           color="green"
         />
         <MetricCard
           title="Resultado do Mês"
-          value="R$ 5.230,46"
-          previousValue="R$ 4.514,70"
+          value="R$ 0,00"
+          previousValue="R$ 0,00"
           trend="up"
-          percentage="15.87%"
+          percentage="0%"
           icon={<TrendingUp className="h-6 w-6 text-sage-600" />}
           color="green"
         />
@@ -157,28 +157,28 @@ const Index = () => {
       <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
         <MetricCard
           title="Parcelas do Mês"
-          value="R$ 652,40"
-          previousValue="R$ 612,50"
+          value="R$ 0,00"
+          previousValue="R$ 0,00"
           trend="up"
-          percentage="6.51%"
+          percentage="0%"
           icon={<CreditCard className="h-6 w-6 text-sage-600" />}
           color="green"
         />
         <MetricCard
           title="Parcelas do Próximo Mês"
-          value="R$ 692,30"
-          previousValue="R$ 652,40"
+          value="R$ 0,00"
+          previousValue="R$ 0,00"
           trend="up"
-          percentage="6.11%"
+          percentage="0%"
           icon={<CreditCard className="h-6 w-6 text-sage-600" />}
           color="green"
         />
         <MetricCard
           title="Total de Parcelas"
-          value="R$ 7.236,80"
-          previousValue="R$ 6.850,20"
+          value="R$ 0,00"
+          previousValue="R$ 0,00"
           trend="up"
-          percentage="5.64%"
+          percentage="0%"
           icon={<TrendingUp className="h-6 w-6 text-sage-600" />}
           color="green"
         />

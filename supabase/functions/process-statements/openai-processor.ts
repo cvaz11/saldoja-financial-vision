@@ -31,6 +31,11 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
   try {
     console.log('[GPT] Starting OpenAI processing...');
     
+    const openAIKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+    
     // Limit text size for processing
     const maxLength = 50000;
     const textForGPT = extractedText.length > maxLength 
@@ -42,7 +47,7 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Authorization': `Bearer ${openAIKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -52,7 +57,7 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
             role: 'system',
             content: `Você é um especialista em análise de extratos bancários brasileiros. Sua tarefa é extrair TODAS as transações financeiras do texto fornecido.
 
-INSTRUÇÕES IMPORTANTES:
+INSTRUÇÕES CRÍTICAS:
 1. Analise o texto completo e identifique TODAS as transações
 2. Para cada transação encontrada, extraia as informações no formato JSON
 3. Use apenas transações REAIS encontradas no extrato
@@ -60,7 +65,7 @@ INSTRUÇÕES IMPORTANTES:
 5. Se não encontrar transações, retorne um array vazio []
 
 FORMATO DE RESPOSTA:
-Retorne um array JSON com objetos contendo:
+Retorne APENAS um array JSON válido com objetos contendo:
 - date: data no formato YYYY-MM-DD (obrigatório)
 - description: descrição limpa da transação (obrigatório)
 - amount: valor numérico (positivo para créditos/entradas, negativo para débitos/saídas) (obrigatório)
@@ -68,7 +73,7 @@ Retorne um array JSON com objetos contendo:
 - installment_number: número da parcela (opcional, apenas se identificado)
 - installment_total: total de parcelas (opcional, apenas se identificado)
 
-CATEGORIAS SUGERIDAS:
+CATEGORIAS VÁLIDAS:
 - Alimentação (restaurantes, delivery, mercado)
 - Transporte (uber, combustível, passagem)
 - Saúde (farmácia, médicos, planos)
@@ -81,7 +86,23 @@ CATEGORIAS SUGERIDAS:
 - Salário (pagamentos recebidos)
 - Outros (para itens não categorizados)
 
-ATENÇÃO: Retorne APENAS o array JSON, sem texto adicional ou formatação markdown.`
+EXEMPLO DE RESPOSTA VÁLIDA:
+[
+  {
+    "date": "2024-01-15",
+    "description": "Pagamento PIX - Mercado ABC",
+    "amount": -150.50,
+    "category": "Alimentação"
+  },
+  {
+    "date": "2024-01-16",
+    "description": "Salário - Empresa XYZ",
+    "amount": 3500.00,
+    "category": "Salário"
+  }
+]
+
+ATENÇÃO: Retorne APENAS o array JSON, sem texto adicional, sem markdown, sem formatação. Apenas JSON puro.`
           },
           {
             role: 'user',
@@ -102,26 +123,26 @@ ATENÇÃO: Retorne APENAS o array JSON, sem texto adicional ou formatação mark
     const openAIResult = await openAIResponse.json();
     console.log(`[GPT] Tokens used - input: ${openAIResult.usage?.prompt_tokens || 'unknown'}, output: ${openAIResult.usage?.completion_tokens || 'unknown'}`);
     
-    const extractedTransactionsText = openAIResult.choices[0].message.content;
+    let extractedTransactionsText = openAIResult.choices[0].message.content;
     console.log('[GPT] Raw response from OpenAI:', extractedTransactionsText.substring(0, 500) + '...');
     
-    // Clean the response - remove markdown formatting if present
-    let cleanedResponse = extractedTransactionsText.trim();
-    if (cleanedResponse.startsWith('```json')) {
-      cleanedResponse = cleanedResponse.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
+    // Clean the response - remove any markdown formatting
+    extractedTransactionsText = extractedTransactionsText.trim();
+    if (extractedTransactionsText.startsWith('```json')) {
+      extractedTransactionsText = extractedTransactionsText.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
     }
-    if (cleanedResponse.startsWith('```')) {
-      cleanedResponse = cleanedResponse.replace(/```\n?/g, '').replace(/```\n?$/g, '');
+    if (extractedTransactionsText.startsWith('```')) {
+      extractedTransactionsText = extractedTransactionsText.replace(/```\n?/g, '').replace(/```\n?$/g, '');
     }
     
     // Parse the JSON response
     let transactions: any[];
     try {
-      transactions = JSON.parse(cleanedResponse);
+      transactions = JSON.parse(extractedTransactionsText);
       console.log(`[GPT] Successfully parsed ${transactions.length} transactions from response`);
     } catch (parseError) {
       console.error('[GPT] Error parsing JSON response:', parseError);
-      console.log('[GPT] Cleaned response that failed to parse:', cleanedResponse);
+      console.log('[GPT] Response that failed to parse:', extractedTransactionsText);
       throw new Error('Failed to parse transaction data from OpenAI response');
     }
     
@@ -144,10 +165,10 @@ ATENÇÃO: Retorne APENAS o array JSON, sem texto adicional ou formatação mark
     
     if (validTransactions.length === 0) {
       console.log('[VALIDATION] No valid transactions found in the extracted data');
-    } else {
-      console.log('[VALIDATION] Sample valid transaction:', validTransactions[0]);
+      throw new Error('No valid transactions found in the statement');
     }
     
+    console.log('[VALIDATION] Sample valid transaction:', validTransactions[0]);
     return validTransactions;
     
   } catch (error) {

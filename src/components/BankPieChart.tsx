@@ -1,12 +1,9 @@
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
+// Dados zerados - serão preenchidos quando as transações reais chegarem
 const data = [
-  { name: 'BancoInter', value: 35, amount: 2100, color: '#A7BFAC' },
-  { name: 'Nubank', value: 30, amount: 1800, color: '#8ba290' },
-  { name: 'Digio', value: 20, amount: 1200, color: '#DDD5CC' },
-  { name: 'C6 Bank', value: 10, amount: 600, color: '#6d8471' },
-  { name: 'Santander', value: 5, amount: 300, color: '#546659' },
+  { name: 'Aguardando dados', value: 100, amount: 0, color: '#A7BFAC' },
 ];
 
 const BankPieChart = () => {
@@ -66,10 +63,13 @@ const BankPieChart = () => {
               <span className="text-sm font-semibold text-gray-900">
                 R$ {item.amount.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
               </span>
-              <div className="text-xs text-gray-500">{item.value}%</div>
             </div>
           </div>
         ))}
+      </div>
+      
+      <div className="mt-4 text-center text-sm text-gray-500">
+        🏦 Dados dos bancos aparecerão após processar extratos
       </div>
     </div>
   );

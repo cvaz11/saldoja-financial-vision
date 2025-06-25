@@ -10,11 +10,6 @@ interface UploadData {
   isInvoicePaid: boolean;
 }
 
-/**
- * Faz upload de um PDF para o bucket privado `statements`.
- * Cada usuário grava apenas dentro da pasta `${user.id}/…` (enforcement via RLS).
- * Depois insere um registro na tabela `public.statements` com status `processing`.
- */
 export const useFileUpload = () => {
   const [uploading, setUploading] = useState(false);
   const { user } = useAuth();
@@ -35,7 +30,7 @@ export const useFileUpload = () => {
     try {
       console.log('Starting file upload for user:', user.id);
       
-      /* -------------------- 1. Upload -------------------- */
+      // Upload file to storage
       const bucketName = "statements";
       const fileExt = data.file.name.split(".").pop();
       const filePath = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
@@ -60,7 +55,7 @@ export const useFileUpload = () => {
 
       console.log('File uploaded successfully');
 
-      /* -------------------- 2. Insert na tabela -------------------- */
+      // Insert statement record
       const now = new Date();
       const insertData = {
         user_id: user.id,
@@ -91,24 +86,25 @@ export const useFileUpload = () => {
 
       console.log('Statement record inserted successfully');
 
-      // Enhanced success toast with processing info
       toast({
         title: "🚀 Arquivo enviado! Analisando...",
-        description: "Nossa IA está processando seu extrato (5-8 min). Você será redirecionado automaticamente.",
+        description: "Nossa IA está processando seu extrato. Aguarde alguns segundos...",
       });
 
       // Trigger the processing function
       console.log('Triggering process-statements function...');
-      try {
-        const { error: functionError } = await supabase.functions.invoke('process-statements');
-        if (functionError) {
-          console.error('Error invoking process-statements function:', functionError);
-        } else {
-          console.log('Process-statements function invoked successfully');
+      setTimeout(async () => {
+        try {
+          const { error: functionError } = await supabase.functions.invoke('process-statements');
+          if (functionError) {
+            console.error('Error invoking process-statements function:', functionError);
+          } else {
+            console.log('Process-statements function invoked successfully');
+          }
+        } catch (funcError) {
+          console.error('Error calling process-statements function:', funcError);
         }
-      } catch (funcError) {
-        console.error('Error calling process-statements function:', funcError);
-      }
+      }, 1000); // Wait 1 second before triggering
 
       return { success: true } as const;
     } catch (err) {

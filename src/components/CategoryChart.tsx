@@ -2,16 +2,11 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
+// Dados zerados - serão preenchidos quando as transações reais chegarem
 const data = [
-  { category: 'Mercado', value: 4500, label: 'R$ 4.500', color: '#A7BFAC' },
-  { category: 'Restaurante', value: 2800, label: 'R$ 2.800', color: '#8ba290' },
-  { category: 'Aplicativos', value: 3200, label: 'R$ 3.200', color: '#6d8471' },
-  { category: 'Assinaturas', value: 1900, label: 'R$ 1.900', color: '#546659' },
-  { category: 'Transporte', value: 2100, label: 'R$ 2.100', color: '#435248' },
-  { category: 'Educação', value: 1600, label: 'R$ 1.600', color: '#A7BFAC' },
-  { category: 'Saúde', value: 2400, label: 'R$ 2.400', color: '#8ba290' },
-  { category: 'Lazer', value: 1800, label: 'R$ 1.800', color: '#6d8471' },
-  { category: 'Eletrônicos', value: 3500, label: 'R$ 3.500', color: '#546659' },
+  { category: 'Aguardando', value: 0, label: 'R$ 0', color: '#A7BFAC' },
+  { category: 'Dados', value: 0, label: 'R$ 0', color: '#8ba290' },
+  { category: 'Reais', value: 0, label: 'R$ 0', color: '#6d8471' },
 ];
 
 const CategoryChart = () => {
@@ -20,9 +15,7 @@ const CategoryChart = () => {
       <div className="flex items-center justify-between mb-4 sm:mb-6">
         <h3 className="text-lg font-semibold text-gray-900">Gastos por categorias</h3>
         <select className="border border-gray-300 rounded-md px-3 py-1 text-sm bg-white">
-          <option>Junho</option>
-          <option>Maio</option>
-          <option>Abril</option>
+          <option>Aguardando dados</option>
         </select>
       </div>
 
@@ -43,7 +36,7 @@ const CategoryChart = () => {
                 <YAxis 
                   stroke="#666"
                   tick={{ fill: '#666', fontSize: 12 }}
-                  tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                  tickFormatter={(value) => value === 0 ? '0' : `${(value / 1000).toFixed(0)}k`}
                 />
                 <Tooltip 
                   contentStyle={{
@@ -68,6 +61,10 @@ const CategoryChart = () => {
           </div>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
+      </div>
+      
+      <div className="mt-4 text-center text-sm text-gray-500">
+        📊 Categorias serão exibidas automaticamente após processar seus extratos
       </div>
     </div>
   );

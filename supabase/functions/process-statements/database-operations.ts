@@ -23,13 +23,10 @@ export const insertTransactions = async (
 
   console.log(`[DB] Sample transaction insert:`, transactionInserts[0]);
   
-  // Use upsert with conflict resolution
+  // Insert transactions
   const { error: insertError, data: insertedData } = await supabase
     .from('transactions')
-    .upsert(transactionInserts, { 
-      onConflict: 'user_id,transaction_date,description,amount,category',
-      ignoreDuplicates: true 
-    })
+    .insert(transactionInserts)
     .select();
 
   if (insertError) {
@@ -38,7 +35,7 @@ export const insertTransactions = async (
   }
 
   const insertedCount = insertedData?.length || 0;
-  console.log(`[DB] Successfully inserted/updated ${insertedCount} transactions`);
+  console.log(`[DB] Successfully inserted ${insertedCount} transactions`);
   return insertedData;
 };
 

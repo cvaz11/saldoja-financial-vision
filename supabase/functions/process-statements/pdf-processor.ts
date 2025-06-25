@@ -4,7 +4,7 @@ import {
   GlobalWorkerOptions
 } from "npm:pdfjs-dist@3.11.174/build/pdf.mjs";
 
-/* Registrar o worker do pdfjs – hospedado via esm.sh */
+// Registrar o worker do pdfjs – hospedado via esm.sh
 GlobalWorkerOptions.workerSrc =
   "https://esm.sh/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
 
