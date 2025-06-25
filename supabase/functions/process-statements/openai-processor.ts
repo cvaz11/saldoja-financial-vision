@@ -22,7 +22,6 @@ const validateTransaction = (transaction: any): transaction is Transaction => {
     transaction.description.trim().length > 0 &&
     typeof transaction.amount === 'number' &&
     !isNaN(transaction.amount) &&
-    Math.abs(transaction.amount) > 0 &&
     typeof transaction.category === 'string' &&
     transaction.category.trim().length > 0
   );
@@ -39,6 +38,31 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
     
     console.log(`[GPT] Processing text of ${extractedText.length} characters`);
     
+    const prompt = `Analise o seguinte extrato bancário brasileiro e extraia TODAS as transações financeiras válidas.
+
+REGRAS IMPORTANTES:
+- Extraia apenas transações reais (não extraia cabeçalhos, títulos ou informações de conta)
+- Para cada transação, identifique: data, descrição, valor e categoria
+- Valores positivos para entradas/créditos, negativos para saídas/débitos
+- Use apenas estas categorias: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Salário", "Outros"
+- Datas no formato YYYY-MM-DD
+- Descrições claras e objetivas (máximo 50 caracteres)
+
+FORMATO DE RESPOSTA (JSON válido):
+[
+  {
+    "date": "YYYY-MM-DD",
+    "description": "Descrição da transação",
+    "amount": valor_numérico,
+    "category": "categoria_apropriada"
+  }
+]
+
+EXTRATO BANCÁRIO:
+${extractedText}
+
+RETORNE APENAS O JSON ARRAY, sem texto adicional.`;
+    
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -50,29 +74,11 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
         messages: [
           {
             role: 'system',
-            content: `Você é um especialista em análise de extratos bancários brasileiros. Analise o extrato fornecido e extraia TODAS as transações financeiras.
-
-FORMATO DE RESPOSTA (JSON válido):
-[
-  {
-    "date": "YYYY-MM-DD",
-    "description": "Descrição clara da transação",
-    "amount": valor_numérico,
-    "category": "categoria_apropriada"
-  }
-]
-
-REGRAS IMPORTANTES:
-- date: formato YYYY-MM-DD (converta datas DD/MM/YYYY)
-- amount: positivo para entradas, negativo para saídas
-- category: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Salário", "Outros"
-- description: máximo 50 caracteres, sem acentos especiais
-
-RETORNE APENAS O JSON ARRAY, sem texto adicional.`
+            content: 'Você é um especialista em análise de extratos bancários brasileiros. Sempre retorne apenas um JSON array válido com as transações encontradas.'
           },
           {
             role: 'user',
-            content: `Extraia as transações deste extrato bancário:\n\n${extractedText}`
+            content: prompt
           }
         ],
         max_tokens: 4000,
@@ -92,12 +98,11 @@ RETORNE APENAS O JSON ARRAY, sem texto adicional.`
     let extractedTransactionsText = openAIResult.choices[0].message.content.trim();
     
     // Clean the response
-    if (extractedTransactionsText.startsWith('```json')) {
-      extractedTransactionsText = extractedTransactionsText.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
-    }
-    if (extractedTransactionsText.startsWith('```')) {
-      extractedTransactionsText = extractedTransactionsText.replace(/```\n?/g, '');
-    }
+    extractedTransactionsText = extractedTransactionsText
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?$/g, '')
+      .replace(/```/g, '')
+      .trim();
     
     console.log('[GPT] Cleaned response preview:', extractedTransactionsText.substring(0, 200) + '...');
     
@@ -119,9 +124,12 @@ RETORNE APENAS O JSON ARRAY, sem texto adicional.`
     
     console.log(`[VALIDATION] Found ${validTransactions.length} valid transactions out of ${transactions.length} total`);
     
-    if (validTransactions.length > 0) {
-      console.log('[VALIDATION] Sample transaction:', validTransactions[0]);
+    if (validTransactions.length === 0) {
+      console.log('[VALIDATION] No valid transactions found');
+      return [];
     }
+    
+    console.log('[VALIDATION] Sample transaction:', validTransactions[0]);
     
     return validTransactions;
     

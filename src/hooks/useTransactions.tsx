@@ -38,7 +38,7 @@ export const useTransactions = (dateRange: DateRange) => {
       return data || [];
     },
     enabled: !!user,
-    refetchInterval: 3000, // Check for new transactions every 3 seconds
-    staleTime: 1000, // Consider data stale after 1 second
+    refetchInterval: 5000, // Check for new transactions every 5 seconds
+    staleTime: 2000, // Consider data stale after 2 seconds
   });
 };

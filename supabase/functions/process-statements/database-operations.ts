@@ -7,9 +7,14 @@ export const insertTransactions = async (
   statementId: string,
   userId: string
 ) => {
-  console.log(`[DB] Preparing to insert ${transactions.length} transactions...`);
+  console.log(`[DB] Preparing to insert ${transactions.length} transactions for statement ${statementId}...`);
   
-  // First, check if we already have transactions for this statement
+  if (transactions.length === 0) {
+    console.log('[DB] No transactions to insert');
+    return [];
+  }
+
+  // Check if we already have transactions for this statement
   const { data: existingTransactions, error: checkError } = await supabase
     .from('transactions')
     .select('id')
@@ -39,13 +44,10 @@ export const insertTransactions = async (
 
   console.log(`[DB] Sample transaction insert:`, transactionInserts[0]);
   
-  // Insert transactions with ON CONFLICT handling
+  // Insert transactions
   const { error: insertError, data: insertedData } = await supabase
     .from('transactions')
-    .upsert(transactionInserts, { 
-      onConflict: 'user_id,transaction_date,description,amount,category',
-      ignoreDuplicates: true 
-    })
+    .insert(transactionInserts)
     .select();
 
   if (insertError) {
@@ -54,7 +56,7 @@ export const insertTransactions = async (
   }
 
   const insertedCount = insertedData?.length || 0;
-  console.log(`[DB] Successfully inserted/updated ${insertedCount} transactions`);
+  console.log(`[DB] Successfully inserted ${insertedCount} transactions`);
   return insertedData;
 };
 
