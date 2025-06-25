@@ -10,9 +10,10 @@ interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit?: (data: any) => void;
+  onNavigateToMovimentacoes?: () => void;
 }
 
-const UploadModal = ({ isOpen, onClose, onSubmit }: UploadModalProps) => {
+const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: UploadModalProps) => {
   const { uploadFile, uploading } = useFileUpload();
   const [formData, setFormData] = useState({
     file: null as File | null,
@@ -45,6 +46,12 @@ const UploadModal = ({ isOpen, onClose, onSubmit }: UploadModalProps) => {
       onClose();
       if (onSubmit) {
         onSubmit(formData);
+      }
+      // Auto-navigate to movimentacoes after successful upload
+      if (onNavigateToMovimentacoes) {
+        setTimeout(() => {
+          onNavigateToMovimentacoes();
+        }, 2000); // Small delay to allow the upload dialog to show
       }
     }
   };

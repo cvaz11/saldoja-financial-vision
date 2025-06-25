@@ -1,5 +1,5 @@
-
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "@/components/Sidebar";
 import MobileMenuDrawer from "@/components/MobileMenuDrawer";
 import MetricCard from "@/components/MetricCard";
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { TrendingDown, DollarSign, CreditCard, TrendingUp, Upload, User, Menu } from "lucide-react";
 
 const Index = () => {
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState("visao-geral");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -37,6 +38,11 @@ const Index = () => {
   const handleUploadSubmit = (data: any) => {
     console.log("Upload submitted:", data);
     setIsUploadModalOpen(false);
+  };
+
+  const handleNavigateToMovimentacoes = () => {
+    console.log("Navigating to movimentacoes...");
+    setActiveSection("movimentacoes");
   };
 
   const renderVisaoGeral = () => (
@@ -217,7 +223,7 @@ const Index = () => {
           <span className="hidden sm:inline">Perfil</span>
         </Button>
       </div>
-      <UploadSection onUpload={() => setIsUploadModalOpen(true)} />
+      <UploadSection onUpload={() => setIsUploadModalOpen(true)} onNavigateToMovimentacoes={handleNavigateToMovimentacoes} />
     </div>
   );
 
@@ -299,6 +305,7 @@ const Index = () => {
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         onSubmit={handleUploadSubmit}
+        onNavigateToMovimentacoes={handleNavigateToMovimentacoes}
       />
 
       <UserProfile

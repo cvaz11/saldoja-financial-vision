@@ -1,6 +1,6 @@
 
 import React from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Clock, Sparkles } from "lucide-react";
 
@@ -21,6 +21,9 @@ const PostUploadDialog = ({ isOpen, onClose, onViewTransactions }: PostUploadDia
           <DialogTitle className="text-center text-xl">
             Extrato enviado com sucesso! 🎉
           </DialogTitle>
+          <DialogDescription className="text-center">
+            Nossa IA está processando seu extrato bancário
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4 text-center">

@@ -7,15 +7,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useState } from "react";
 import PostUploadDialog from "./PostUploadDialog";
-import { useNavigate } from "react-router-dom";
 
 interface UploadSectionProps {
   onUpload: () => void;
+  onNavigateToMovimentacoes?: () => void;
 }
 
-const UploadSection = ({ onUpload }: UploadSectionProps) => {
+const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionProps) => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [showPostUploadDialog, setShowPostUploadDialog] = useState(false);
   const [recentUploadId, setRecentUploadId] = useState<string | null>(null);
 
@@ -103,8 +102,11 @@ const UploadSection = ({ onUpload }: UploadSectionProps) => {
   };
 
   const handleViewTransactions = () => {
+    console.log('PostUploadDialog - View transactions clicked, calling onNavigateToMovimentacoes');
     setShowPostUploadDialog(false);
-    navigate('/movimentacoes');
+    if (onNavigateToMovimentacoes) {
+      onNavigateToMovimentacoes();
+    }
   };
 
   return (

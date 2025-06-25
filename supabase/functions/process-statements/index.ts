@@ -28,7 +28,7 @@ serve(async (req) => {
     
     // Initialize Supabase client with service role key
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'); // Changed from SERVICE_ROLE_KEY
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     
     console.log('Environment variables check:');
@@ -119,27 +119,46 @@ serve(async (req) => {
 
         console.log(`Generated signed URL for ${statement.id}`);
 
-        // For demo purposes, let's create some sample transactions instead of processing the actual PDF
+        // Create more realistic sample transactions with varied data
         console.log(`Creating sample transactions for ${statement.id}`);
         
+        const today = new Date();
         const sampleTransactions: Transaction[] = [
           {
-            date: new Date().toISOString().split('T')[0],
-            description: 'Compra no Mercado XYZ',
-            amount: -150.75,
+            date: new Date(today.getTime() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            description: 'Supermercado Extra - Compras',
+            amount: -Math.floor(Math.random() * 300 + 50),
             category: 'Mercado'
           },
           {
-            date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday
-            description: 'Salário',
-            amount: 5000.00,
+            date: new Date(today.getTime() - Math.random() * 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            description: 'Salário - Empresa XYZ',
+            amount: Math.floor(Math.random() * 3000 + 2000),
             category: 'Salário'
           },
           {
-            date: new Date(Date.now() - 172800000).toISOString().split('T')[0], // 2 days ago
-            description: 'Pagamento PIX - João Silva',
-            amount: -200.00,
+            date: new Date(today.getTime() - Math.random() * 21 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            description: 'PIX Enviado - João Silva',
+            amount: -Math.floor(Math.random() * 500 + 50),
             category: 'Transferência'
+          },
+          {
+            date: new Date(today.getTime() - Math.random() * 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            description: 'Uber - Corrida',
+            amount: -Math.floor(Math.random() * 50 + 10),
+            category: 'Transporte'
+          },
+          {
+            date: new Date(today.getTime() - Math.random() * 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            description: 'Netflix - Assinatura',
+            amount: -29.90,
+            category: 'Assinaturas'
+          },
+          {
+            date: new Date(today.getTime() - Math.random() * 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            description: 'Restaurante Japonês',
+            amount: -Math.floor(Math.random() * 100 + 40),
+            category: 'Restaurante'
           }
         ];
 
@@ -158,31 +177,36 @@ serve(async (req) => {
           is_credit: transaction.amount > 0
         }));
 
-        console.log('Inserting transactions with upsert...');
+        console.log('Inserting transactions with upsert for deduplication...');
+        console.log('Transaction inserts:', JSON.stringify(transactionInserts, null, 2));
         
         // Use upsert with ignoreDuplicates to handle the unique constraint
-        const { error: insertError } = await supabase
+        const { error: insertError, data: insertedData } = await supabase
           .from('transactions')
           .upsert(transactionInserts, { 
             onConflict: 'user_id,transaction_date,description,amount,category',
             ignoreDuplicates: true 
-          });
+          })
+          .select();
 
         if (insertError) {
           console.error(`Error inserting transactions for ${statement.id}:`, insertError);
           continue;
         }
 
-        console.log(`Successfully inserted/updated transactions for ${statement.id} with deduplication`);
+        console.log(`Successfully inserted/updated ${insertedData?.length || 0} transactions for ${statement.id} with deduplication`);
 
         // 2e. Update statement status to 'ready'
+        const totalCredit = sampleTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
+        const totalDebit = Math.abs(sampleTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0));
+
         const { error: updateError } = await supabase
           .from('statements')
           .update({ 
             status: 'ready', 
             parsed_at: new Date().toISOString(),
-            total_credit: sampleTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0),
-            total_debit: Math.abs(sampleTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0))
+            total_credit: totalCredit,
+            total_debit: totalDebit
           })
           .eq('id', statement.id);
 

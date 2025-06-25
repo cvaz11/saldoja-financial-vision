@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -23,13 +22,9 @@ interface DateRangePickerProps {
 }
 
 const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangePickerProps) => {
-  const [mode, setMode] = useState<DateRangeMode>('single');
+  const [mode, setMode] = useState<DateRangeMode>('range');
   const [isOpen, setIsOpen] = useState(false);
   const [selectedMonths, setSelectedMonths] = useState<Date[]>([new Date()]);
-  const [customRange, setCustomRange] = useState<{ from?: Date; to?: Date }>({
-    from: dateRange.from,
-    to: dateRange.to
-  });
 
   const handleModeChange = (newMode: DateRangeMode) => {
     setMode(newMode);
@@ -39,9 +34,6 @@ const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangeP
       const monthStart = startOfMonth(now);
       const monthEnd = endOfMonth(now);
       onDateRangeChange({ from: monthStart, to: monthEnd });
-    } else if (newMode === 'range') {
-      // Initialize custom range with current dateRange
-      setCustomRange({ from: dateRange.from, to: dateRange.to });
     }
   };
 
@@ -64,17 +56,14 @@ const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangeP
     setIsOpen(false);
   };
 
-  const handleCustomRangeApply = () => {
-    if (customRange.from && customRange.to) {
-      onDateRangeChange({ from: customRange.from, to: customRange.to });
-      setIsOpen(false);
-    }
-  };
-
   const handleRangeSelect = (range: { from?: Date; to?: Date } | undefined) => {
     console.log('Range selected:', range);
-    if (range) {
-      setCustomRange(range);
+    if (range?.from && range?.to) {
+      onDateRangeChange({ from: range.from, to: range.to });
+      setIsOpen(false);
+    } else if (range?.from && !range?.to) {
+      // Keep popover open for user to select end date
+      console.log('Start date selected, waiting for end date');
     }
   };
 
@@ -146,32 +135,22 @@ const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangeP
       case 'range':
         return (
           <div className="space-y-3">
-            <h4 className="font-medium text-sm">Intervalo personalizado</h4>
+            <h4 className="font-medium text-sm">Arrastar para selecionar período</h4>
             <Calendar
               mode="range"
-              selected={{ from: customRange.from, to: customRange.to }}
+              selected={{ from: dateRange.from, to: dateRange.to }}
               onSelect={handleRangeSelect}
               className="p-3 pointer-events-auto"
               showOutsideDays={false}
-              numberOfMonths={2}
+              numberOfMonths={1}
             />
             <div className="px-3 text-xs text-gray-600">
-              {customRange.from && customRange.to ? (
-                `${format(customRange.from, "dd/MM/yyyy", { locale: ptBR })} - ${format(customRange.to, "dd/MM/yyyy", { locale: ptBR })}`
-              ) : customRange.from ? (
-                `Início: ${format(customRange.from, "dd/MM/yyyy", { locale: ptBR })}`
+              {dateRange.from && dateRange.to ? (
+                `${format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} - ${format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}`
               ) : (
-                "Selecione o período inicial e final"
+                "Arraste do dia inicial ao final ou clique em duas datas"
               )}
             </div>
-            <Button 
-              onClick={handleCustomRangeApply}
-              disabled={!customRange.from || !customRange.to}
-              className="w-full"
-              size="sm"
-            >
-              Aplicar período
-            </Button>
           </div>
         );
     }
@@ -203,7 +182,7 @@ const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangeP
             <SelectContent>
               <SelectItem value="single">Mês único</SelectItem>
               <SelectItem value="multiple">Múltiplos meses</SelectItem>
-              <SelectItem value="range">Intervalo livre</SelectItem>
+              <SelectItem value="range">Arrastar período</SelectItem>
             </SelectContent>
           </Select>
         </div>
