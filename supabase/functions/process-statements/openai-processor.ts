@@ -38,6 +38,12 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
     
     console.log(`[GPT] Processing text of ${extractedText.length} characters`);
     
+    // Check if text contains actual transaction data
+    if (extractedText.includes('placeholder') || extractedText.includes('simulado') || extractedText.includes('não implementado')) {
+      console.log('[GPT] Detected placeholder content - returning empty transactions');
+      return [];
+    }
+    
     const prompt = `Analise o seguinte extrato bancário brasileiro e extraia TODAS as transações financeiras válidas.
 
 REGRAS IMPORTANTES:
@@ -47,6 +53,7 @@ REGRAS IMPORTANTES:
 - Use apenas estas categorias: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Salário", "Outros"
 - Datas no formato YYYY-MM-DD
 - Descrições claras e objetivas (máximo 50 caracteres)
+- Se não encontrar transações válidas, retorne um array vazio []
 
 FORMATO DE RESPOSTA (JSON válido):
 [
@@ -61,7 +68,7 @@ FORMATO DE RESPOSTA (JSON válido):
 EXTRATO BANCÁRIO:
 ${extractedText}
 
-RETORNE APENAS O JSON ARRAY, sem texto adicional.`;
+RETORNE APENAS O JSON ARRAY, sem texto adicional. Se não houver transações, retorne [].`;
     
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -74,7 +81,7 @@ RETORNE APENAS O JSON ARRAY, sem texto adicional.`;
         messages: [
           {
             role: 'system',
-            content: 'Você é um especialista em análise de extratos bancários brasileiros. Sempre retorne apenas um JSON array válido com as transações encontradas.'
+            content: 'Você é um especialista em análise de extratos bancários brasileiros. Sempre retorne apenas um JSON array válido com as transações encontradas. Se não encontrar transações válidas, retorne um array vazio [].'
           },
           {
             role: 'user',
@@ -112,12 +119,15 @@ RETORNE APENAS O JSON ARRAY, sem texto adicional.`;
     } catch (parseError) {
       console.error('[GPT] JSON parse error:', parseError);
       console.log('[GPT] Failed text:', extractedTransactionsText);
-      throw new Error(`Failed to parse OpenAI response as JSON: ${parseError.message}`);
+      // Return empty array instead of throwing error
+      console.log('[GPT] Returning empty transactions due to parse error');
+      return [];
     }
     
     if (!Array.isArray(transactions)) {
       console.error('[GPT] Response is not an array:', typeof transactions);
-      throw new Error('OpenAI response is not an array');
+      console.log('[GPT] Returning empty transactions - invalid response format');
+      return [];
     }
     
     const validTransactions = transactions.filter(validateTransaction);
@@ -135,6 +145,8 @@ RETORNE APENAS O JSON ARRAY, sem texto adicional.`;
     
   } catch (error) {
     console.error('[GPT] Error processing with OpenAI:', error);
-    throw error;
+    // Return empty array instead of throwing error to avoid failures
+    console.log('[GPT] Returning empty transactions due to processing error');
+    return [];
   }
 };

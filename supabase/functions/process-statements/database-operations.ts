@@ -10,24 +10,20 @@ export const insertTransactions = async (
   console.log(`[DB] Preparing to insert ${transactions.length} transactions for statement ${statementId}...`);
   
   if (transactions.length === 0) {
-    console.log('[DB] No transactions to insert');
+    console.log('[DB] No transactions to insert - marking statement as ready with empty data');
     return [];
   }
 
-  // Check if we already have transactions for this statement
-  const { data: existingTransactions, error: checkError } = await supabase
+  // Always delete existing transactions for this statement to avoid duplicates
+  console.log(`[DB] Cleaning existing transactions for statement ${statementId}...`);
+  const { error: deleteError } = await supabase
     .from('transactions')
-    .select('id')
+    .delete()
     .eq('statement_id', statementId);
 
-  if (checkError) {
-    console.error(`[DB] Error checking existing transactions:`, checkError);
-    throw new Error(`Database check failed: ${checkError.message}`);
-  }
-
-  if (existingTransactions && existingTransactions.length > 0) {
-    console.log(`[DB] Statement ${statementId} already has ${existingTransactions.length} transactions, skipping insert`);
-    return existingTransactions;
+  if (deleteError) {
+    console.error(`[DB] Error deleting existing transactions:`, deleteError);
+    // Continue anyway, as they might not exist
   }
 
   const transactionInserts = transactions.map(transaction => ({
@@ -44,10 +40,13 @@ export const insertTransactions = async (
 
   console.log(`[DB] Sample transaction insert:`, transactionInserts[0]);
   
-  // Insert transactions
+  // Insert transactions with ON CONFLICT handling
   const { error: insertError, data: insertedData } = await supabase
     .from('transactions')
-    .insert(transactionInserts)
+    .upsert(transactionInserts, {
+      onConflict: 'user_id,transaction_date,description,amount,category',
+      ignoreDuplicates: false
+    })
     .select();
 
   if (insertError) {
@@ -73,13 +72,19 @@ export const updateStatementStatus = async (
     parsed_at: new Date().toISOString()
   };
 
-  if (transactions && transactions.length > 0) {
-    const totalCredit = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
-    const totalDebit = Math.abs(transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0));
-    updateData.total_credit = totalCredit;
-    updateData.total_debit = totalDebit;
-    
-    console.log(`[DB] Statement totals - Credit: ${totalCredit}, Debit: ${totalDebit}`);
+  if (status === 'ready') {
+    if (transactions && transactions.length > 0) {
+      const totalCredit = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
+      const totalDebit = Math.abs(transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0));
+      updateData.total_credit = totalCredit;
+      updateData.total_debit = totalDebit;
+      
+      console.log(`[DB] Statement totals - Credit: ${totalCredit}, Debit: ${totalDebit}`);
+    } else {
+      updateData.total_credit = 0;
+      updateData.total_debit = 0;
+      console.log(`[DB] No transactions found - setting totals to 0`);
+    }
   }
 
   const { error: updateError } = await supabase
