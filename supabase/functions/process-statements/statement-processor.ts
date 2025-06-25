@@ -5,7 +5,7 @@ import { insertTransactions, updateStatementStatus } from './database-operations
 
 export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`[PARSE] Downloading PDF from: ${fileUrl}`);
+    console.log(`[PARSE] Processing file: ${fileUrl}`);
     
     // Download the PDF file from Supabase storage
     const { data: fileData, error: downloadError } = await supabase.storage
@@ -25,18 +25,16 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     
     // Extract text from PDF
     const extractedText = await extractTextFromPDF(fileData);
-    
     console.log(`[PARSE] Text extracted: ${extractedText.length} characters`);
     
     // Process text with OpenAI
     const validTransactions = await processTextWithOpenAI(extractedText);
-    
-    console.log(`[PARSE] Processing complete: ${validTransactions.length} transactions found`);
+    console.log(`[PARSE] Found ${validTransactions.length} valid transactions`);
     
     return validTransactions;
     
   } catch (error) {
-    console.error('[PARSE] Error parsing statement:', error);
+    console.error('[PARSE] Error:', error);
     throw error;
   }
 };
@@ -47,44 +45,37 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
   try {
     console.log(`\n=== PROCESSING STATEMENT ${statement.id} ===`);
     console.log(`File: ${statement.filename}`);
-    console.log(`Bank: ${statement.bank || 'Unknown'}`);
     console.log(`User: ${statement.user_id}`);
 
-    // Extract transactions from the PDF
+    // Parse the statement
     const extractedTransactions = await parseStatementContent(statement.file_url, supabase);
     
-    console.log(`[PROCESS] Found ${extractedTransactions.length} transactions`);
-
     if (extractedTransactions.length === 0) {
-      console.log(`[PROCESS] No transactions found, marking as error`);
-      await updateStatementStatus(supabase, statement.id, 'error');
+      console.log(`[PROCESS] No transactions found, marking as ready with empty data`);
+      await updateStatementStatus(supabase, statement.id, 'ready');
       return;
     }
 
-    // Log sample transactions
-    if (extractedTransactions.length > 0) {
-      console.log(`[PROCESS] Sample transaction:`, extractedTransactions[0]);
-    }
+    console.log(`[PROCESS] Processing ${extractedTransactions.length} transactions`);
 
-    // Insert transactions into database
+    // Insert transactions
     await insertTransactions(supabase, extractedTransactions, statement.id, statement.user_id);
 
-    // Update statement status to 'ready'
+    // Update statement status
     await updateStatementStatus(supabase, statement.id, 'ready', extractedTransactions);
 
     const processingTime = Date.now() - startTime;
-    console.log(`✅ STATEMENT ${statement.id} PROCESSED SUCCESSFULLY in ${processingTime}ms`);
-    console.log(`   - Transactions: ${extractedTransactions.length}`);
+    console.log(`✅ STATEMENT ${statement.id} COMPLETED in ${processingTime}ms`);
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
     console.error(`❌ STATEMENT ${statement.id} FAILED after ${processingTime}ms:`, error);
     
-    // Mark statement as error
+    // Mark as error
     try {
       await updateStatementStatus(supabase, statement.id, 'error');
     } catch (updateError) {
-      console.error(`[PROCESS] Failed to update statement status:`, updateError);
+      console.error(`Failed to update error status:`, updateError);
     }
     
     throw error;
