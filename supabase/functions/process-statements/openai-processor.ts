@@ -38,51 +38,53 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
     }
     
     console.log(`[GPT] Processing text of ${extractedText.length} characters`);
-    console.log(`[GPT] Text preview for analysis:`, extractedText.substring(0, 2000));
+    console.log(`[GPT] Full text for analysis:`, extractedText);
     
     // If text is too short, return empty
-    if (extractedText.length < 50) {
+    if (extractedText.length < 20) {
       console.log('[GPT] Text too short, returning empty array');
       return [];
     }
     
-    const prompt = `Você é um especialista em análise de extratos bancários brasileiros. Analise o texto do extrato fornecido e extraia APENAS transações de DÉBITO/SAÍDA (gastos).
+    const prompt = `Você é um especialista em análise de extratos bancários do NUBANK. Analise o texto fornecido e extraia APENAS transações de DÉBITO/SAÍDA (gastos) reais.
+
+TEXTO FORNECIDO:
+${extractedText}
 
 INSTRUÇÕES CRÍTICAS:
-1. Extraia apenas transações REAIS que aparecem claramente no texto
-2. IGNORE completamente: depósitos, PIX recebidos, salários, transferências recebidas, créditos
-3. Procure por: compras, pagamentos, débitos, saques, taxas, anuidades
-4. Valores devem ser SEMPRE NEGATIVOS (ex: -150.50 para um gasto de R$ 150,50)
-5. Datas no formato YYYY-MM-DD
-6. Descrições claras e concisas
-7. Use apenas estas categorias: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Outros"
+1. Analise TODO o texto fornecido acima procurando por transações de DÉBITO/GASTOS
+2. Procure por padrões como:
+   - Compras no cartão de crédito/débito
+   - Pagamentos via PIX
+   - Transferências enviadas
+   - Saques
+   - Taxas bancárias
+   - Compras em estabelecimentos (ex: PADARIA, SUPERMERCADO, etc.)
+   - Pagamentos de serviços
+3. IGNORE: depósitos, PIX recebidos, salários, transferências recebidas, créditos
+4. Para cada transação encontrada, extraia:
+   - Data (formato YYYY-MM-DD)
+   - Descrição clara do gasto
+   - Valor (SEMPRE NEGATIVO para gastos, ex: -150.50)
+   - Categoria apropriada
+5. Use apenas estas categorias: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Outros"
 
 FORMATO DE RESPOSTA (JSON válido):
 [
   {
     "date": "YYYY-MM-DD",
-    "description": "Descrição da transação",
-    "amount": -valor_numerico_negativo,
+    "description": "Descrição clara da transação",
+    "amount": -valor_negativo,
     "category": "categoria_apropriada"
   }
 ]
-
-EXEMPLOS DE TRANSAÇÕES VÁLIDAS:
-- Compras no cartão de crédito/débito
-- Pagamentos via PIX
-- Saques em caixas eletrônicos
-- Taxas bancárias
-- Anuidades
-- Transferências enviadas (débito)
-
-TEXTO DO EXTRATO:
-${extractedText}
 
 IMPORTANTE: 
 - Retorne APENAS o JSON array válido
 - Se não encontrar transações de débito, retorne []
 - NÃO adicione explicações ou texto extra
-- Seja muito rigoroso: só extraia transações que claramente representam gastos/débitos`;
+- Seja rigoroso: só extraia transações que claramente representem gastos/débitos
+- Analise TODO o texto fornecido, não apenas uma parte`;
     
     console.log('[GPT] Sending request to OpenAI...');
     
@@ -97,7 +99,7 @@ IMPORTANTE:
         messages: [
           {
             role: 'system',
-            content: 'Você é um especialista em análise de extratos bancários brasileiros. Extraia apenas transações de DÉBITO reais do texto fornecido. Sempre retorne um JSON array válido, mesmo que vazio. NUNCA invente dados que não estão no texto. Seja extremamente rigoroso na identificação de débitos vs créditos.'
+            content: 'Você é um especialista em análise de extratos bancários brasileiros do NUBANK. Extraia apenas transações de DÉBITO reais do texto fornecido. Sempre retorne um JSON array válido, mesmo que vazio. NUNCA invente dados que não estão no texto. Seja extremamente rigoroso na identificação de débitos vs créditos. Analise TODO o texto fornecido.'
           },
           {
             role: 'user',
@@ -127,7 +129,7 @@ IMPORTANTE:
       .replace(/```/g, '')
       .trim();
     
-    console.log('[GPT] Cleaned response:', extractedTransactionsText.substring(0, 1000));
+    console.log('[GPT] Cleaned OpenAI response:', extractedTransactionsText);
     
     let transactions: any[];
     try {
@@ -144,6 +146,7 @@ IMPORTANTE:
     }
     
     console.log(`[GPT] Parsed ${transactions.length} transactions from OpenAI`);
+    console.log('[GPT] Raw transactions:', transactions);
     
     // Filter to ensure only negative amounts (debits)
     const debitTransactions = transactions.filter(t => t.amount && t.amount < 0);
@@ -155,7 +158,8 @@ IMPORTANTE:
     
     if (validTransactions.length === 0) {
       console.log('[VALIDATION] No valid debit transactions found in the text');
-      console.log('[DEBUG] Sample of original transactions:', transactions.slice(0, 3));
+      console.log('[DEBUG] Sample of original transactions:', transactions.slice(0, 5));
+      console.log('[DEBUG] Sample of debit transactions:', debitTransactions.slice(0, 5));
     } else {
       console.log('[VALIDATION] Sample valid transaction:', validTransactions[0]);
       console.log('[VALIDATION] All valid transactions:', validTransactions);

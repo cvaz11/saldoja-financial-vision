@@ -1,7 +1,7 @@
 
 export const extractTextFromPDF = async (fileData: Blob): Promise<string> => {
   try {
-    console.log('[PDF] Starting PDF text extraction...');
+    console.log('[PDF] Starting advanced PDF text extraction...');
     
     // Convert blob to array buffer
     const arrayBuffer = await fileData.arrayBuffer();
@@ -10,93 +10,162 @@ export const extractTextFromPDF = async (fileData: Blob): Promise<string> => {
     // Convert to Uint8Array for processing
     const uint8Array = new Uint8Array(arrayBuffer);
     
-    // Try to extract text using multiple approaches
+    // Convert to string for text processing
+    const pdfString = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array);
+    
+    console.log('[PDF] Searching for text content using multiple methods...');
+    
     let extractedText = '';
-    
-    // Method 1: Look for text streams in PDF
-    const textDecoder = new TextDecoder('utf-8', { fatal: false });
-    const pdfString = textDecoder.decode(uint8Array);
-    
-    // Extract text between BT (Begin Text) and ET (End Text) markers
     const textBlocks = [];
-    const btPattern = /BT\s+(.*?)\s+ET/gs;
-    let match;
     
-    while ((match = btPattern.exec(pdfString)) !== null) {
-      const textBlock = match[1];
-      if (textBlock && textBlock.length > 5) {
-        // Clean up the text block
-        const cleanText = textBlock
+    // Method 1: Extract text from stream objects
+    const streamPattern = /stream\s*\n([\s\S]*?)\nendstream/gi;
+    let streamMatch;
+    
+    while ((streamMatch = streamPattern.exec(pdfString)) !== null) {
+      const streamContent = streamMatch[1];
+      if (streamContent && streamContent.length > 20) {
+        // Look for readable text in stream
+        const readableText = streamContent.replace(/[^\x20-\x7E\u00A0-\u00FF]/g, ' ')
           .replace(/\s+/g, ' ')
-          .replace(/[^\x20-\x7E\u00A0-\u00FF]/g, ' ')
           .trim();
         
-        if (cleanText.length > 10) {
-          textBlocks.push(cleanText);
+        if (readableText.length > 10 && /[a-zA-Z]/.test(readableText)) {
+          textBlocks.push(readableText);
         }
       }
     }
     
-    // Method 2: Look for Tj operators (show text)
-    const tjPattern = /\((.*?)\)\s*Tj/g;
-    const tjTexts = [];
+    // Method 2: Look for text in parentheses (PDF text strings)
+    const textStringPattern = /\(([^)]+)\)/g;
+    let textMatch;
     
-    while ((match = tjPattern.exec(pdfString)) !== null) {
-      const text = match[1];
-      if (text && text.length > 2) {
-        tjTexts.push(text);
+    while ((textMatch = textStringPattern.exec(pdfString)) !== null) {
+      const text = textMatch[1];
+      if (text && text.length > 2 && /[a-zA-Z0-9]/.test(text)) {
+        textBlocks.push(text);
       }
     }
     
-    // Method 3: Extract readable ASCII text
-    const asciiText = [];
-    let currentText = '';
+    // Method 3: Look for hexadecimal encoded text
+    const hexPattern = /<([0-9A-Fa-f]+)>/g;
+    let hexMatch;
     
-    for (let i = 0; i < uint8Array.length; i++) {
-      const byte = uint8Array[i];
+    while ((hexMatch = hexPattern.exec(pdfString)) !== null) {
+      try {
+        const hexString = hexMatch[1];
+        if (hexString.length % 2 === 0) {
+          const bytes = [];
+          for (let i = 0; i < hexString.length; i += 2) {
+            bytes.push(parseInt(hexString.substr(i, 2), 16));
+          }
+          const text = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(bytes));
+          if (text && text.length > 2 && /[a-zA-Z0-9]/.test(text)) {
+            textBlocks.push(text);
+          }
+        }
+      } catch (e) {
+        // Ignore invalid hex strings
+      }
+    }
+    
+    // Method 4: Direct text extraction from PDF objects
+    const objPattern = /\d+ \d+ obj\s*<<[^>]*>>\s*stream\s*\n([\s\S]*?)\nendstream/gi;
+    let objMatch;
+    
+    while ((objMatch = objPattern.exec(pdfString)) !== null) {
+      const objContent = objMatch[1];
+      if (objContent) {
+        // Try to extract readable text
+        const lines = objContent.split('\n');
+        for (const line of lines) {
+          const cleanLine = line.replace(/[^\x20-\x7E\u00A0-\u00FF]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          
+          if (cleanLine.length > 5 && /[a-zA-Z]/.test(cleanLine)) {
+            textBlocks.push(cleanLine);
+          }
+        }
+      }
+    }
+    
+    // Method 5: Look for BT/ET text blocks with better parsing
+    const btPattern = /BT\s+([\s\S]*?)\s+ET/gi;
+    let btMatch;
+    
+    while ((btMatch = btPattern.exec(pdfString)) !== null) {
+      const btContent = btMatch[1];
       
-      if (byte >= 32 && byte <= 126) { // Printable ASCII
-        currentText += String.fromCharCode(byte);
-      } else if (byte === 10 || byte === 13) { // Line breaks
-        if (currentText.trim().length > 5) {
-          asciiText.push(currentText.trim());
+      // Look for Tj commands (show text)
+      const tjPattern = /\(([^)]*)\)\s*Tj/gi;
+      let tjMatch;
+      
+      while ((tjMatch = tjPattern.exec(btContent)) !== null) {
+        const text = tjMatch[1];
+        if (text && text.length > 1) {
+          textBlocks.push(text);
         }
-        currentText = '';
-      } else {
-        if (currentText.trim().length > 5) {
-          asciiText.push(currentText.trim());
+      }
+      
+      // Look for TJ commands (show text array)
+      const tjArrayPattern = /\[\s*([^\]]*)\s*\]\s*TJ/gi;
+      let tjArrayMatch;
+      
+      while ((tjArrayMatch = tjArrayPattern.exec(btContent)) !== null) {
+        const arrayContent = tjArrayMatch[1];
+        const textParts = arrayContent.match(/\(([^)]*)\)/g);
+        if (textParts) {
+          textParts.forEach(part => {
+            const text = part.replace(/[()]/g, '');
+            if (text && text.length > 1) {
+              textBlocks.push(text);
+            }
+          });
         }
-        currentText = '';
       }
     }
     
-    // Add final text if exists
-    if (currentText.trim().length > 5) {
-      asciiText.push(currentText.trim());
-    }
-    
-    // Combine all extracted text
-    const allText = [
-      ...textBlocks,
-      ...tjTexts,
-      ...asciiText.filter(text => 
-        text.length > 10 && 
-        !/^[0-9\s\.\-\+\/\\<>]+$/.test(text) && // Skip pure numbers/symbols
-        !text.includes('obj') &&
-        !text.includes('endobj') &&
-        !text.includes('stream') &&
-        !text.includes('endstream')
-      )
+    // Method 6: Look for common Brazilian banking terms to find the right content
+    const fullText = pdfString.replace(/[^\x20-\x7E\u00A0-\u00FF]/g, ' ');
+    const bankingTerms = [
+      'NUBANK', 'PIX', 'TED', 'DOC', 'DÉBITO', 'CRÉDITO', 'SALDO', 'EXTRATO',
+      'COMPRA', 'PAGAMENTO', 'TRANSFERÊNCIA', 'CARTÃO', 'CONTA', 'BANCO',
+      'VALOR', 'DATA', 'DESCRIÇÃO', 'LANÇAMENTO'
     ];
     
-    extractedText = allText.join('\n').trim();
+    for (const term of bankingTerms) {
+      const termIndex = fullText.toUpperCase().indexOf(term);
+      if (termIndex !== -1) {
+        // Extract surrounding context
+        const start = Math.max(0, termIndex - 200);
+        const end = Math.min(fullText.length, termIndex + 500);
+        const context = fullText.substring(start, end).trim();
+        if (context.length > 50) {
+          textBlocks.push(context);
+        }
+      }
+    }
     
-    console.log(`[PDF] Extracted text length: ${extractedText.length} characters`);
-    console.log(`[PDF] Sample text preview:`, extractedText.substring(0, 500));
+    // Combine and clean all extracted text
+    const allText = textBlocks.join('\n').trim();
+    
+    // Remove duplicates and clean up
+    const uniqueLines = [...new Set(allText.split('\n'))];
+    const cleanText = uniqueLines
+      .filter(line => line.trim().length > 3)
+      .filter(line => /[a-zA-Z0-9]/.test(line))
+      .join('\n');
+    
+    extractedText = cleanText;
+    
+    console.log(`[PDF] Final extracted text length: ${extractedText.length} characters`);
+    console.log(`[PDF] Text blocks found: ${textBlocks.length}`);
+    console.log(`[PDF] Sample extracted text:`, extractedText.substring(0, 800));
     
     if (extractedText.length === 0) {
-      console.log('[PDF] No text extracted, PDF might be image-based or encrypted');
-      throw new Error('No text could be extracted from the PDF. The PDF might be image-based or encrypted.');
+      console.log('[PDF] No text extracted, PDF might be image-based or heavily encrypted');
+      throw new Error('No readable text could be extracted from the PDF. The PDF might be image-based, encrypted, or use unsupported encoding.');
     }
     
     return extractedText;
