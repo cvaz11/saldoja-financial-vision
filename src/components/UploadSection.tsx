@@ -24,6 +24,8 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
     queryFn: async () => {
       if (!user) return [];
       
+      console.log('Fetching statements for user:', user.id);
+      
       const { data, error } = await supabase
         .from('statements')
         .select('*')
@@ -35,6 +37,8 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
         console.error('Error fetching statements:', error);
         throw error;
       }
+      
+      console.log('Fetched statements:', data);
       return data || [];
     },
     enabled: !!user
@@ -47,7 +51,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
     console.log('Setting up realtime subscription for user:', user.id);
 
     const channel = supabase
-      .channel('statements-changes')
+      .channel(`statements-changes-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -57,7 +61,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('Statement updated:', payload);
+          console.log('Statement updated via realtime:', payload);
           refetch();
         }
       )
@@ -70,7 +74,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('New statement:', payload);
+          console.log('New statement via realtime:', payload);
           setRecentUploadId(payload.new.id);
           setShowPostUploadDialog(true);
           refetch();
@@ -109,6 +113,21 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
     }
   };
 
+  const handleManualProcess = async () => {
+    console.log('Manually triggering process-statements function...');
+    try {
+      const { data, error } = await supabase.functions.invoke('process-statements');
+      if (error) {
+        console.error('Error invoking process-statements function:', error);
+      } else {
+        console.log('Process-statements function result:', data);
+        refetch(); // Refresh the statements list
+      }
+    } catch (error) {
+      console.error('Error calling process-statements function:', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="text-center">
@@ -125,13 +144,22 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
           <Upload className="h-12 w-12 md:h-16 md:w-16 text-sage-700 mb-4" />
           <h3 className="font-semibold text-gray-900 mb-2 text-lg">Enviar Extratos</h3>
           <p className="text-sm text-gray-600 mb-6">Faça upload dos seus extratos em PDF, CSV ou OFX</p>
-          <Button 
-            onClick={onUpload}
-            className="bg-sage-600 hover:bg-sage-700 text-white shadow-md w-full py-3"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Selecionar Arquivo
-          </Button>
+          <div className="space-y-3 w-full">
+            <Button 
+              onClick={onUpload}
+              className="bg-sage-600 hover:bg-sage-700 text-white shadow-md w-full py-3"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Selecionar Arquivo
+            </Button>
+            <Button 
+              onClick={handleManualProcess}
+              variant="outline"
+              className="w-full py-2 text-sm"
+            >
+              🔄 Processar Manualmente
+            </Button>
+          </div>
         </div>
 
         {/* Transaction List - Takes 2 columns on large screens */}

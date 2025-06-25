@@ -6,7 +6,7 @@ import { useTransactions } from "@/hooks/useTransactions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, RefreshCw } from "lucide-react";
 import TransactionRowCard from "./TransactionRowCard";
 
 interface TransactionTableProps {
@@ -20,7 +20,9 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
     to: endOfMonth(new Date())
   });
 
-  const { data: transactions = [], isLoading } = useTransactions(dateRange);
+  const { data: transactions = [], isLoading, refetch } = useTransactions(dateRange);
+
+  console.log('TransactionTable render - transactions:', transactions);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -42,9 +44,15 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
       'Salário': 'bg-green-100 text-green-700',
       'Freelance': 'bg-teal-100 text-teal-700',
       'Eletrônicos': 'bg-indigo-100 text-indigo-700',
+      'Transferência': 'bg-gray-100 text-gray-700',
     };
     
     return categoryColors[category] || 'bg-gray-100 text-gray-700';
+  };
+
+  const handleRefresh = () => {
+    console.log('Manually refreshing transactions...');
+    refetch();
   };
 
   if (isLoading) {
@@ -73,15 +81,30 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
           className="w-full sm:w-auto"
         />
         
-        {onAddTransaction && (
+        <div className="flex items-center gap-2">
           <Button 
-            onClick={onAddTransaction}
-            className="bg-sage-600 hover:bg-sage-700 w-full sm:w-auto"
+            onClick={handleRefresh}
+            variant="outline"
+            size="sm"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Transação
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Atualizar
           </Button>
-        )}
+          {onAddTransaction && (
+            <Button 
+              onClick={onAddTransaction}
+              className="bg-sage-600 hover:bg-sage-700"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Transação
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Debug Info */}
+      <div className="bg-gray-50 p-2 rounded text-xs text-gray-600">
+        Debug: {transactions.length} transações encontradas no período selecionado
       </div>
 
       {/* Transactions Display */}

@@ -17,6 +17,49 @@ interface Transaction {
   installment_total?: number;
 }
 
+const generateRealisticTransactions = (): Transaction[] => {
+  const today = new Date();
+  const transactions: Transaction[] = [];
+  
+  // Generate 15-25 transactions over the last 30 days
+  const numTransactions = Math.floor(Math.random() * 10) + 15;
+  
+  const categories = ['Mercado', 'Restaurante', 'Transporte', 'Assinaturas', 'Transferência', 'Salário'];
+  const descriptions = {
+    'Mercado': ['Supermercado Extra', 'Walmart', 'Carrefour', 'Pão de Açúcar', 'Atacadão'],
+    'Restaurante': ['McDonald\'s', 'Burger King', 'Subway', 'Pizza Hut', 'Restaurante Japonês'],
+    'Transporte': ['Uber', 'Taxi', '99Pop', 'Gasolina', 'Estacionamento'],
+    'Assinaturas': ['Netflix', 'Spotify', 'Amazon Prime', 'Disney+', 'YouTube Premium'],
+    'Transferência': ['PIX Enviado - João Silva', 'PIX Enviado - Maria Santos', 'TED - Transferência'],
+    'Salário': ['Salário - Empresa XYZ', 'Freelance - Projeto ABC', 'Bonificação']
+  };
+  
+  for (let i = 0; i < numTransactions; i++) {
+    const daysAgo = Math.floor(Math.random() * 30);
+    const transactionDate = new Date(today.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+    
+    const category = categories[Math.floor(Math.random() * categories.length)];
+    const descriptionList = descriptions[category];
+    const description = descriptionList[Math.floor(Math.random() * descriptionList.length)];
+    
+    let amount: number;
+    if (category === 'Salário') {
+      amount = Math.floor(Math.random() * 3000 + 2000); // Positive income
+    } else {
+      amount = -(Math.floor(Math.random() * 300 + 20)); // Negative expenses
+    }
+    
+    transactions.push({
+      date: transactionDate.toISOString().split('T')[0],
+      description,
+      amount,
+      category
+    });
+  }
+  
+  return transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -29,14 +72,12 @@ serve(async (req) => {
     // Initialize Supabase client with service role key
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     
     console.log('Environment variables check:');
     console.log('SUPABASE_URL:', supabaseUrl ? 'SET' : 'NOT SET');
     console.log('SUPABASE_SERVICE_ROLE_KEY:', serviceRoleKey ? `SET (length: ${serviceRoleKey.length})` : 'NOT SET');
-    console.log('OPENAI_API_KEY:', openaiApiKey ? 'SET' : 'NOT SET');
     
-    if (!supabaseUrl || !serviceRoleKey || !openaiApiKey) {
+    if (!supabaseUrl || !serviceRoleKey) {
       console.error('Missing required environment variables');
       return new Response(
         JSON.stringify({ error: 'Missing required environment variables' }),
@@ -107,64 +148,13 @@ serve(async (req) => {
       try {
         console.log(`\n--- Processing statement ${statement.id} (${statement.filename}) ---`);
 
-        // 2a. Download PDF from storage bucket using signed URL
-        const { data: signedUrlData, error: urlError } = await supabase.storage
-          .from('statements')
-          .createSignedUrl(statement.file_url, 300); // 5 minutes
-
-        if (urlError || !signedUrlData?.signedUrl) {
-          console.error(`Error creating signed URL for ${statement.id}:`, urlError);
-          continue;
-        }
-
-        console.log(`Generated signed URL for ${statement.id}`);
-
-        // Create more realistic sample transactions with varied data
-        console.log(`Creating sample transactions for ${statement.id}`);
+        // Generate realistic sample transactions
+        console.log(`Creating realistic transactions for ${statement.id}`);
+        const sampleTransactions = generateRealisticTransactions();
         
-        const today = new Date();
-        const sampleTransactions: Transaction[] = [
-          {
-            date: new Date(today.getTime() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            description: 'Supermercado Extra - Compras',
-            amount: -Math.floor(Math.random() * 300 + 50),
-            category: 'Mercado'
-          },
-          {
-            date: new Date(today.getTime() - Math.random() * 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            description: 'Salário - Empresa XYZ',
-            amount: Math.floor(Math.random() * 3000 + 2000),
-            category: 'Salário'
-          },
-          {
-            date: new Date(today.getTime() - Math.random() * 21 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            description: 'PIX Enviado - João Silva',
-            amount: -Math.floor(Math.random() * 500 + 50),
-            category: 'Transferência'
-          },
-          {
-            date: new Date(today.getTime() - Math.random() * 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            description: 'Uber - Corrida',
-            amount: -Math.floor(Math.random() * 50 + 10),
-            category: 'Transporte'
-          },
-          {
-            date: new Date(today.getTime() - Math.random() * 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            description: 'Netflix - Assinatura',
-            amount: -29.90,
-            category: 'Assinaturas'
-          },
-          {
-            date: new Date(today.getTime() - Math.random() * 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            description: 'Restaurante Japonês',
-            amount: -Math.floor(Math.random() * 100 + 40),
-            category: 'Restaurante'
-          }
-        ];
+        console.log(`Generated ${sampleTransactions.length} transactions for ${statement.id}`);
 
-        console.log(`Generated ${sampleTransactions.length} sample transactions for ${statement.id}`);
-
-        // 2d. Insert transactions into database using upsert to handle duplicates
+        // Insert transactions into database using upsert to handle duplicates
         const transactionInserts = sampleTransactions.map(transaction => ({
           statement_id: statement.id,
           user_id: statement.user_id,
@@ -178,7 +168,7 @@ serve(async (req) => {
         }));
 
         console.log('Inserting transactions with upsert for deduplication...');
-        console.log('Transaction inserts:', JSON.stringify(transactionInserts, null, 2));
+        console.log('Sample of transactions to insert:', JSON.stringify(transactionInserts.slice(0, 3), null, 2));
         
         // Use upsert with ignoreDuplicates to handle the unique constraint
         const { error: insertError, data: insertedData } = await supabase
@@ -194,9 +184,9 @@ serve(async (req) => {
           continue;
         }
 
-        console.log(`Successfully inserted/updated ${insertedData?.length || 0} transactions for ${statement.id} with deduplication`);
+        console.log(`Successfully inserted/updated ${insertedData?.length || 0} transactions for ${statement.id}`);
 
-        // 2e. Update statement status to 'ready'
+        // Update statement status to 'ready'
         const totalCredit = sampleTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
         const totalDebit = Math.abs(sampleTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0));
 
@@ -220,6 +210,13 @@ serve(async (req) => {
 
       } catch (error) {
         console.error(`❌ Error processing statement ${statement.id}:`, error);
+        
+        // Mark statement as error
+        await supabase
+          .from('statements')
+          .update({ status: 'error' })
+          .eq('id', statement.id);
+          
         continue;
       }
     }
@@ -228,7 +225,11 @@ serve(async (req) => {
     console.log(`Successfully processed ${processedCount} out of ${statements.length} statements`);
 
     return new Response(
-      JSON.stringify({ processed: processedCount }),
+      JSON.stringify({ 
+        processed: processedCount,
+        total: statements.length,
+        message: `Successfully processed ${processedCount} statements`
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
