@@ -38,25 +38,24 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
     }
     
     console.log(`[GPT] Processing text of ${extractedText.length} characters`);
-    console.log(`[GPT] Text preview for analysis:`, extractedText.substring(0, 1000));
+    console.log(`[GPT] Text preview for analysis:`, extractedText.substring(0, 2000));
     
     // If text is too short, return empty
-    if (extractedText.length < 20) {
+    if (extractedText.length < 50) {
       console.log('[GPT] Text too short, returning empty array');
       return [];
     }
     
-    const prompt = `Analise o seguinte extrato bancário brasileiro e extraia APENAS as transações de DÉBITO/SAÍDA (gastos).
+    const prompt = `Você é um especialista em análise de extratos bancários brasileiros. Analise o texto do extrato fornecido e extraia APENAS transações de DÉBITO/SAÍDA (gastos).
 
-REGRAS IMPORTANTES:
-- Extraia apenas transações REAIS que estão no texto
-- IGNORE receitas, depósitos, transferências recebidas, salários recebidos
-- Retorne apenas transações com valor NEGATIVO (débitos/gastos)
-- Para cada transação, identifique: data, descrição, valor negativo e categoria
-- Use o formato de data YYYY-MM-DD
-- Valores devem ser negativos (ex: -150.50 para um gasto de R$ 150,50)
-- Descrições devem ser claras e concisas
-- Use apenas estas categorias: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Outros"
+INSTRUÇÕES CRÍTICAS:
+1. Extraia apenas transações REAIS que aparecem claramente no texto
+2. IGNORE completamente: depósitos, PIX recebidos, salários, transferências recebidas, créditos
+3. Procure por: compras, pagamentos, débitos, saques, taxas, anuidades
+4. Valores devem ser SEMPRE NEGATIVOS (ex: -150.50 para um gasto de R$ 150,50)
+5. Datas no formato YYYY-MM-DD
+6. Descrições claras e concisas
+7. Use apenas estas categorias: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Outros"
 
 FORMATO DE RESPOSTA (JSON válido):
 [
@@ -68,10 +67,22 @@ FORMATO DE RESPOSTA (JSON válido):
   }
 ]
 
+EXEMPLOS DE TRANSAÇÕES VÁLIDAS:
+- Compras no cartão de crédito/débito
+- Pagamentos via PIX
+- Saques em caixas eletrônicos
+- Taxas bancárias
+- Anuidades
+- Transferências enviadas (débito)
+
 TEXTO DO EXTRATO:
 ${extractedText}
 
-IMPORTANTE: Retorne APENAS o JSON array. Se não encontrar transações de débito, retorne []. NÃO adicione explicações ou texto extra.`;
+IMPORTANTE: 
+- Retorne APENAS o JSON array válido
+- Se não encontrar transações de débito, retorne []
+- NÃO adicione explicações ou texto extra
+- Seja muito rigoroso: só extraia transações que claramente representam gastos/débitos`;
     
     console.log('[GPT] Sending request to OpenAI...');
     
@@ -86,7 +97,7 @@ IMPORTANTE: Retorne APENAS o JSON array. Se não encontrar transações de débi
         messages: [
           {
             role: 'system',
-            content: 'Você é um especialista em análise de extratos bancários brasileiros. Extraia apenas transações de DÉBITO reais do texto fornecido. Sempre retorne um JSON array válido, mesmo que vazio. NUNCA invente dados que não estão no texto.'
+            content: 'Você é um especialista em análise de extratos bancários brasileiros. Extraia apenas transações de DÉBITO reais do texto fornecido. Sempre retorne um JSON array válido, mesmo que vazio. NUNCA invente dados que não estão no texto. Seja extremamente rigoroso na identificação de débitos vs créditos.'
           },
           {
             role: 'user',
@@ -116,7 +127,7 @@ IMPORTANTE: Retorne APENAS o JSON array. Se não encontrar transações de débi
       .replace(/```/g, '')
       .trim();
     
-    console.log('[GPT] Cleaned response:', extractedTransactionsText.substring(0, 500));
+    console.log('[GPT] Cleaned response:', extractedTransactionsText.substring(0, 1000));
     
     let transactions: any[];
     try {
@@ -144,8 +155,10 @@ IMPORTANTE: Retorne APENAS o JSON array. Se não encontrar transações de débi
     
     if (validTransactions.length === 0) {
       console.log('[VALIDATION] No valid debit transactions found in the text');
+      console.log('[DEBUG] Sample of original transactions:', transactions.slice(0, 3));
     } else {
       console.log('[VALIDATION] Sample valid transaction:', validTransactions[0]);
+      console.log('[VALIDATION] All valid transactions:', validTransactions);
     }
     
     return validTransactions;

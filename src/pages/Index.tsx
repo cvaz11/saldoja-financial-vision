@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import Sidebar from "@/components/Sidebar";
 import MobileMenuDrawer from "@/components/MobileMenuDrawer";
 import MetricCard from "@/components/MetricCard";
@@ -17,6 +17,7 @@ import { TrendingDown, DollarSign, CreditCard, TrendingUp, Upload, User, Menu } 
 
 const Index = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeSection, setActiveSection] = useState("visao-geral");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -24,6 +25,15 @@ const Index = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [modalType, setModalType] = useState<"receita" | "despesa">("receita");
+
+  // Set active section based on current route
+  useEffect(() => {
+    if (location.pathname === '/movimentacoes') {
+      setActiveSection('movimentacoes');
+    } else if (location.pathname === '/dashboard') {
+      setActiveSection('visao-geral');
+    }
+  }, [location.pathname]);
 
   const handleAddTransaction = (type: "receita" | "despesa") => {
     setModalType(type);
@@ -42,7 +52,16 @@ const Index = () => {
 
   const handleNavigateToMovimentacoes = () => {
     console.log("Navigating to movimentacoes...");
-    setActiveSection("movimentacoes");
+    navigate('/movimentacoes');
+  };
+
+  const handleSectionChange = (section: string) => {
+    setActiveSection(section);
+    if (section === 'movimentacoes') {
+      navigate('/movimentacoes');
+    } else if (section === 'visao-geral') {
+      navigate('/dashboard');
+    }
   };
 
   const renderVisaoGeral = () => (
@@ -277,7 +296,7 @@ const Index = () => {
       <div className="flex w-full">
         {/* Desktop Sidebar */}
         <div className="hidden md:block">
-          <Sidebar activeSection={activeSection} onSectionChange={setActiveSection} />
+          <Sidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
         </div>
         
         {/* Main Content */}
@@ -291,7 +310,7 @@ const Index = () => {
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
         activeSection={activeSection}
-        onSectionChange={setActiveSection}
+        onSectionChange={handleSectionChange}
       />
 
       <AddTransactionModal

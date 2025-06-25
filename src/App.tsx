@@ -64,6 +64,14 @@ const AppRoutes = () => (
       } 
     />
     <Route 
+      path="/movimentacoes" 
+      element={
+        <ProtectedRoute>
+          <Index />
+        </ProtectedRoute>
+      } 
+    />
+    <Route 
       path="/login" 
       element={
         <PublicRoute>

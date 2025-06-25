@@ -88,17 +88,15 @@ export const useFileUpload = () => {
 
       console.log('Statement record inserted successfully');
 
-      // Show processing toast and navigate to movimentacoes
+      // Show processing toast
       toast({
         title: "🚀 Extrato enviado com sucesso!",
         description: "Estamos processando seu extrato – isso leva ~5-8 min. Você verá as movimentações assim que estiver pronto.",
         duration: 8000,
       });
 
-      // Navigate to movimentacoes after showing toast
-      setTimeout(() => {
-        navigate('/movimentacoes');
-      }, 1000);
+      // Navigate to movimentacoes immediately
+      navigate('/movimentacoes');
 
       // Trigger the processing function
       console.log('Triggering process-statements function...');
