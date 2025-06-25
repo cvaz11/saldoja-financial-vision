@@ -24,89 +24,6 @@ const Index = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [modalType, setModalType] = useState<"receita" | "despesa">("receita");
 
-  const sampleTransactions = [
-    {
-      id: "1",
-      description: "Supermercado Pão de Açúcar",
-      value: -328.50,
-      installment: "À vista",
-      category: "Mercado",
-      bank: "Nubank",
-      date: "15 de dezembro, 2024",
-      status: "Pago" as const,
-    },
-    {
-      id: "2", 
-      description: "iFood - Burger King",
-      value: -45.90,
-      installment: "À vista",
-      category: "Restaurante",
-      bank: "Inter",
-      date: "14 de dezembro, 2024",
-      status: "Pago" as const,
-    },
-    {
-      id: "3",
-      description: "Salário - Empresa XYZ",
-      value: 5500.00,
-      installment: "",
-      category: "Salário",
-      bank: "Santander",
-      date: "05 de dezembro, 2024",
-      status: "Receita" as const,
-    },
-    {
-      id: "4",
-      description: "Netflix",
-      value: -39.90,
-      installment: "Mensal",
-      category: "Assinaturas",
-      bank: "C6 Bank",
-      date: "10 de dezembro, 2024",
-      status: "Pago" as const,
-    },
-    {
-      id: "5",
-      description: "Uber",
-      value: -28.40,
-      installment: "À vista",
-      category: "Transporte",
-      bank: "Nubank",
-      date: "13 de dezembro, 2024",
-      status: "Pago" as const,
-    },
-    {
-      id: "6",
-      description: "Amazon Prime",
-      value: -14.90,
-      installment: "Mensal",
-      category: "Assinaturas",
-      bank: "Inter",
-      date: "08 de dezembro, 2024",
-      status: "Pago" as const,
-    },
-    {
-      id: "7",
-      description: "Freelance - Design",
-      value: 800.00,
-      installment: "",
-      category: "Freelance",
-      bank: "Nubank",
-      date: "12 de dezembro, 2024",
-      status: "Receita" as const,
-    },
-    {
-      id: "8",
-      description: "iPhone 15 Pro",
-      value: -612.50,
-      installment: "10/12",
-      category: "Eletrônicos",
-      bank: "Santander",
-      date: "01 de dezembro, 2024",
-      status: "Não Pago" as const,
-    },
-  ];
-
   const handleAddTransaction = (type: "receita" | "despesa") => {
     setModalType(type);
     setIsAddModalOpen(true);
@@ -278,9 +195,8 @@ const Index = () => {
         </Button>
       </div>
 
-      {/* Transaction Table */}
+      {/* Transaction Table with DateRangePicker integrated */}
       <TransactionTable 
-        transactions={sampleTransactions}
         onAddTransaction={() => handleAddTransaction("receita")}
         showCategories={true}
       />

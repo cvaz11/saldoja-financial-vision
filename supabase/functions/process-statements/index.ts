@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
@@ -172,7 +171,7 @@ serve(async (req) => {
 
         console.log(`Extracted ${transactions.length} transactions for ${statement.id}`);
 
-        // 2d. Insert transactions into database
+        // 2d. Insert transactions into database using upsert to handle duplicates
         const transactionInserts = transactions.map(transaction => ({
           statement_id: statement.id,
           user_id: statement.user_id,
@@ -185,14 +184,20 @@ serve(async (req) => {
           is_credit: transaction.amount > 0
         }));
 
+        // Use upsert with ignoreDuplicates to handle the unique constraint
         const { error: insertError } = await supabase
           .from('transactions')
-          .insert(transactionInserts);
+          .upsert(transactionInserts, { 
+            onConflict: 'user_id,transaction_date,description,amount,category',
+            ignoreDuplicates: true 
+          });
 
         if (insertError) {
           console.error(`Error inserting transactions for ${statement.id}:`, insertError);
           continue;
         }
+
+        console.log(`Successfully inserted/updated transactions for ${statement.id} with deduplication`);
 
         // 2e. Update statement status to 'ready'
         const { error: updateError } = await supabase

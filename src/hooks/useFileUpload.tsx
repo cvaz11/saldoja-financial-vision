@@ -56,7 +56,7 @@ export const useFileUpload = () => {
       /* -------------------- 2. URL assinada opcional -------------------- */
       const { data: signed } = await supabase.storage
         .from(bucketName)
-        .createSignedUrl(filePath, 300); // 5 min
+        .createSignedUrl(filePath, 300); // 5 min
       const signedUrl = signed?.signedUrl ?? "";
 
       /* -------------------- 3. Insert na tabela -------------------- */
@@ -81,9 +81,10 @@ export const useFileUpload = () => {
         return { success: false } as const;
       }
 
+      // Enhanced success toast with processing info
       toast({
-        title: "Upload realizado com sucesso!",
-        description: "Seu extrato foi enviado e está sendo processado.",
+        title: "🚀 Arquivo enviado! Analisando...",
+        description: "Nossa IA está processando seu extrato (5-8 min). Você será redirecionado automaticamente.",
       });
 
       return { success: true, url: signedUrl } as const;
@@ -102,4 +103,3 @@ export const useFileUpload = () => {
 
   return { uploadFile, uploading } as const;
 };
-

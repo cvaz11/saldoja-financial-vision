@@ -5,6 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useEffect, useState } from "react";
+import PostUploadDialog from "./PostUploadDialog";
+import { useNavigate } from "react-router-dom";
 
 interface UploadSectionProps {
   onUpload: () => void;
@@ -12,9 +15,12 @@ interface UploadSectionProps {
 
 const UploadSection = ({ onUpload }: UploadSectionProps) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [showPostUploadDialog, setShowPostUploadDialog] = useState(false);
+  const [recentUploadId, setRecentUploadId] = useState<string | null>(null);
 
-  // Fetch user statements
-  const { data: statements, isLoading } = useQuery({
+  // Fetch user statements with realtime updates
+  const { data: statements, isLoading, refetch } = useQuery({
     queryKey: ['statements', user?.id],
     queryFn: async () => {
       if (!user) return [];
@@ -32,11 +38,52 @@ const UploadSection = ({ onUpload }: UploadSectionProps) => {
     enabled: !!user
   });
 
+  // Setup realtime subscription for statements
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('statements-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'statements',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Statement updated:', payload);
+          refetch();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'statements',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('New statement:', payload);
+          setRecentUploadId(payload.new.id);
+          setShowPostUploadDialog(true);
+          refetch();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, refetch]);
+
   const getStatusBadge = (status: string, parsedAt: string | null) => {
     if (status === 'processing') {
-      return <Badge className="bg-orange-100 text-orange-700">Processando</Badge>;
+      return <Badge className="bg-orange-100 text-orange-700 animate-pulse">Processando...</Badge>;
     } else if (status === 'ready' && parsedAt) {
-      return <Badge className="bg-sage-100 text-sage-700">Pronto</Badge>;
+      return <Badge className="bg-sage-100 text-sage-700">Concluído</Badge>;
     } else if (status === 'error') {
       return <Badge className="bg-red-100 text-red-700">Erro</Badge>;
     }
@@ -47,10 +94,18 @@ const UploadSection = ({ onUpload }: UploadSectionProps) => {
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
+  const handleViewTransactions = () => {
+    setShowPostUploadDialog(false);
+    navigate('/movimentacoes');
+  };
+
   return (
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Extratos (upload)</h2>
+        <p className="text-gray-600">
+          Envie extratos de meses anteriores - nossa IA evita duplicatas automaticamente
+        </p>
       </div>
 
       {/* Upload Section - Redesigned for better proportions */}
@@ -126,6 +181,13 @@ const UploadSection = ({ onUpload }: UploadSectionProps) => {
           </div>
         </div>
       </div>
+
+      {/* Post Upload Dialog */}
+      <PostUploadDialog 
+        isOpen={showPostUploadDialog}
+        onClose={() => setShowPostUploadDialog(false)}
+        onViewTransactions={handleViewTransactions}
+      />
     </div>
   );
 };
