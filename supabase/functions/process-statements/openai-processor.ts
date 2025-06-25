@@ -46,103 +46,142 @@ const parseNubankDate = (dateStr: string): string => {
 };
 
 const extractDirectTransactions = (text: string): Transaction[] => {
-  console.log('[DIRECT] Starting enhanced direct transaction extraction...');
+  console.log('[DIRECT] Starting ultra-enhanced direct transaction extraction...');
   console.log('[DIRECT] Text length:', text.length);
-  console.log('[DIRECT] Text preview:', text.slice(0, 1000));
+  console.log('[DIRECT] Text preview:', text.slice(0, 1500));
   
   const transactions: Transaction[] = [];
-  const lines = text.split('\n');
   
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+  // Split by various possible delimiters
+  const segments = text.split(/\n|;|,(?=\s*\d)|\.(?=\s*[A-Z])/);
+  
+  for (let i = 0; i < segments.length; i++) {
+    let segment = segments[i].trim();
     
-    if (!line || line.length < 10) continue;
+    if (!segment || segment.length < 8) continue;
     
-    // Skip obvious credits/payments received (more comprehensive)
+    // Skip obvious credits/payments received 
     const skipPatterns = [
-      /IOF/i,
-      /Pagamento\s+recebido/i,
-      /Payment\s+received/i,
-      /Crédito/i,
-      /Credit/i,
-      /USD\s+refund/i,
-      /Transferência\s+recebida/i,
-      /Received/i,
-      /Depósito/i,
-      /Deposit/i,
-      /Estorno/i,
-      /Refund/i
+      /IOF/i, /Pagamento\s+recebido/i, /Payment\s+received/i, /Crédito/i, /Credit/i,
+      /USD\s+refund/i, /Transferência\s+recebida/i, /Received/i, /Depósito/i, 
+      /Deposit/i, /Estorno/i, /Refund/i, /Cashback/i
     ];
     
-    if (skipPatterns.some(pattern => pattern.test(line))) {
-      console.log('[DIRECT] Skipping credit/refund:', line.slice(0, 100));
+    if (skipPatterns.some(pattern => pattern.test(segment))) {
+      console.log('[DIRECT] Skipping credit/refund:', segment.slice(0, 80));
       continue;
     }
     
-    // Look for money patterns (more flexible)
-    const moneyMatches = line.match(/R\$\s*([\d.,]+)|USD\s*([\d.,]+)|EUR\s*([\d.,]+)/g);
-    if (!moneyMatches) continue;
+    // Enhanced money pattern detection
+    const moneyMatches = segment.match(/(?:R\$|USD|EUR)\s*([\d.,]+)/g);
+    if (!moneyMatches) {
+      // Try to find standalone money values near dates
+      const nearbyText = [segments[i-1], segment, segments[i+1]].join(' ').trim();
+      const standaloneMoneyMatches = nearbyText.match(/(?:R\$|USD|EUR)\s*([\d.,]+)/g);
+      if (!standaloneMoneyMatches) continue;
+    }
     
-    // Look for date pattern (more flexible)
-    const dateMatch = line.match(/(\d{1,2})\s+(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)(\s+\d{4})?/i);
-    if (!dateMatch) continue;
+    // Enhanced date pattern detection
+    const dateMatch = segment.match(/(\d{1,2})\s+(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)(\s+\d{4})?/i) ||
+                     segment.match(/(\d{2,4}[-\/]\d{1,2}[-\/]\d{1,2})/);
     
-    const dateStr = parseNubankDate(dateMatch[0]);
-    
-    // Extract the largest amount
-    let maxAmount = 0;
-    let currency = 'R$';
-    
-    for (const match of moneyMatches) {
-      const cleanAmount = match.replace(/R\$|USD|EUR/, '').trim().replace(/\./g, '').replace(',', '.');
-      const amount = parseFloat(cleanAmount);
-      if (!isNaN(amount) && amount > maxAmount) {
-        maxAmount = amount;
-        currency = match.includes('USD') ? 'USD' : match.includes('EUR') ? 'EUR' : 'R$';
+    let dateStr = '2025-01-01';
+    if (dateMatch) {
+      if (dateMatch[0].includes('-') || dateMatch[0].includes('/')) {
+        // Handle date formats like 2025-06-25 or 25/06/2025
+        const dateParts = dateMatch[0].split(/[-\/]/);
+        if (dateParts.length === 3) {
+          const [a, b, c] = dateParts;
+          if (a.length === 4) {
+            dateStr = `${a}-${b.padStart(2, '0')}-${c.padStart(2, '0')}`;
+          } else {
+            dateStr = `${c}-${b.padStart(2, '0')}-${a.padStart(2, '0')}`;
+          }
+        }
+      } else {
+        dateStr = parseNubankDate(dateMatch[0]);
       }
     }
     
+    // Enhanced amount extraction
+    let maxAmount = 0;
+    let currency = 'R$';
+    
+    const allMatches = (moneyMatches || segment.match(/(?:R\$|USD|EUR)\s*([\d.,]+)/g)) || [];
+    
+    // Also look for standalone numbers that might be amounts
+    const standaloneNumbers = segment.match(/\b(\d{1,4}[.,]\d{2})\b/g) || [];
+    
+    [...allMatches, ...standaloneNumbers.map(n => `R$ ${n}`)].forEach(match => {
+      const cleanAmount = match.replace(/R\$|USD|EUR/, '').trim().replace(/\./g, '').replace(',', '.');
+      const amount = parseFloat(cleanAmount);
+      if (!isNaN(amount) && amount > maxAmount && amount < 50000) { // Reasonable limit
+        maxAmount = amount;
+        currency = match.includes('USD') ? 'USD' : match.includes('EUR') ? 'EUR' : 'R$';
+      }
+    });
+    
     if (maxAmount <= 0) continue;
     
-    // Extract description (enhanced)
-    let description = line
-      .replace(/(\d{1,2})\s+(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)(\s+\d{4})?/i, '')
-      .replace(/R\$\s*[\d.,]+|USD\s*[\d.,]+|EUR\s*[\d.,]+/g, '')
+    // Enhanced description extraction and cleaning
+    let description = segment
+      .replace(/(\d{1,2})\s+(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)(\s+\d{4})?/gi, '')
+      .replace(/(?:R\$|USD|EUR)\s*[\d.,]+/g, '')
+      .replace(/\d{2,4}[-\/]\d{1,2}[-\/]\d{1,2}/g, '')
       .replace(/\s+/g, ' ')
+      .replace(/^[^\w]+|[^\w\s\-*\/]+$/g, '')
       .trim();
     
-    // Clean up description
-    description = description
-      .replace(/^[^\w]+/, '') // Remove leading non-word characters
-      .replace(/[^\w\s\-*\/]+$/, '') // Remove trailing non-word characters
-      .trim();
+    // If description is empty or too short, try to get context from nearby segments
+    if (description.length < 3) {
+      const contextSegments = [segments[i-2], segments[i-1], segments[i+1], segments[i+2]]
+        .filter(s => s && s.trim().length > 3)
+        .map(s => s.trim());
+      
+      for (const contextSeg of contextSegments) {
+        const cleanContext = contextSeg
+          .replace(/(\d{1,2})\s+(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)(\s+\d{4})?/gi, '')
+          .replace(/(?:R\$|USD|EUR)\s*[\d.,]+/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        if (cleanContext.length > description.length && cleanContext.length > 5) {
+          description = cleanContext;
+          break;
+        }
+      }
+    }
     
     if (description.length === 0) {
       description = 'Transação';
     }
     
-    // Enhanced category detection
+    // Super enhanced category detection
     let category = 'Outros';
     const desc = description.toLowerCase();
     
-    if (desc.includes('uber') || desc.includes('99') || desc.includes('taxi') || desc.includes('transporte')) {
-      category = 'Transporte';
-    } else if (desc.includes('ifood') || desc.includes('restaurante') || desc.includes('padaria') || desc.includes('lanche') || desc.includes('comida')) {
-      category = 'Alimentação';
-    } else if (desc.includes('farmacia') || desc.includes('hospital') || desc.includes('medic') || desc.includes('saude')) {
-      category = 'Saúde';
-    } else if (desc.includes('shopping') || desc.includes('loja') || desc.includes('compra') || desc.includes('mercado')) {
-      category = 'Compras';
-    } else if (desc.includes('netflix') || desc.includes('spotify') || desc.includes('cinema') || desc.includes('lazer')) {
-      category = 'Lazer';
-    } else if (desc.includes('parcela') || desc.includes('financiamento') || desc.includes('emprestimo')) {
-      category = 'Financeiro';
-    } else if (desc.includes('tech') || desc.includes('agi') || desc.includes('software') || desc.includes('app')) {
-      category = 'Tecnologia';
+    const categoryRules = {
+      'Transporte': ['uber', '99', 'taxi', 'transporte', 'viagem', 'combustivel', 'posto', 'gasolina', 'alcool', 'shell', 'ipiranga', 'br'],
+      'Alimentação': ['ifood', 'restaurante', 'padaria', 'lanche', 'comida', 'mercado', 'supermercado', 'açougue', 'hortifruti', 'pao', 'pizza', 'burguer', 'mcdonalds', 'bk'],
+      'Saúde': ['farmacia', 'hospital', 'medic', 'saude', 'clinica', 'laboratorio', 'droga', 'remedios', 'consulta'],
+      'Compras': ['shopping', 'loja', 'compra', 'magazine', 'americanas', 'casas', 'bahia', 'extra', 'carrefour', 'walmart'],
+      'Lazer': ['netflix', 'spotify', 'cinema', 'lazer', 'entretenimento', 'jogos', 'parque', 'teatro', 'show'],
+      'Financeiro': ['parcela', 'financiamento', 'emprestimo', 'banco', 'juros', 'tarifa', 'taxa', 'anuidade'],
+      'Tecnologia': ['tech', 'agi', 'software', 'app', 'google', 'apple', 'microsoft', 'amazon', 'digital'],
+      'Casa': ['casa', 'lar', 'construção', 'reforma', 'moveis', 'eletro', 'utilidades'],
+      'Vestuário': ['roupa', 'moda', 'calçado', 'sapato', 'vestido', 'camisa', 'calça']
+    };
+    
+    for (const [cat, keywords] of Object.entries(categoryRules)) {
+      if (keywords.some(keyword => desc.includes(keyword))) {
+        category = cat;
+        break;
+      }
     }
     
-    // Check for installments
-    const installmentMatch = description.match(/parcela\s+(\d+)\/(\d+)|(\d+)\/(\d+)/i);
+    // Enhanced installment detection
+    const installmentMatch = description.match(/parcela\s+(\d+)\/(\d+)|(\d+)\/(\d+)\s*parcela/i) ||
+                            segment.match(/(\d+)\s*\/\s*(\d+)/);
     
     const transaction: Transaction = {
       date: dateStr,
@@ -157,7 +196,7 @@ const extractDirectTransactions = (text: string): Transaction[] => {
     }
     
     transactions.push(transaction);
-    console.log(`[DIRECT] Found transaction: ${description} - ${currency} ${maxAmount.toFixed(2)}`);
+    console.log(`[DIRECT] Found transaction: ${description} - ${currency} ${maxAmount.toFixed(2)} on ${dateStr}`);
   }
   
   console.log(`[DIRECT] Extracted ${transactions.length} transactions directly`);
@@ -166,11 +205,11 @@ const extractDirectTransactions = (text: string): Transaction[] => {
 
 export const processTextWithOpenAI = async (extractedText: string): Promise<Transaction[]> => {
   try {
-    console.log('[GPT] Starting enhanced transaction processing...');
+    console.log('[GPT] Starting ultra-enhanced transaction processing...');
     console.log(`[GPT] Processing text of ${extractedText.length} characters`);
-    console.log(`[GPT] Sample text:`, extractedText.slice(0, 1000));
+    console.log(`[GPT] Sample text:`, extractedText.slice(0, 1500));
     
-    // First try enhanced direct extraction
+    // First try ultra-enhanced direct extraction
     const directTransactions = extractDirectTransactions(extractedText);
     
     if (directTransactions.length > 0) {
@@ -178,55 +217,52 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
       return directTransactions;
     }
     
-    // If direct extraction fails, try OpenAI with GPT-4 (more powerful)
+    // Enhanced GPT-4 processing with more aggressive prompting
     const openAIKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIKey) {
       console.log('[GPT] No OpenAI key, returning direct results');
       return directTransactions;
     }
     
-    console.log('[GPT] Trying GPT-4 extraction (enhanced prompt)...');
+    console.log('[GPT] Trying GPT-4 with ultra-aggressive prompt...');
     
-    const prompt = `Você é um especialista em análise de extratos bancários do NUBANK. Analise este texto extraído de um PDF e encontre APENAS transações de DÉBITO (gastos/saídas).
+    const ultraPrompt = `VOCÊ É UM ESPECIALISTA EM EXTRAIR TRANSAÇÕES DE EXTRATOS BANCÁRIOS NUBANK CORROMPIDOS/BINÁRIOS.
 
-TEXTO DO EXTRATO:
-${extractedText.slice(0, 8000)}
+TEXTO EXTRAÍDO (pode estar corrompido/misturado):
+${extractedText.slice(0, 10000)}
 
-INSTRUÇÕES CRÍTICAS:
-1. IGNORE completamente: IOF, "Pagamento recebido", "Crédito", "USD refund", "Transferência recebida", "Depósito", "Estorno"
-2. EXTRAIA apenas: compras, pagamentos feitos, saques, transferências enviadas, Uber, iFood, parcelas, etc.
-3. Para cada transação de débito:
-   - Data: converta formato "12 Jun" para "2025-06-12"
-   - Descrição: limpe e seja descritivo
-   - Valor: SEMPRE NEGATIVO (ex: -150.50)
-   - Categoria: escolha a mais apropriada
+SUA MISSÃO CRÍTICA:
+1. ENCONTRE qualquer padrão que possa ser uma transação de DÉBITO (gastos/saídas)
+2. IGNORE completamente: IOF, "Pagamento recebido", "Crédito", "USD refund", "Transferência recebida", "Depósito", "Estorno", "Cashback"
+3. PROCURE por: compras, Uber, iFood, parcelas, gastos, saques, transferências enviadas, pagamentos feitos
 
-CATEGORIAS DISPONÍVEIS:
-"Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Compras", "Outros"
+PADRÕES PARA BUSCAR:
+- Qualquer coisa com R$, USD, EUR seguido de números
+- Datas como "12 Jun", "25/06", "2025-06-12"  
+- Nomes de estabelecimentos: Uber, iFood, Shopping, Farmácia, etc.
+- Parcelas: "parcela 1/12", "9/12", etc.
 
-EXEMPLO DE RESPOSTA ESPERADA:
+INSTRUÇÕES DE EXTRAÇÃO:
+- Data: converta para formato "2025-06-12" (use 2025 se ano não especificado)
+- Descrição: seja criativo, junte fragmentos se necessário
+- Valor: SEMPRE NEGATIVO (ex: -150.50)
+- Categoria: seja inteligente na categorização
+
+CATEGORIAS: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Compras", "Outros"
+
+SEJA ULTRA-AGRESSIVO NA EXTRAÇÃO. Se você ver qualquer fragmento que possa ser uma transação, EXTRAIA mesmo que não esteja perfeito.
+
+EXEMPLO DO QUE RETORNAR:
 [
   {
     "date": "2025-06-12",
-    "description": "Uber - Viagem Centro",
+    "description": "Uber Viagem",
     "amount": -25.50,
     "category": "Transporte"
-  },
-  {
-    "date": "2025-06-11", 
-    "description": "iFood - Pedido Restaurante",
-    "amount": -45.80,
-    "category": "Alimentação"
-  },
-  {
-    "date": "2025-06-10",
-    "description": "Agi Tech - Parcela 9/12",
-    "amount": -396.66,
-    "category": "Tecnologia"
   }
 ]
 
-IMPORTANTE: Retorne APENAS o JSON array válido. Se não encontrar transações de débito, retorne [].`;
+RETORNE APENAS O JSON ARRAY. Se não encontrar NADA, retorne [].`;
 
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -235,19 +271,20 @@ IMPORTANTE: Retorne APENAS o JSON array válido. Se não encontrar transações 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o', // Using more powerful model
+        model: 'gpt-4o', // Using most powerful model
         messages: [
           {
             role: 'system',
-            content: 'Você é um especialista em análise de extratos bancários do Nubank. Você é extremamente preciso em identificar transações de débito e ignorar créditos. Sempre retorne JSON válido.'
+            content: 'Você é um especialista forense em extrair transações bancárias de texto corrompido/binário. Você consegue encontrar padrões onde outros falham. Seja ultra-agressivo na extração.'
           },
           {
             role: 'user',
-            content: prompt
+            content: ultraPrompt
           }
         ],
         max_tokens: 4000,
-        temperature: 0.1
+        temperature: 0.0, // Most deterministic
+        presence_penalty: 0.1
       }),
     });
     
@@ -261,22 +298,41 @@ IMPORTANTE: Retorne APENAS o JSON array válido. Se não encontrar transações 
     const result = await openAIResponse.json();
     let responseText = result.choices[0].message.content.trim();
     
-    // Clean JSON response
+    // Ultra-aggressive JSON cleaning
     responseText = responseText
       .replace(/```json\n?/g, '')
       .replace(/```\n?$/g, '')
       .replace(/```/g, '')
+      .replace(/^[^[{]*/, '') // Remove anything before first [ or {
+      .replace(/[^}\]]*$/, '') // Remove anything after last } or ]
       .trim();
     
-    console.log('[GPT] GPT-4 response:', responseText.slice(0, 2000));
+    console.log('[GPT] Ultra-aggressive GPT-4 response:', responseText.slice(0, 3000));
     
     let transactions: any[];
     try {
       transactions = JSON.parse(responseText);
     } catch (parseError) {
       console.error('[GPT] JSON parse error:', parseError);
-      console.log('[GPT] Raw response that failed to parse:', responseText);
-      return directTransactions;
+      console.log('[GPT] Failed to parse:', responseText);
+      
+      // Last resort: try to extract JSON-like patterns manually
+      const jsonMatches = responseText.match(/\{[^}]+\}/g);
+      if (jsonMatches) {
+        transactions = [];
+        for (const match of jsonMatches) {
+          try {
+            const parsed = JSON.parse(match);
+            if (parsed.date && parsed.description && parsed.amount) {
+              transactions.push(parsed);
+            }
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+      } else {
+        return directTransactions;
+      }
     }
     
     if (!Array.isArray(transactions)) {
@@ -287,13 +343,13 @@ IMPORTANTE: Retorne APENAS o JSON array válido. Se não encontrar transações 
     // Validate and filter transactions
     const validTransactions = transactions.filter(validateTransaction);
     
-    console.log(`[GPT] GPT-4 found ${validTransactions.length} valid transactions`);
+    console.log(`[GPT] Ultra-aggressive GPT-4 found ${validTransactions.length} valid transactions`);
     
     // Return the better result
     return validTransactions.length > directTransactions.length ? validTransactions : directTransactions;
     
   } catch (error) {
-    console.error('[GPT] Error in processing:', error);
+    console.error('[GPT] Error in ultra-enhanced processing:', error);
     return [];
   }
 };
