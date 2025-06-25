@@ -6,15 +6,15 @@ export const insertTransactions = async (
   transactions: Transaction[],
   statementId: string,
   userId: string
-) => {
+): Promise<void> => {
   console.log(`[DB] Preparing to insert ${transactions.length} transactions for statement ${statementId}...`);
-  
+
   if (transactions.length === 0) {
     console.log('[DB] No transactions to insert - marking statement as ready with empty data');
-    return [];
+    return;
   }
 
-  // Always delete existing transactions for this statement to avoid duplicates
+  // Clean existing transactions for this statement to avoid duplicates
   console.log(`[DB] Cleaning existing transactions for statement ${statementId}...`);
   const { error: deleteError } = await supabase
     .from('transactions')
@@ -22,79 +22,83 @@ export const insertTransactions = async (
     .eq('statement_id', statementId);
 
   if (deleteError) {
-    console.error(`[DB] Error deleting existing transactions:`, deleteError);
-    // Continue anyway, as they might not exist
+    console.error('[DB] Error cleaning existing transactions:', deleteError);
+    // Continue anyway, upsert will handle duplicates
   }
 
-  const transactionInserts = transactions.map(transaction => ({
+  // Convert transactions to database format
+  const dbTransactions = transactions.map(transaction => ({
     statement_id: statementId,
     user_id: userId,
     transaction_date: transaction.date,
     description: transaction.description,
-    amount: transaction.amount,
+    amount: Math.abs(transaction.amount), // Store as positive number
     category: transaction.category,
     installment_number: transaction.installment_number || null,
     installment_total: transaction.installment_total || null,
-    is_credit: transaction.amount > 0
+    is_credit: false, // All transactions are debits now
   }));
 
-  console.log(`[DB] Sample transaction insert:`, transactionInserts[0]);
-  
-  // Insert transactions with ON CONFLICT handling
-  const { error: insertError, data: insertedData } = await supabase
+  console.log('[DB] Sample transaction insert:', dbTransactions[0]);
+
+  // Use upsert to handle potential duplicates gracefully
+  const { error: insertError } = await supabase
     .from('transactions')
-    .upsert(transactionInserts, {
+    .upsert(dbTransactions, {
       onConflict: 'user_id,transaction_date,description,amount,category',
-      ignoreDuplicates: false
-    })
-    .select();
+      ignoreDuplicates: true
+    });
 
   if (insertError) {
-    console.error(`[DB] Error inserting transactions:`, insertError);
-    throw new Error(`Database insert failed: ${insertError.message}`);
+    console.error('[DB] Error inserting transactions:', insertError);
+    // If it's a duplicate key error, just log and continue
+    if (insertError.code === '23505') {
+      console.log('[DB] Duplicate transactions detected, continuing with existing data...');
+    } else {
+      throw new Error(`Database insert failed: ${insertError.message}`);
+    }
+  } else {
+    console.log(`[DB] Successfully inserted ${transactions.length} transactions`);
   }
-
-  const insertedCount = insertedData?.length || 0;
-  console.log(`[DB] Successfully inserted ${insertedCount} transactions`);
-  return insertedData;
 };
 
 export const updateStatementStatus = async (
   supabase: any,
   statementId: string,
-  status: string,
+  status: 'ready' | 'error' | 'processing',
   transactions?: Transaction[]
-) => {
+): Promise<void> => {
   console.log(`[DB] Updating statement ${statementId} status to ${status}`);
-  
-  const updateData: any = { 
+
+  let updateData: any = {
     status,
-    parsed_at: new Date().toISOString()
+    parsed_at: new Date().toISOString(),
   };
 
-  if (status === 'ready') {
-    if (transactions && transactions.length > 0) {
-      const totalCredit = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
-      const totalDebit = Math.abs(transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0));
-      updateData.total_credit = totalCredit;
-      updateData.total_debit = totalDebit;
-      
-      console.log(`[DB] Statement totals - Credit: ${totalCredit}, Debit: ${totalDebit}`);
-    } else {
-      updateData.total_credit = 0;
-      updateData.total_debit = 0;
-      console.log(`[DB] No transactions found - setting totals to 0`);
-    }
+  if (transactions && transactions.length > 0) {
+    // Calculate totals - only debits (negative amounts)
+    const totalDebit = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const totalCredit = 0; // No credits processed anymore
+    
+    updateData.total_debit = totalDebit;
+    updateData.total_credit = totalCredit;
+    
+    console.log(`[DB] Setting totals - debit: ${totalDebit}, credit: ${totalCredit}`);
+  } else {
+    // No transactions found
+    updateData.total_debit = 0;
+    updateData.total_credit = 0;
+    console.log('[DB] No transactions found - setting totals to 0');
   }
 
-  const { error: updateError } = await supabase
+  const { error } = await supabase
     .from('statements')
     .update(updateData)
     .eq('id', statementId);
 
-  if (updateError) {
-    console.error(`[DB] Error updating statement ${statementId}:`, updateError);
-    throw new Error(`Database update failed: ${updateError.message}`);
+  if (error) {
+    console.error(`[DB] Error updating statement status:`, error);
+    throw new Error(`Failed to update statement status: ${error.message}`);
   }
 
   console.log(`[DB] Statement ${statementId} updated successfully`);

@@ -22,6 +22,7 @@ const validateTransaction = (transaction: any): transaction is Transaction => {
     transaction.description.trim().length > 0 &&
     typeof transaction.amount === 'number' &&
     !isNaN(transaction.amount) &&
+    transaction.amount < 0 && // Only negative amounts (debits)
     typeof transaction.category === 'string' &&
     transaction.category.trim().length > 0
   );
@@ -38,29 +39,24 @@ export const processTextWithOpenAI = async (extractedText: string): Promise<Tran
     
     console.log(`[GPT] Processing text of ${extractedText.length} characters`);
     
-    // Check if text contains actual transaction data
-    if (extractedText.includes('placeholder') || extractedText.includes('simulado') || extractedText.includes('não implementado')) {
-      console.log('[GPT] Detected placeholder content - returning empty transactions');
-      return [];
-    }
-    
-    const prompt = `Analise o seguinte extrato bancário brasileiro e extraia TODAS as transações financeiras válidas.
+    const prompt = `Analise o seguinte extrato bancário brasileiro e extraia APENAS as transações de DÉBITO (saídas de dinheiro).
 
 REGRAS IMPORTANTES:
-- Extraia apenas transações reais (não extraia cabeçalhos, títulos ou informações de conta)
-- Para cada transação, identifique: data, descrição, valor e categoria
-- Valores positivos para entradas/créditos, negativos para saídas/débitos
-- Use apenas estas categorias: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Salário", "Outros"
+- Extraia apenas transações reais de DÉBITO/SAÍDA (valores negativos)
+- IGNORE completamente receitas, depósitos, salários, PIX recebidos e qualquer entrada de dinheiro
+- Retorne apenas transações com amount NEGATIVO (valores positivos serão ignorados)
+- Para cada transação, identifique: data, descrição, valor negativo e categoria
+- Use apenas estas categorias: "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Outros"
 - Datas no formato YYYY-MM-DD
 - Descrições claras e objetivas (máximo 50 caracteres)
-- Se não encontrar transações válidas, retorne um array vazio []
+- Se não encontrar transações de débito válidas, retorne um array vazio []
 
 FORMATO DE RESPOSTA (JSON válido):
 [
   {
     "date": "YYYY-MM-DD",
     "description": "Descrição da transação",
-    "amount": valor_numérico,
+    "amount": -valor_numérico_negativo,
     "category": "categoria_apropriada"
   }
 ]
@@ -68,7 +64,7 @@ FORMATO DE RESPOSTA (JSON válido):
 EXTRATO BANCÁRIO:
 ${extractedText}
 
-RETORNE APENAS O JSON ARRAY, sem texto adicional. Se não houver transações, retorne [].`;
+RETORNE APENAS O JSON ARRAY com transações de DÉBITO (valores negativos), sem texto adicional. Se não houver débitos, retorne [].`;
     
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -81,7 +77,7 @@ RETORNE APENAS O JSON ARRAY, sem texto adicional. Se não houver transações, r
         messages: [
           {
             role: 'system',
-            content: 'Você é um especialista em análise de extratos bancários brasileiros. Sempre retorne apenas um JSON array válido com as transações encontradas. Se não encontrar transações válidas, retorne um array vazio [].'
+            content: 'Você é um especialista em análise de extratos bancários brasileiros. Sempre retorne apenas um JSON array válido com as transações de DÉBITO encontradas. Ignore completamente receitas e entradas de dinheiro. Se não encontrar débitos válidos, retorne um array vazio [].'
           },
           {
             role: 'user',
@@ -119,23 +115,24 @@ RETORNE APENAS O JSON ARRAY, sem texto adicional. Se não houver transações, r
     } catch (parseError) {
       console.error('[GPT] JSON parse error:', parseError);
       console.log('[GPT] Failed text:', extractedTransactionsText);
-      // Return empty array instead of throwing error
-      console.log('[GPT] Returning empty transactions due to parse error');
       return [];
     }
     
     if (!Array.isArray(transactions)) {
       console.error('[GPT] Response is not an array:', typeof transactions);
-      console.log('[GPT] Returning empty transactions - invalid response format');
       return [];
     }
     
-    const validTransactions = transactions.filter(validateTransaction);
+    // Filter to ensure only negative amounts (debits)
+    const debitTransactions = transactions.filter(t => t.amount && t.amount < 0);
+    console.log(`[GPT] Filtered to ${debitTransactions.length} debit transactions from ${transactions.length} total`);
     
-    console.log(`[VALIDATION] Found ${validTransactions.length} valid transactions out of ${transactions.length} total`);
+    const validTransactions = debitTransactions.filter(validateTransaction);
+    
+    console.log(`[VALIDATION] Found ${validTransactions.length} valid debit transactions out of ${debitTransactions.length} filtered`);
     
     if (validTransactions.length === 0) {
-      console.log('[VALIDATION] No valid transactions found');
+      console.log('[VALIDATION] No valid debit transactions found');
       return [];
     }
     
@@ -145,8 +142,6 @@ RETORNE APENAS O JSON ARRAY, sem texto adicional. Se não houver transações, r
     
   } catch (error) {
     console.error('[GPT] Error processing with OpenAI:', error);
-    // Return empty array instead of throwing error to avoid failures
-    console.log('[GPT] Returning empty transactions due to processing error');
     return [];
   }
 };

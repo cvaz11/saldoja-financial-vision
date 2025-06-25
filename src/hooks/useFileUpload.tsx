@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { useToast } from "./use-toast";
@@ -14,6 +15,7 @@ export const useFileUpload = () => {
   const [uploading, setUploading] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const uploadFile = async (data: UploadData) => {
     if (!user) {
@@ -86,10 +88,17 @@ export const useFileUpload = () => {
 
       console.log('Statement record inserted successfully');
 
+      // Show processing toast and navigate to movimentacoes
       toast({
-        title: "🚀 Arquivo enviado! Analisando...",
-        description: "Nossa IA está processando seu extrato. Aguarde alguns segundos...",
+        title: "🚀 Extrato enviado com sucesso!",
+        description: "Estamos processando seu extrato – isso leva ~5-8 min. Você verá as movimentações assim que estiver pronto.",
+        duration: 8000,
       });
+
+      // Navigate to movimentacoes after showing toast
+      setTimeout(() => {
+        navigate('/movimentacoes');
+      }, 1000);
 
       // Trigger the processing function
       console.log('Triggering process-statements function...');
@@ -104,7 +113,7 @@ export const useFileUpload = () => {
         } catch (funcError) {
           console.error('Error calling process-statements function:', funcError);
         }
-      }, 1000); // Wait 1 second before triggering
+      }, 1000);
 
       return { success: true } as const;
     } catch (err) {

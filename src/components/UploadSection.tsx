@@ -86,7 +86,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
       setBankName("");
       setIsInvoicePaid(false);
       if (fileInputRef.current) {
-        fileInputRef.current.value = ""; // reset file input
+        fileInputRef.current.value = "";
       }
     }
   };
@@ -185,8 +185,8 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
             {statements.map((statement: any) => (
               <div 
                 key={statement.id} 
-                className={`bg-white rounded-lg border p-4 hover:shadow-sm transition-shadow ${
-                  statement.status === 'error' ? 'cursor-pointer hover:bg-red-50' : ''
+                className={`bg-white rounded-lg border p-4 transition-shadow ${
+                  statement.status === 'error' ? 'cursor-pointer hover:bg-red-50 hover:shadow-sm' : 'hover:shadow-sm'
                 }`}
                 onClick={() => handleStatementClick(statement)}
               >
@@ -221,14 +221,20 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
                 {statement.status === 'ready' && (
                   <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
                     <div className="flex space-x-4">
+                      {statement.total_debit > 0 && (
+                        <span className="text-red-600">
+                          Saídas: {formatCurrency(statement.total_debit)}
+                        </span>
+                      )}
                       {statement.total_credit > 0 && (
                         <span className="text-green-600">
                           Entradas: {formatCurrency(statement.total_credit)}
                         </span>
                       )}
-                      {statement.total_debit > 0 && (
-                        <span className="text-red-600">
-                          Saídas: {formatCurrency(statement.total_debit)}
+                      {(!statement.total_debit || statement.total_debit === 0) && 
+                       (!statement.total_credit || statement.total_credit === 0) && (
+                        <span className="text-gray-500">
+                          Nenhuma transação encontrada
                         </span>
                       )}
                     </div>
@@ -241,8 +247,14 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
                       }}
                       className="text-xs"
                     >
-                      Ver Transações
+                      Ver Movimentações
                     </Button>
+                  </div>
+                )}
+
+                {statement.status === 'processing' && (
+                  <div className="mt-3 text-sm text-blue-600">
+                    Processando extrato... Isso pode levar alguns minutos.
                   </div>
                 )}
               </div>
