@@ -13,17 +13,28 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 
 interface UploadSectionProps {
   onUpload: () => void;
   onNavigateToMovimentacoes: () => void;
 }
 
+interface Statement {
+  id: string;
+  status: string;
+  total_debit: number;
+  total_credit: number;
+  filename: string;
+  uploaded_at: string;
+  user_id: string;
+}
+
 const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [bankName, setBankName] = useState("Nubank");
   const [isInvoicePaid, setIsInvoicePaid] = useState(false);
-  const [statements, setStatements] = useState<any[]>([]);
+  const [statements, setStatements] = useState<Statement[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { uploadFile, uploading } = useFileUpload();
   const { user } = useAuth();
@@ -64,7 +75,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
     }
   };
 
-  const getStatusMessage = (statement: any) => {
+  const getStatusMessage = (statement: Statement) => {
     switch (statement.status) {
       case 'ready':
         if (statement.total_debit > 0) {
@@ -99,7 +110,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
         return;
       }
 
-      setStatements(data);
+      setStatements(data as Statement[]);
     };
 
     fetchStatements();
@@ -127,25 +138,30 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
           // Atualizar lista de extratos
           setStatements(current => {
             const updated = [...current];
-            const index = updated.findIndex(s => s.id === payload.new?.id || s.id === payload.old?.id);
+            const newRecord = payload.new as Statement;
+            const oldRecord = payload.old as Statement;
+            const index = updated.findIndex(s => s.id === newRecord?.id || s.id === oldRecord?.id);
             
-            if (payload.eventType === 'INSERT' && payload.new) {
-              updated.unshift(payload.new);
-            } else if (payload.eventType === 'UPDATE' && payload.new) {
+            if (payload.eventType === 'INSERT' && newRecord) {
+              updated.unshift(newRecord);
+            } else if (payload.eventType === 'UPDATE' && newRecord) {
               if (index >= 0) {
-                updated[index] = payload.new;
+                updated[index] = newRecord;
               }
               
               // Se extrato ficou pronto com transações, mostrar toast
-              if (payload.new.status === 'ready' && payload.new.total_debit > 0) {
+              if (newRecord.status === 'ready' && newRecord.total_debit > 0) {
                 toast({
                   title: "🎉 Extrato processado!",
-                  description: `${payload.new.total_debit > 0 ? `${formatCurrency(payload.new.total_debit)} em despesas encontradas.` : ''} Clique para ver as movimentações.`,
+                  description: `${newRecord.total_debit > 0 ? `${formatCurrency(newRecord.total_debit)} em despesas encontradas.` : ''} Clique para ver as movimentações.`,
                   duration: 8000,
-                  action: {
-                    altText: "Ver movimentações",
-                    onClick: onNavigateToMovimentacoes
-                  }
+                  action: (
+                    <ToastAction 
+                      onClick={onNavigateToMovimentacoes}
+                    >
+                      Ver movimentações
+                    </ToastAction>
+                  )
                 });
               }
             } else if (payload.eventType === 'DELETE' && index >= 0) {
@@ -237,7 +253,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
     }
   };
 
-  const handleStatementClick = (statement: any) => {
+  const handleStatementClick = (statement: Statement) => {
     if (statement.status === 'error') {
       toast({
         title: "Erro no processamento",
@@ -307,7 +323,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">Extratos Enviados</h3>
           <div className="grid gap-4">
-            {statements.map((statement: any) => (
+            {statements.map((statement: Statement) => (
               <div 
                 key={statement.id} 
                 className={`bg-white rounded-lg border p-4 transition-all ${
