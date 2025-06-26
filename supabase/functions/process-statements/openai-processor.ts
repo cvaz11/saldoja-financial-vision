@@ -28,176 +28,78 @@ const validateTransaction = (transaction: any): transaction is Transaction => {
   );
 };
 
-const extractNubankTransactionsAdvanced = (text: string): Transaction[] => {
-  console.log('[NUBANK-ADV] ===== ADVANCED NUBANK EXTRACTION =====');
-  console.log('[NUBANK-ADV] Text length:', text.length);
-  
-  const transactions: Transaction[] = [];
-  
-  // More comprehensive regex patterns for Nubank transactions
-  const patterns = [
-    // Pattern 1: Date + Card + Description + Amount
-    /(\d{1,2}\s+(?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ))\s+.*?\*{3,4}\s*\d{4}\s+([^R$]{5,80}?)\s+R\$\s*([\d.,]+)/gi,
-    
-    // Pattern 2: IOF transactions
-    /(\d{1,2}\s+(?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ))\s+IOF.*?["']([^"']+)["'].*?R\$\s*([\d.,]+)/gi,
-    
-    // Pattern 3: Simple date + description + amount
-    /(\d{1,2}\s+(?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ))\s+([A-Za-z][^R$]{8,60}?)\s+R\$\s*([\d.,]+)/gi,
-    
-    // Pattern 4: International transactions with currency conversion
-    /(\d{1,2}\s+(?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ))\s+.*?([A-Za-z][^R$]{5,50}?)(?:USD|EUR|GBP)\s*[\d.,]+.*?R\$\s*([\d.,]+)/gi,
-    
-    // Pattern 5: Any line with date pattern and amount
-    /(\d{1,2}\s+(?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)).*?([A-Za-z][^R$0-9]{5,}?).*?R\$\s*([\d.,]+)/gi
-  ];
-  
-  // Split text into lines and also try to process as one big string
-  const textVariants = [
-    text,
-    ...text.split(/[\r\n]+/).filter(line => line.trim().length > 10)
-  ];
-  
-  for (const textVariant of textVariants) {
-    for (const pattern of patterns) {
-      pattern.lastIndex = 0; // Reset regex
-      let match;
-      
-      while ((match = pattern.exec(textVariant)) !== null) {
-        console.log(`[NUBANK-ADV] Found match: ${match[0]}`);
-        
-        const dateStr = match[1];
-        let description = (match[2] || match[3] || '').trim();
-        const amountStr = match[3] || match[4] || match[match.length - 1];
-        
-        // Clean description
-        description = description
-          .replace(/\*{3,4}\s*\d{4}/g, '') // Remove card numbers
-          .replace(/Conversão:.*$/i, '')
-          .replace(/USD\s*[\d.,]+/g, '')
-          .replace(/EUR\s*[\d.,]+/g, '')
-          .replace(/IOF\s+de\s*/i, 'IOF - ')
-          .replace(/^["']|["']$/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-        
-        if (description.length < 3) {
-          description = 'Compra não identificada';
-        }
-        
-        // Parse amount
-        const amount = parseFloat(amountStr.replace(/\./g, '').replace(',', '.'));
-        if (isNaN(amount) || amount <= 0) {
-          console.log(`[NUBANK-ADV] Invalid amount: ${amountStr}`);
-          continue;
-        }
-        
-        // Convert date
-        const monthMap: { [key: string]: string } = {
-          'JAN': '01', 'FEV': '02', 'MAR': '03', 'ABR': '04',
-          'MAI': '05', 'JUN': '06', 'JUL': '07', 'AGO': '08',
-          'SET': '09', 'OUT': '10', 'NOV': '11', 'DEZ': '12'
-        };
-        
-        const dateParts = dateStr.trim().split(/\s+/);
-        const day = dateParts[0].padStart(2, '0');
-        const month = monthMap[dateParts[1]] || '06';
-        const transactionDate = `2025-${month}-${day}`;
-        
-        // Categorize
-        let category = 'Outros';
-        const desc = description.toLowerCase();
-        
-        if (desc.includes('iof') || desc.includes('taxa')) category = 'Financeiro';
-        else if (desc.includes('uber') || desc.includes('99') || desc.includes('taxi')) category = 'Transporte';
-        else if (desc.includes('mercado') || desc.includes('supermercado') || desc.includes('food')) category = 'Alimentação';
-        else if (desc.includes('netflix') || desc.includes('spotify') || desc.includes('amazon')) category = 'Tecnologia';
-        else if (desc.includes('farmacia') || desc.includes('drogaria')) category = 'Saúde';
-        else if (desc.includes('shopping') || desc.includes('loja')) category = 'Compras';
-        
-        const transaction: Transaction = {
-          date: transactionDate,
-          description: description.slice(0, 200),
-          amount: -amount, // Negative for debits
-          category
-        };
-        
-        // Check for duplicates
-        const isDuplicate = transactions.some(t => 
-          t.date === transaction.date && 
-          t.description === transaction.description && 
-          Math.abs(t.amount - transaction.amount) < 0.01
-        );
-        
-        if (!isDuplicate) {
-          transactions.push(transaction);
-          console.log(`[NUBANK-ADV] Added: ${description} - R$ ${amount.toFixed(2)} on ${transactionDate}`);
-        }
-      }
-    }
-  }
-  
-  console.log(`[NUBANK-ADV] Total transactions extracted: ${transactions.length}`);
-  return transactions;
-};
-
 export const processTextWithOpenAI = async (extractedText: string): Promise<Transaction[]> => {
   try {
-    console.log('[GPT] ===== STARTING ADVANCED PROCESSING =====');
+    console.log('[GPT] ===== STARTING NUBANK ANALYSIS WITH NEW PROMPT =====');
     console.log(`[GPT] Processing ${extractedText.length} characters of text`);
     
-    // First try: Advanced direct extraction
-    console.log('[GPT] Attempting advanced direct extraction...');
-    const directTransactions = extractNubankTransactionsAdvanced(extractedText);
-    
-    if (directTransactions.length > 0) {
-      console.log(`[GPT] Direct extraction found ${directTransactions.length} transactions`);
-      return directTransactions;
-    }
-    
-    // Second try: Enhanced GPT processing
     const openAIKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIKey) {
-      console.log('[GPT] No OpenAI API key - returning direct results');
-      return directTransactions;
+      console.log('[GPT] No OpenAI API key - cannot process');
+      return [];
     }
     
-    console.log('[GPT] Attempting GPT-4 analysis...');
+    console.log('[GPT] Using comprehensive Nubank analysis prompt...');
     
-    const prompt = `ANÁLISE CRÍTICA DE EXTRATO NUBANK
+    const prompt = `📌 ANÁLISE CRÍTICA DE EXTRATO NUBANK
 
-CONTEXTO: Você é um especialista em processar extratos do Nubank. O texto abaixo foi extraído de um PDF e contém transações que precisam ser identificadas.
+Você está prestes a analisar um extrato de cartão de crédito da Nubank em formato PDF. Seu objetivo é extrair, entender e estruturar as transações financeiras realizadas no período informado no documento.
 
-TEXTO EXTRAÍDO:
-${extractedText.slice(0, 12000)}
+TEXTO EXTRAÍDO DO PDF:
+${extractedText.slice(0, 15000)}
 
-INSTRUÇÕES ESPECÍFICAS:
-1. PROCURE por padrões como:
-   - "DD MMM" seguido de descrição e "R$ VALOR"
-   - "IOF de" seguido de descrição
-   - Qualquer referência a valores em Reais (R$)
-   - Datas em formato brasileiro (ex: "12 JUN")
+🧠 Sua tarefa:
+Extraia e organize todas as transações realizadas no período da fatura seguindo estas regras:
 
-2. IGNORE:
-   - Saldos e totais
+1. IDENTIFIQUE APENAS TRANSAÇÕES DE DÉBITO (gastos):
+   - Compras nacionais
+   - Compras internacionais 
+   - IOF de transações internacionais
+   - Parcelamentos de compras
+   - Taxas e tarifas
+
+2. IGNORE COMPLETAMENTE:
    - Pagamentos da fatura
    - Transferências recebidas
    - Cashback
+   - Saldo anterior
+   - Limite disponível
 
-3. EXTRAIA APENAS:
-   - Compras com cartão
-   - IOF de compras internacionais
-   - Assinaturas e serviços
+3. PARA CADA TRANSAÇÃO ENCONTRADA, EXTRAIA:
+   - Data no formato YYYY-MM-DD (converta datas como "12 JUN" para "2025-06-12")
+   - Descrição clara do estabelecimento/serviço
+   - Valor sempre NEGATIVO (ex: -150.00 para R$ 150,00)
+   - Categoria adequada
 
-4. FORMATO DE SAÍDA:
-   - Data: "2025-MM-DD" (use mês 06 para Jun, 07 para Jul, etc.)
-   - Valor: sempre negativo (ex: -50.00)
-   - Descrição: clara e limpa
-   - Categoria: uma de [Tecnologia, Alimentação, Compras, Transporte, Saúde, Lazer, Financeiro, Serviços, Outros]
+4. CATEGORIAS PERMITIDAS:
+   - "Alimentação" (restaurantes, delivery, supermercados)
+   - "Transporte" (Uber, 99, taxi, combustível)
+   - "Tecnologia" (Netflix, Spotify, Amazon, apps)
+   - "Saúde" (farmácias, clínicas, planos)
+   - "Compras" (lojas, shopping, e-commerce)
+   - "Lazer" (cinemas, shows, viagens)
+   - "Financeiro" (IOF, taxas, juros)
+   - "Serviços" (salões, manutenção, profissionais)
+   - "Outros" (quando não se encaixa nas anteriores)
 
-IMPORTANTE: Se encontrar qualquer transação, mesmo que seja só uma, retorne ela. Não retorne array vazio se houver qualquer indicação de gastos.
+5. PARCELAMENTOS:
+   - Se encontrar "Parcela X/Y", extraia os números para installment_number e installment_total
 
-Retorne APENAS o JSON array:`;
+IMPORTANTE: 
+- Retorne APENAS transações de débito (gastos negativos)
+- Se não encontrar nenhum gasto, retorne array vazio []
+- Mantenha descrições claras e concisas
+- Use sempre valores negativos para gastos
+
+Retorne APENAS o JSON array no formato:
+[
+  {
+    "date": "2025-06-12",
+    "description": "UBER EATS",
+    "amount": -45.50,
+    "category": "Alimentação"
+  }
+]`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -210,7 +112,7 @@ Retorne APENAS o JSON array:`;
         messages: [
           {
             role: 'system',
-            content: 'Você é um especialista em extrair transações de extratos Nubank. Seja meticuloso e encontre todas as transações possíveis.'
+            content: 'Você é um especialista em análise de extratos financeiros Nubank. Seja meticuloso na extração de transações de débito.'
           },
           {
             role: 'user',
@@ -224,11 +126,14 @@ Retorne APENAS o JSON array:`;
     
     if (!response.ok) {
       console.error('[GPT] OpenAI API error:', response.status);
-      return directTransactions;
+      return [];
     }
     
     const result = await response.json();
     let responseText = result.choices[0].message.content.trim();
+    
+    console.log('[GPT] Raw GPT response length:', responseText.length);
+    console.log('[GPT] GPT response preview:', responseText.slice(0, 500));
     
     // Clean response
     responseText = responseText
@@ -238,12 +143,9 @@ Retorne APENAS o JSON array:`;
       .replace(/[^}\]]*$/, '')
       .trim();
     
-    console.log('[GPT] GPT response length:', responseText.length);
-    console.log('[GPT] GPT response preview:', responseText.slice(0, 500));
-    
     if (!responseText || responseText === '[]') {
       console.log('[GPT] GPT returned empty result');
-      return directTransactions;
+      return [];
     }
     
     let gptTransactions: any[];
@@ -252,24 +154,29 @@ Retorne APENAS o JSON array:`;
     } catch (parseError) {
       console.error('[GPT] JSON parse error:', parseError);
       console.error('[GPT] Failed response:', responseText);
-      return directTransactions;
+      return [];
     }
     
     if (!Array.isArray(gptTransactions)) {
       console.error('[GPT] Response is not an array');
-      return directTransactions;
+      return [];
     }
     
     const validTransactions = gptTransactions.filter(validateTransaction);
-    console.log(`[GPT] GPT extracted ${validTransactions.length} valid transactions`);
+    console.log(`[GPT] GPT extracted ${validTransactions.length} valid debit transactions`);
     
-    const finalResult = validTransactions.length > directTransactions.length ? validTransactions : directTransactions;
-    console.log(`[GPT] Final result: ${finalResult.length} transactions`);
+    // Log sample transactions
+    if (validTransactions.length > 0) {
+      console.log('[GPT] Sample transactions found:');
+      validTransactions.slice(0, 3).forEach((tx, i) => {
+        console.log(`[GPT]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)}`);
+      });
+    }
     
-    return finalResult;
+    return validTransactions;
     
   } catch (error) {
-    console.error('[GPT] Error in processing:', error);
+    console.error('[GPT] Error in OpenAI processing:', error);
     return [];
   }
 };
