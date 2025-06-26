@@ -1,6 +1,6 @@
 
 import { insertTransactions, updateStatementStatus } from './database-operations.ts';
-import { processWithMultiLLM } from './multi-llm-processor.ts';
+import { processWithEnhancedStrategy } from './enhanced-processor.ts';
 
 // Convert to system Transaction format
 interface Transaction {
@@ -12,7 +12,7 @@ interface Transaction {
 
 export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`[PARSE] ===== INICIANDO ANÁLISE MULTI-LLM AVANÇADA =====`);
+    console.log(`[PARSE] ===== INICIANDO ANÁLISE ENHANCED ROBUSTA =====`);
     console.log(`[PARSE] File URL: ${fileUrl}`);
     
     // Download PDF
@@ -32,9 +32,9 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     
     console.log('[PARSE] Download concluído:', fileData.size, 'bytes');
     
-    // Usar processamento multi-LLM avançado com Claude + OpenAI
-    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO MULTI-LLM AVANÇADO =====`);
-    const debitTransactions = await processWithMultiLLM(fileData);
+    // Usar processamento enhanced com múltiplas estratégias robustas
+    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO ENHANCED =====`);
+    const debitTransactions = await processWithEnhancedStrategy(fileData);
     
     console.log(`[PARSE] Processamento concluído: ${debitTransactions.length} transações de débito encontradas`);
     
@@ -52,7 +52,7 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
       console.log(`[PARSE]     - PDF pode estar corrompido ou em formato não suportado`);
     }
     
-    console.log(`[PARSE] ===== ANÁLISE MULTI-LLM CONCLUÍDA =====`);
+    console.log(`[PARSE] ===== ANÁLISE ENHANCED CONCLUÍDA =====`);
     return debitTransactions;
     
   } catch (error) {
