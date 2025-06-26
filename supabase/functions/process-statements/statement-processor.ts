@@ -1,3 +1,4 @@
+
 import { insertTransactions, updateStatementStatus } from './database-operations.ts';
 import { processWithMultiLLM } from './multi-llm-processor.ts';
 
@@ -11,7 +12,7 @@ interface Transaction {
 
 export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`[PARSE] ===== INICIANDO ANÁLISE MULTI-LLM NUBANK =====`);
+    console.log(`[PARSE] ===== INICIANDO ANÁLISE MULTI-LLM AVANÇADA =====`);
     console.log(`[PARSE] File URL: ${fileUrl}`);
     
     // Download PDF
@@ -31,27 +32,31 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     
     console.log('[PARSE] Download concluído:', fileData.size, 'bytes');
     
-    // Usar processamento multi-LLM
-    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO MULTI-LLM =====`);
+    // Usar processamento multi-LLM avançado com Claude + OpenAI
+    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO MULTI-LLM AVANÇADO =====`);
     const debitTransactions = await processWithMultiLLM(fileData);
     
-    console.log(`[PARSE] Processamento concluído: ${debitTransactions.length} transações de débito`);
+    console.log(`[PARSE] Processamento concluído: ${debitTransactions.length} transações de débito encontradas`);
     
     if (debitTransactions.length > 0) {
-      console.log(`[PARSE] Transações encontradas:`);
+      console.log(`[PARSE] ✅ SUCESSO! Transações extraídas:`);
       debitTransactions.slice(0, 5).forEach((tx, i) => {
-        console.log(`[PARSE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)}`);
+        console.log(`[PARSE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
       });
       
       const totalDebit = debitTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-      console.log(`[PARSE] Total de débitos: R$ ${totalDebit.toFixed(2)}`);
+      console.log(`[PARSE] 💰 Total de débitos: R$ ${totalDebit.toFixed(2)}`);
+    } else {
+      console.log(`[PARSE] ⚠️  Nenhuma transação de débito foi encontrada`);
+      console.log(`[PARSE]     - Verifique se o PDF contém transações de débito`);
+      console.log(`[PARSE]     - PDF pode estar corrompido ou em formato não suportado`);
     }
     
-    console.log(`[PARSE] ===== ANÁLISE CONCLUÍDA COM SUCESSO =====`);
+    console.log(`[PARSE] ===== ANÁLISE MULTI-LLM CONCLUÍDA =====`);
     return debitTransactions;
     
   } catch (error) {
-    console.error('[PARSE] ===== ERRO NA ANÁLISE =====');
+    console.error('[PARSE] ===== ERRO CRÍTICO NA ANÁLISE =====');
     console.error('[PARSE] Erro:', error.message);
     console.error('[PARSE] Stack:', error.stack);
     throw error;

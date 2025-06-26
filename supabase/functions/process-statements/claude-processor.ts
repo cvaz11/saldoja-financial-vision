@@ -24,16 +24,16 @@ const validateTransaction = (transaction: any): transaction is Transaction => {
 
 export const processTextWithClaude = async (extractedText: string): Promise<Transaction[]> => {
   try {
-    console.log('[CLAUDE] ===== INICIANDO ANÁLISE COM CLAUDE =====');
+    console.log('[CLAUDE] ===== INICIANDO ANÁLISE COM CLAUDE AVANÇADO =====');
     console.log(`[CLAUDE] Processando ${extractedText.length} caracteres de texto`);
     
     const claudeApiKey = Deno.env.get('ANTHROPIC_API_KEY');
     if (!claudeApiKey) {
-      console.log('[CLAUDE] Chave da API do Claude não encontrada');
+      console.log('[CLAUDE] ❌ Chave da API do Claude não encontrada');
       return [];
     }
     
-    console.log('[CLAUDE] Usando prompt especializado para análise Nubank...');
+    console.log('[CLAUDE] 🎯 Usando prompt especializado para análise Nubank...');
     
     const prompt = `Você é um especialista em análise de extratos bancários Nubank. Analise este texto extraído de um PDF de fatura de cartão de crédito e extraia APENAS as transações de DÉBITO (gastos).
 
@@ -65,6 +65,8 @@ RETORNE APENAS um array JSON válido no formato:
 
 Se não encontrar transações de débito, retorne: []`;
 
+    console.log('[CLAUDE] 📡 Enviando requisição para Claude...');
+    
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -87,16 +89,16 @@ Se não encontrar transações de débito, retorne: []`;
     });
     
     if (!response.ok) {
-      console.error('[CLAUDE] Erro na API do Claude:', response.status);
       const errorText = await response.text();
-      console.error('[CLAUDE] Detalhes do erro:', errorText);
+      console.error('[CLAUDE] ❌ Erro na API do Claude:', response.status, errorText);
       return [];
     }
     
     const result = await response.json();
     let responseText = result.content[0].text.trim();
     
-    console.log('[CLAUDE] Resposta bruta do Claude (primeiros 500 chars):', responseText.slice(0, 500));
+    console.log('[CLAUDE] 📄 Resposta recebida:', responseText.length, 'caracteres');
+    console.log('[CLAUDE] 🔍 Resposta (primeiros 500 chars):', responseText.slice(0, 500));
     
     // Limpar resposta
     responseText = responseText
@@ -107,7 +109,7 @@ Se não encontrar transações de débito, retorne: []`;
       .trim();
     
     if (!responseText || responseText === '[]') {
-      console.log('[CLAUDE] Claude retornou resultado vazio');
+      console.log('[CLAUDE] ⚠️  Claude retornou resultado vazio');
       return [];
     }
     
@@ -115,31 +117,31 @@ Se não encontrar transações de débito, retorne: []`;
     try {
       claudeTransactions = JSON.parse(responseText);
     } catch (parseError) {
-      console.error('[CLAUDE] Erro ao fazer parse do JSON:', parseError);
+      console.error('[CLAUDE] ❌ Erro ao fazer parse do JSON:', parseError);
       console.error('[CLAUDE] Resposta que falhou:', responseText);
       return [];
     }
     
     if (!Array.isArray(claudeTransactions)) {
-      console.error('[CLAUDE] Resposta não é um array');
+      console.error('[CLAUDE] ❌ Resposta não é um array');
       return [];
     }
     
     const validTransactions = claudeTransactions.filter(validateTransaction);
-    console.log(`[CLAUDE] Claude extraiu ${validTransactions.length} transações de débito válidas`);
+    console.log(`[CLAUDE] ✅ Claude extraiu ${validTransactions.length} transações de débito válidas`);
     
-    // Log das primeiras transações
+    // Log das transações encontradas
     if (validTransactions.length > 0) {
-      console.log('[CLAUDE] Primeiras transações encontradas:');
-      validTransactions.slice(0, 3).forEach((tx, i) => {
-        console.log(`[CLAUDE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)}`);
+      console.log('[CLAUDE] 🎉 Transações encontradas pelo Claude:');
+      validTransactions.slice(0, 5).forEach((tx, i) => {
+        console.log(`[CLAUDE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
       });
     }
     
     return validTransactions;
     
   } catch (error) {
-    console.error('[CLAUDE] Erro no processamento com Claude:', error);
+    console.error('[CLAUDE] ❌ Erro no processamento com Claude:', error);
     return [];
   }
 };
