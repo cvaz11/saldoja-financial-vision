@@ -1,6 +1,6 @@
 
 import { insertTransactions, updateStatementStatus } from './database-operations.ts';
-import { processWithTesseractOCR } from './tesseract-ocr-processor.ts';
+import { processWithGemini } from './gemini-processor.ts';
 
 // Convert to system Transaction format
 interface Transaction {
@@ -12,7 +12,7 @@ interface Transaction {
 
 export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`[PARSE] ===== ANÁLISE TESSERACT OCR INICIADA =====`);
+    console.log(`[PARSE] ===== ANÁLISE GEMINI INICIADA =====`);
     console.log(`[PARSE] File URL: ${fileUrl}`);
     
     // Download PDF
@@ -35,14 +35,14 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     // Converter para ArrayBuffer
     const arrayBuffer = await fileData.arrayBuffer();
     
-    // Usar processamento Tesseract OCR
-    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO TESSERACT OCR =====`);
-    const debitTransactions = await processWithTesseractOCR(arrayBuffer);
+    // Usar processamento Gemini
+    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO GEMINI =====`);
+    const debitTransactions = await processWithGemini(arrayBuffer);
     
-    console.log(`[PARSE] Processamento Tesseract OCR concluído: ${debitTransactions.length} transações encontradas`);
+    console.log(`[PARSE] Processamento Gemini concluído: ${debitTransactions.length} transações encontradas`);
     
     if (debitTransactions.length > 0) {
-      console.log(`[PARSE] ✅ SUCESSO! Transações extraídas via Tesseract OCR:`);
+      console.log(`[PARSE] ✅ SUCESSO! Transações extraídas via Gemini:`);
       debitTransactions.slice(0, 5).forEach((tx, i) => {
         console.log(`[PARSE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
       });
@@ -51,16 +51,16 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
       console.log(`[PARSE] 💰 Total de débitos: R$ ${totalDebit.toFixed(2)}`);
     } else {
       console.log(`[PARSE] ⚠️  Nenhuma transação encontrada`);
-      console.log(`[PARSE]     - Verifique se o PDF é um extrato Nubank válido`);
+      console.log(`[PARSE]     - Verifique se o PDF é um extrato bancário válido`);
       console.log(`[PARSE]     - Confirme se há transações no período`);
-      console.log(`[PARSE]     - Texto pode não ter sido extraído corretamente`);
+      console.log(`[PARSE]     - PDF pode não ter sido processado corretamente`);
     }
     
-    console.log(`[PARSE] ===== ANÁLISE TESSERACT OCR CONCLUÍDA =====`);
+    console.log(`[PARSE] ===== ANÁLISE GEMINI CONCLUÍDA =====`);
     return debitTransactions;
     
   } catch (error) {
-    console.error('[PARSE] ===== ERRO NA ANÁLISE TESSERACT OCR =====');
+    console.error('[PARSE] ===== ERRO NA ANÁLISE GEMINI =====');
     console.error('[PARSE] Erro:', error.message);
     throw error;
   }
@@ -70,14 +70,14 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
   const startTime = Date.now();
   
   try {
-    console.log(`\n🚀 ===== PROCESSANDO EXTRATO NUBANK ${statement.id} =====`);
+    console.log(`\n🚀 ===== PROCESSANDO EXTRATO ${statement.id} =====`);
     console.log(`📄 Arquivo: ${statement.filename}`);
     console.log(`👤 Usuário: ${statement.user_id}`);
     console.log(`🔗 URL: ${statement.file_url}`);
     console.log(`🏦 Banco: ${statement.bank}`);
 
-    // Parse com Tesseract OCR
-    console.log(`🔍 Iniciando análise Tesseract OCR Nubank...`);
+    // Parse com Gemini
+    console.log(`🔍 Iniciando análise Gemini...`);
     const debitTransactions = await parseStatementContent(statement.file_url, supabase);
     
     console.log(`✅ Análise concluída: ${debitTransactions.length} transações de débito`);
@@ -88,8 +88,8 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
       console.log(`   Possíveis causas:`);
       console.log(`   - PDF contém apenas créditos/receitas`);
       console.log(`   - Período sem movimentações de débito`);
-      console.log(`   - PDF corrompido ou ilegível via OCR`);
-      console.log(`   - Formato do PDF não compatível com regex Nubank`);
+      console.log(`   - PDF corrompido ou ilegível`);
+      console.log(`   - Formato do PDF não reconhecido pelo Gemini`);
       
       // Atualizar status para 'no_data'
       await updateStatementStatus(supabase, statement.id, 'no_data');
