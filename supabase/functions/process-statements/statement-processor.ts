@@ -1,6 +1,5 @@
-
 import { insertTransactions, updateStatementStatus } from './database-operations.ts';
-import { processWithHybridApproach } from './hybrid-processor.ts';
+import { processWithMultiLLM } from './multi-llm-processor.ts';
 
 // Convert to system Transaction format
 interface Transaction {
@@ -12,7 +11,7 @@ interface Transaction {
 
 export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`[PARSE] ===== INICIANDO ANÁLISE HÍBRIDA NUBANK =====`);
+    console.log(`[PARSE] ===== INICIANDO ANÁLISE MULTI-LLM NUBANK =====`);
     console.log(`[PARSE] File URL: ${fileUrl}`);
     
     // Download PDF
@@ -32,9 +31,9 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     
     console.log('[PARSE] Download concluído:', fileData.size, 'bytes');
     
-    // Usar processamento híbrido
-    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO HÍBRIDO =====`);
-    const debitTransactions = await processWithHybridApproach(fileData);
+    // Usar processamento multi-LLM
+    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO MULTI-LLM =====`);
+    const debitTransactions = await processWithMultiLLM(fileData);
     
     console.log(`[PARSE] Processamento concluído: ${debitTransactions.length} transações de débito`);
     
@@ -69,8 +68,8 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
     console.log(`🔗 URL: ${statement.file_url}`);
     console.log(`🏦 Banco: ${statement.bank}`);
 
-    // Parse com abordagem híbrida
-    console.log(`🔍 Iniciando análise híbrida Nubank...`);
+    // Parse com abordagem multi-LLM
+    console.log(`🔍 Iniciando análise multi-LLM Nubank...`);
     const debitTransactions = await parseStatementContent(statement.file_url, supabase);
     
     console.log(`✅ Análise concluída: ${debitTransactions.length} transações de débito`);
