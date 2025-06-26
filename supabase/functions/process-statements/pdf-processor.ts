@@ -1,9 +1,8 @@
 
 export const extractTextFromPDF = async (fileData: Blob): Promise<string> => {
   try {
-    console.log('[PDF] ===== STARTING ENHANCED NUBANK PDF EXTRACTION =====');
+    console.log('[PDF] ===== STARTING COMPREHENSIVE PDF EXTRACTION =====');
     console.log('[PDF] File size:', fileData.size, 'bytes');
-    console.log('[PDF] File type:', fileData.type);
     
     // Convert blob to array buffer
     const arrayBuffer = await fileData.arrayBuffer();
@@ -18,167 +17,177 @@ export const extractTextFromPDF = async (fileData: Blob): Promise<string> => {
       throw new Error('File is not a valid PDF');
     }
     
-    // Convert to binary string for processing
-    const binaryString = new TextDecoder('latin1').decode(pdfBytes);
-    console.log(`[PDF] Binary string length: ${binaryString.length}`);
+    // Convert to different encodings for better text extraction
+    const latin1String = new TextDecoder('latin1').decode(pdfBytes);
+    const utf8String = new TextDecoder('utf-8', { ignoreBOM: true }).decode(pdfBytes);
     
-    let extractedText = '';
-    const textSegments = [];
+    console.log(`[PDF] Latin1 string length: ${latin1String.length}`);
+    console.log(`[PDF] UTF8 string length: ${utf8String.length}`);
     
-    // Method 1: Enhanced PDF stream extraction specifically for Nubank
-    console.log('[PDF] Method 1: Enhanced Nubank-specific stream extraction...');
-    const streamMatches = binaryString.match(/stream\s*([\s\S]*?)\s*endstream/g) || [];
-    console.log(`[PDF] Found ${streamMatches.length} PDF streams`);
+    let allExtractedText = '';
+    const textSegments = new Set<string>(); // Use Set to avoid duplicates
     
-    for (const stream of streamMatches) {
-      const content = stream.replace(/^stream\s*/, '').replace(/\s*endstream$/, '');
+    // Method 1: Enhanced stream extraction with better decoding
+    console.log('[PDF] === METHOD 1: Enhanced Stream Extraction ===');
+    const streamRegex = /stream\s*([\s\S]*?)\s*endstream/gi;
+    let streamMatch;
+    let streamCount = 0;
+    
+    while ((streamMatch = streamRegex.exec(latin1String)) !== null && streamCount < 100) {
+      streamCount++;
+      const streamContent = streamMatch[1];
       
-      // Enhanced text extraction with better character mapping
-      let cleanText = '';
-      for (let i = 0; i < content.length; i++) {
-        const byte = content.charCodeAt(i);
-        
-        // Map common PDF encoded characters
-        if (byte >= 32 && byte <= 126) {
-          cleanText += String.fromCharCode(byte); // Standard ASCII
-        } else if (byte >= 160 && byte <= 255) {
-          cleanText += String.fromCharCode(byte); // Extended ASCII
-        } else if (byte === 10 || byte === 13) {
-          cleanText += '\n'; // Line breaks
-        } else if (byte === 9) {
-          cleanText += ' '; // Tab
-        } else if (byte === 0) {
-          cleanText += ' '; // Null bytes as spaces
+      // Try to decode the stream content
+      let decodedText = '';
+      
+      // Method 1a: Direct character extraction
+      for (let i = 0; i < streamContent.length; i++) {
+        const char = streamContent.charCodeAt(i);
+        if ((char >= 32 && char <= 126) || (char >= 160 && char <= 255)) {
+          decodedText += streamContent.charAt(i);
+        } else if (char === 10 || char === 13) {
+          decodedText += ' ';
         }
       }
       
-      // Clean and normalize
-      cleanText = cleanText
-        .replace(/\0/g, ' ') // Remove null bytes
-        .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ') // Remove control chars
-        .replace(/\s+/g, ' ') // Normalize spaces
+      // Clean and filter the text
+      decodedText = decodedText
+        .replace(/\s+/g, ' ')
+        .replace(/[^\w\s.,;:!?@#$%&*()[\]{}<>\/\\|+=\-"'`~]/g, ' ')
         .trim();
       
-      if (cleanText.length > 50) {
-        textSegments.push(cleanText);
+      if (decodedText.length > 20) {
+        textSegments.add(decodedText);
       }
     }
     
-    // Method 2: Direct binary parsing with enhanced character detection
-    console.log('[PDF] Method 2: Enhanced binary parsing...');
-    let directText = '';
+    console.log(`[PDF] Found ${streamCount} streams, extracted ${textSegments.size} text segments`);
     
-    for (let i = 0; i < pdfBytes.length; i++) {
-      const byte = pdfBytes[i];
+    // Method 2: PDF object text extraction
+    console.log('[PDF] === METHOD 2: PDF Object Text Extraction ===');
+    const objectRegex = /\d+\s+\d+\s+obj\s*([\s\S]*?)\s*endobj/gi;
+    let objectMatch;
+    let objectCount = 0;
+    
+    while ((objectMatch = objectRegex.exec(latin1String)) !== null && objectCount < 200) {
+      objectCount++;
+      const objContent = objectMatch[1];
       
-      if (byte >= 32 && byte <= 126) {
-        directText += String.fromCharCode(byte);
-      } else if (byte >= 192 && byte <= 255) {
-        // Extended Latin characters common in Portuguese
-        directText += String.fromCharCode(byte);
-      } else if (byte === 10 || byte === 13) {
-        directText += '\n';
-      } else if (byte === 9 || byte === 32) {
-        directText += ' ';
-      } else if (byte === 0) {
-        directText += ' ';
-      }
-    }
-    
-    // Clean direct text
-    directText = directText
-      .replace(/\s+/g, ' ')
-      .replace(/(.)\1{10,}/g, '$1') // Remove excessive repetitions
-      .trim();
-    
-    if (directText.length > 100) {
-      textSegments.push(directText);
-    }
-    
-    // Method 3: PDF object text extraction with Nubank patterns
-    console.log('[PDF] Method 3: PDF object extraction...');
-    const objectMatches = binaryString.match(/\d+ \d+ obj[\s\S]*?endobj/g) || [];
-    console.log(`[PDF] Found ${objectMatches.length} PDF objects`);
-    
-    for (const obj of objectMatches) {
-      // Look for text in various PDF text encodings
+      // Extract text from various PDF text patterns
       const textPatterns = [
-        /\(([^)]*)\)/g,  // Text in parentheses
-        /\[([^\]]*)\]/g, // Text in brackets
-        /<([^>]*)>/g,    // Text in angle brackets
-        /\/F\d+\s+(\w+)/g, // Font references
+        /\(([^)]{3,})\)/g,  // Text in parentheses
+        /\[([^\]]{3,})\]/g, // Text in brackets  
+        /<([^>]{3,})>/g,    // Text in angle brackets
+        /\/Title\s*\(([^)]+)\)/g, // Title
+        /\/Subject\s*\(([^)]+)\)/g, // Subject
+        /\/Contents\s*\(([^)]+)\)/g, // Contents
       ];
       
       for (const pattern of textPatterns) {
-        const matches = obj.match(pattern) || [];
-        for (const match of matches) {
-          const cleanText = match
-            .replace(/[()[\]<>]/g, '')
+        let patternMatch;
+        while ((patternMatch = pattern.exec(objContent)) !== null) {
+          let extractedText = patternMatch[1]
             .replace(/\\[nrt]/g, ' ')
+            .replace(/\\\\/g, '\\')
+            .replace(/\\\(/g, '(')
+            .replace(/\\\)/g, ')')
+            .replace(/\s+/g, ' ')
             .trim();
           
-          if (cleanText.length > 2 && /[a-zA-Z0-9]/.test(cleanText)) {
-            textSegments.push(cleanText);
+          if (extractedText.length > 5 && /[a-zA-Z0-9]/.test(extractedText)) {
+            textSegments.add(extractedText);
           }
         }
       }
     }
     
-    // Combine all extracted text
-    extractedText = textSegments.join(' ');
-    console.log(`[PDF] Combined text length: ${extractedText.length} characters`);
+    console.log(`[PDF] Processed ${objectCount} objects`);
     
-    // Enhanced Nubank-specific filtering
-    const lines = extractedText.split(/[\r\n]+/);
-    const nubankLines = [];
+    // Method 3: Raw byte scanning for readable text
+    console.log('[PDF] === METHOD 3: Raw Byte Scanning ===');
+    let rawText = '';
+    let consecutiveReadable = 0;
     
-    for (const line of lines) {
-      const cleaned = line.replace(/\s+/g, ' ').trim();
+    for (let i = 0; i < pdfBytes.length; i++) {
+      const byte = pdfBytes[i];
       
-      if (cleaned.length < 3) continue;
-      
-      // Look for Nubank transaction patterns
-      const hasNubankPattern = 
-        // Money patterns
-        /R\$\s*[\d.,]+|USD\s*[\d.,]+|EUR\s*[\d.,]+|GBP\s*[\d.,]+|BRL\s*[\d.,]+/.test(cleaned) ||
-        // Date patterns
-        /\d{1,2}\s+(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez|MAI|JUN)/i.test(cleaned) ||
-        // Card numbers
-        /\*{4}\s*\d{4}|\*{3}\s*\d{4}/.test(cleaned) ||
-        // Common merchants
-        /(Apple\.Com|PayPal|Uber|iFood|Amazon|Google|Netflix|Spotify)/i.test(cleaned) ||
-        // Nubank specific terms
-        /(IOF|Pagamento|Fatura|Extrato|Transações|TRANSAÇÕES)/i.test(cleaned) ||
-        // Transaction descriptions
-        /(Tech|Bill|Fruver|Cafe|Farmacia|Estacion|Parnasse|Apollo|Railway|Vodafone)/i.test(cleaned) ||
-        // Installments
-        /parcela\s*\d+\/\d+|\d+\/\d+\s*parcela/i.test(cleaned);
-      
-      if (hasNubankPattern) {
-        nubankLines.push(cleaned);
+      if ((byte >= 32 && byte <= 126) || byte === 10 || byte === 13 || byte === 9) {
+        rawText += String.fromCharCode(byte);
+        consecutiveReadable++;
+      } else if (byte >= 160 && byte <= 255) {
+        // Extended ASCII
+        rawText += String.fromCharCode(byte);
+        consecutiveReadable++;
+      } else {
+        if (consecutiveReadable > 10) {
+          // We had a good run of readable text
+          const segment = rawText.slice(-consecutiveReadable).trim();
+          if (segment.length > 10) {
+            textSegments.add(segment);
+          }
+        }
+        rawText += ' ';
+        consecutiveReadable = 0;
       }
     }
     
-    // Use Nubank-specific content if found
-    if (nubankLines.length > 5) {
-      extractedText = nubankLines.join('\n');
-      console.log(`[PDF] Using ${nubankLines.length} Nubank-specific lines`);
+    // Method 4: Look for specific PDF text encoding patterns
+    console.log('[PDF] === METHOD 4: PDF Text Encoding Patterns ===');
+    const encodingPatterns = [
+      /Tj\s*$/gm,  // Text showing operator
+      /TJ\s*$/gm,  // Text showing with individual glyph positioning
+      /Td\s*$/gm,  // Move to start of next line
+      /TD\s*$/gm,  // Move to start of next line and set leading
+    ];
+    
+    for (const pattern of encodingPatterns) {
+      const matches = latin1String.match(pattern);
+      if (matches) {
+        console.log(`[PDF] Found ${matches.length} text positioning operators`);
+      }
     }
     
-    console.log(`[PDF] Final extracted text length: ${extractedText.length} characters`);
-    console.log(`[PDF] Sample extracted text:`, extractedText.slice(0, 2000));
+    // Combine all extracted text
+    allExtractedText = Array.from(textSegments).join(' ');
+    console.log(`[PDF] Total extracted text length: ${allExtractedText.length} characters`);
+    console.log(`[PDF] Total unique segments: ${textSegments.size}`);
     
-    if (extractedText.length < 100) {
-      console.log('[PDF] WARNING: Very little text extracted');
-      // Return best available text
-      return textSegments.join(' ').slice(0, 10000);
+    // Enhanced cleaning and filtering
+    const cleanedText = allExtractedText
+      .replace(/\0/g, ' ')
+      .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/(.)\1{5,}/g, '$1') // Remove excessive character repetitions
+      .trim();
+    
+    console.log(`[PDF] Final cleaned text length: ${cleanedText.length} characters`);
+    
+    // Show sample of extracted text for debugging
+    const sampleText = cleanedText.slice(0, 1000);
+    console.log(`[PDF] Sample extracted text:`, sampleText);
+    
+    if (cleanedText.length < 50) {
+      console.log('[PDF] WARNING: Very little text extracted from PDF');
+      console.log('[PDF] This might be an image-based PDF or use unsupported encoding');
+      
+      // Try one more method - look for any readable sequences
+      const fallbackText = latin1String.replace(/[^\x20-\x7E\xA0-\xFF]/g, ' ').replace(/\s+/g, ' ').trim();
+      console.log(`[PDF] Fallback text length: ${fallbackText.length}`);
+      
+      if (fallbackText.length > cleanedText.length) {
+        return fallbackText.slice(0, 20000);
+      }
     }
     
-    return extractedText.slice(0, 15000); // Increased limit for more content
+    return cleanedText.slice(0, 20000);
     
   } catch (error) {
     console.error('[PDF] Critical error in PDF extraction:', error);
-    console.error('[PDF] Error stack:', error.stack);
+    console.error('[PDF] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     throw new Error(`Failed to extract text from PDF: ${error.message}`);
   }
 };

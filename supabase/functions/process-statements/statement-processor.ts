@@ -72,14 +72,26 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
     console.log(`🔗 File URL: ${statement.file_url}`);
     console.log(`🏦 Bank: ${statement.bank}`);
 
-    // Parse the statement
+    // Parse the statement with enhanced processing
+    console.log(`🔍 Starting comprehensive extraction...`);
     const extractedTransactions = await parseStatementContent(statement.file_url, supabase);
     
-    console.log(`✅ Parsing completed: ${extractedTransactions.length} transactions found`);
+    console.log(`✅ Extraction completed: ${extractedTransactions.length} transactions found`);
+
+    // Enhanced logging for debugging
+    if (extractedTransactions.length > 0) {
+      console.log(`💰 Sample transactions found:`);
+      extractedTransactions.slice(0, 5).forEach((tx, i) => {
+        console.log(`   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
+      });
+      
+      const totalAmount = extractedTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+      console.log(`💸 Total transaction amount: R$ ${totalAmount.toFixed(2)}`);
+    }
 
     // Insert transactions if found
     if (extractedTransactions.length > 0) {
-      console.log(`💾 Inserting ${extractedTransactions.length} transactions...`);
+      console.log(`💾 Inserting ${extractedTransactions.length} transactions into database...`);
       await insertTransactions(supabase, extractedTransactions, statement.id, statement.user_id);
       console.log(`✅ Successfully inserted ${extractedTransactions.length} transactions`);
       
@@ -87,7 +99,11 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
       await updateStatementStatus(supabase, statement.id, 'ready', extractedTransactions);
       console.log(`✅ Statement status updated to 'ready'`);
     } else {
-      console.log(`⚠️ No transactions found - marking as no_data`);
+      console.log(`⚠️ No transactions found - this might indicate:`);
+      console.log(`   - PDF is image-based (scanned document)`);
+      console.log(`   - PDF uses unsupported text encoding`);
+      console.log(`   - Statement period has no transactions`);
+      console.log(`   - Text extraction failed`);
       
       // Update statement status to no_data
       await updateStatementStatus(supabase, statement.id, 'no_data');
@@ -96,19 +112,21 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
 
     const processingTime = Date.now() - startTime;
     console.log(`🎉 STATEMENT ${statement.id} COMPLETED in ${processingTime}ms`);
+    console.log(`📊 Final summary: ${extractedTransactions.length} transactions extracted`);
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
     console.error(`💥 STATEMENT ${statement.id} FAILED after ${processingTime}ms`);
-    console.error(`❌ Error:`, error.message);
-    console.error(`❌ Stack:`, error.stack);
+    console.error(`❌ Error type: ${error.name}`);
+    console.error(`❌ Error message: ${error.message}`);
+    console.error(`❌ Error stack: ${error.stack}`);
     
-    // Mark as error
+    // Mark as error with detailed logging
     try {
       await updateStatementStatus(supabase, statement.id, 'error');
       console.log(`✅ Statement status updated to 'error'`);
     } catch (updateError) {
-      console.error(`💥 Failed to update error status:`, updateError);
+      console.error(`💥 Failed to update error status: ${updateError.message}`);
     }
     
     throw error;
