@@ -1,6 +1,5 @@
-
 import { insertTransactions, updateStatementStatus } from './database-operations.ts';
-import { processWithSmartText } from './smart-text-processor.ts';
+import { processWithOCR } from './ocr-processor.ts';
 
 // Convert to system Transaction format
 interface Transaction {
@@ -12,7 +11,7 @@ interface Transaction {
 
 export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`[PARSE] ===== ANÁLISE INTELIGENTE INICIADA =====`);
+    console.log(`[PARSE] ===== ANÁLISE OCR INICIADA =====`);
     console.log(`[PARSE] File URL: ${fileUrl}`);
     
     // Download PDF
@@ -35,14 +34,14 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     // Converter para ArrayBuffer
     const arrayBuffer = await fileData.arrayBuffer();
     
-    // Usar processamento inteligente de texto
-    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO INTELIGENTE =====`);
-    const debitTransactions = await processWithSmartText(arrayBuffer);
+    // Usar processamento OCR
+    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO OCR =====`);
+    const debitTransactions = await processWithOCR(arrayBuffer);
     
-    console.log(`[PARSE] Processamento inteligente concluído: ${debitTransactions.length} transações encontradas`);
+    console.log(`[PARSE] Processamento OCR concluído: ${debitTransactions.length} transações encontradas`);
     
     if (debitTransactions.length > 0) {
-      console.log(`[PARSE] ✅ SUCESSO! Transações extraídas:`);
+      console.log(`[PARSE] ✅ SUCESSO! Transações extraídas via OCR:`);
       debitTransactions.slice(0, 5).forEach((tx, i) => {
         console.log(`[PARSE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
       });
@@ -55,11 +54,11 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
       console.log(`[PARSE]     - Confirme se há transações no período`);
     }
     
-    console.log(`[PARSE] ===== ANÁLISE INTELIGENTE CONCLUÍDA =====`);
+    console.log(`[PARSE] ===== ANÁLISE OCR CONCLUÍDA =====`);
     return debitTransactions;
     
   } catch (error) {
-    console.error('[PARSE] ===== ERRO NA ANÁLISE INTELIGENTE =====');
+    console.error('[PARSE] ===== ERRO NA ANÁLISE OCR =====');
     console.error('[PARSE] Erro:', error.message);
     throw error;
   }
