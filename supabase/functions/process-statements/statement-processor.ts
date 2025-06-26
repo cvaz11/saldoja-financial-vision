@@ -1,5 +1,6 @@
+
 import { insertTransactions, updateStatementStatus } from './database-operations.ts';
-import { processWithOCR } from './ocr-processor.ts';
+import { processWithTesseractOCR } from './tesseract-ocr-processor.ts';
 
 // Convert to system Transaction format
 interface Transaction {
@@ -11,7 +12,7 @@ interface Transaction {
 
 export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`[PARSE] ===== ANÁLISE OCR INICIADA =====`);
+    console.log(`[PARSE] ===== ANÁLISE TESSERACT OCR INICIADA =====`);
     console.log(`[PARSE] File URL: ${fileUrl}`);
     
     // Download PDF
@@ -34,14 +35,14 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     // Converter para ArrayBuffer
     const arrayBuffer = await fileData.arrayBuffer();
     
-    // Usar processamento OCR
-    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO OCR =====`);
-    const debitTransactions = await processWithOCR(arrayBuffer);
+    // Usar processamento Tesseract OCR
+    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO TESSERACT OCR =====`);
+    const debitTransactions = await processWithTesseractOCR(arrayBuffer);
     
-    console.log(`[PARSE] Processamento OCR concluído: ${debitTransactions.length} transações encontradas`);
+    console.log(`[PARSE] Processamento Tesseract OCR concluído: ${debitTransactions.length} transações encontradas`);
     
     if (debitTransactions.length > 0) {
-      console.log(`[PARSE] ✅ SUCESSO! Transações extraídas via OCR:`);
+      console.log(`[PARSE] ✅ SUCESSO! Transações extraídas via Tesseract OCR:`);
       debitTransactions.slice(0, 5).forEach((tx, i) => {
         console.log(`[PARSE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
       });
@@ -52,13 +53,14 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
       console.log(`[PARSE] ⚠️  Nenhuma transação encontrada`);
       console.log(`[PARSE]     - Verifique se o PDF é um extrato Nubank válido`);
       console.log(`[PARSE]     - Confirme se há transações no período`);
+      console.log(`[PARSE]     - Texto pode não ter sido extraído corretamente`);
     }
     
-    console.log(`[PARSE] ===== ANÁLISE OCR CONCLUÍDA =====`);
+    console.log(`[PARSE] ===== ANÁLISE TESSERACT OCR CONCLUÍDA =====`);
     return debitTransactions;
     
   } catch (error) {
-    console.error('[PARSE] ===== ERRO NA ANÁLISE OCR =====');
+    console.error('[PARSE] ===== ERRO NA ANÁLISE TESSERACT OCR =====');
     console.error('[PARSE] Erro:', error.message);
     throw error;
   }
@@ -74,8 +76,8 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
     console.log(`🔗 URL: ${statement.file_url}`);
     console.log(`🏦 Banco: ${statement.bank}`);
 
-    // Parse com Vision GPT-4o
-    console.log(`🔍 Iniciando análise Vision GPT-4o Nubank...`);
+    // Parse com Tesseract OCR
+    console.log(`🔍 Iniciando análise Tesseract OCR Nubank...`);
     const debitTransactions = await parseStatementContent(statement.file_url, supabase);
     
     console.log(`✅ Análise concluída: ${debitTransactions.length} transações de débito`);
@@ -86,7 +88,8 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
       console.log(`   Possíveis causas:`);
       console.log(`   - PDF contém apenas créditos/receitas`);
       console.log(`   - Período sem movimentações de débito`);
-      console.log(`   - PDF corrompido ou ilegível`);
+      console.log(`   - PDF corrompido ou ilegível via OCR`);
+      console.log(`   - Formato do PDF não compatível com regex Nubank`);
       
       // Atualizar status para 'no_data'
       await updateStatementStatus(supabase, statement.id, 'no_data');
