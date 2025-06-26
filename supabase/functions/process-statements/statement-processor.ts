@@ -1,8 +1,8 @@
-import { NubankTransactionParser, NubankTransaction } from './libs/nubank-transaction-parser.ts';
-import { insertTransactions, updateStatementStatus } from './database-operations.ts';
-import { extractTextFromPDF } from './pdf-processor.ts';
 
-// Convert NubankTransaction to system Transaction
+import { insertTransactions, updateStatementStatus } from './database-operations.ts';
+import { processWithHybridApproach } from './hybrid-processor.ts';
+
+// Convert to system Transaction format
 interface Transaction {
   date: string;
   description: string;
@@ -12,72 +12,48 @@ interface Transaction {
 
 export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`[PARSE] ===== STARTING OPTIMIZED NUBANK PARSE =====`);
+    console.log(`[PARSE] ===== INICIANDO ANÁLISE HÍBRIDA NUBANK =====`);
     console.log(`[PARSE] File URL: ${fileUrl}`);
     
     // Download PDF
-    console.log(`[PARSE] Downloading file...`);
+    console.log(`[PARSE] Baixando arquivo...`);
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('statements')
       .download(fileUrl);
     
     if (downloadError) {
-      console.error('[PARSE] Download error:', downloadError);
-      throw new Error(`PDF download failed: ${downloadError.message}`);
+      console.error('[PARSE] Erro no download:', downloadError);
+      throw new Error(`Download do PDF falhou: ${downloadError.message}`);
     }
     
     if (!fileData) {
-      throw new Error('Downloaded file is empty');
+      throw new Error('Arquivo baixado está vazio');
     }
     
-    console.log('[PARSE] Download completed:', fileData.size, 'bytes');
+    console.log('[PARSE] Download concluído:', fileData.size, 'bytes');
     
-    // Text extraction using corrected PDF processor
-    console.log(`[PARSE] ===== STARTING TEXT EXTRACTION =====`);
-    const extractedText = await extractTextFromPDF(fileData);
+    // Usar processamento híbrido
+    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO HÍBRIDO =====`);
+    const debitTransactions = await processWithHybridApproach(fileData);
     
-    console.log(`[PARSE] Extraction completed: ${extractedText.length} characters`);
+    console.log(`[PARSE] Processamento concluído: ${debitTransactions.length} transações de débito`);
     
-    if (extractedText.length < 50) {
-      throw new Error('Extracted text too short - PDF may be corrupted or image-based');
-    }
-    
-    // Parse Nubank transactions
-    console.log(`[PARSE] ===== STARTING TRANSACTION PARSING =====`);
-    const transactionParser = new NubankTransactionParser();
-    const nubankTransactions = transactionParser.parseTransactions(extractedText);
-    
-    console.log(`[PARSE] Parsing completed: ${nubankTransactions.length} transactions found`);
-    
-    // Convert to system format
-    const allTransactions: Transaction[] = nubankTransactions.map(nt => ({
-      date: nt.date,
-      description: nt.description,
-      amount: nt.amount,
-      category: nt.category
-    }));
-    
-    // FILTER ONLY DEBITS (negative values)
-    const debitTransactions = allTransactions.filter(t => t.amount < 0);
-    console.log(`[PARSE] Filtered debit transactions: ${debitTransactions.length} of ${allTransactions.length} total`);
-    
-    // Log found debit transactions
     if (debitTransactions.length > 0) {
-      console.log(`[PARSE] Sample debit transactions found:`);
+      console.log(`[PARSE] Transações encontradas:`);
       debitTransactions.slice(0, 5).forEach((tx, i) => {
         console.log(`[PARSE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)}`);
       });
       
       const totalDebit = debitTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-      console.log(`[PARSE] Total debits: R$ ${totalDebit.toFixed(2)}`);
+      console.log(`[PARSE] Total de débitos: R$ ${totalDebit.toFixed(2)}`);
     }
     
-    console.log(`[PARSE] ===== PARSING COMPLETED SUCCESSFULLY =====`);
+    console.log(`[PARSE] ===== ANÁLISE CONCLUÍDA COM SUCESSO =====`);
     return debitTransactions;
     
   } catch (error) {
-    console.error('[PARSE] ===== PARSING ERROR =====');
-    console.error('[PARSE] Error:', error.message);
+    console.error('[PARSE] ===== ERRO NA ANÁLISE =====');
+    console.error('[PARSE] Erro:', error.message);
     console.error('[PARSE] Stack:', error.stack);
     throw error;
   }
@@ -93,11 +69,11 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
     console.log(`🔗 URL: ${statement.file_url}`);
     console.log(`🏦 Banco: ${statement.bank}`);
 
-    // Parse do extrato com nova implementação
-    console.log(`🔍 Iniciando extração Nubank otimizada...`);
+    // Parse com abordagem híbrida
+    console.log(`🔍 Iniciando análise híbrida Nubank...`);
     const debitTransactions = await parseStatementContent(statement.file_url, supabase);
     
-    console.log(`✅ Extração concluída: ${debitTransactions.length} transações de débito`);
+    console.log(`✅ Análise concluída: ${debitTransactions.length} transações de débito`);
 
     // Verificar se há transações de débito
     if (debitTransactions.length === 0) {
@@ -105,7 +81,7 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
       console.log(`   Possíveis causas:`);
       console.log(`   - PDF contém apenas créditos/receitas`);
       console.log(`   - Período sem movimentações de débito`);
-      console.log(`   - Formato do extrato Nubank mudou`);
+      console.log(`   - PDF corrompido ou ilegível`);
       
       // Atualizar status para 'no_data'
       await updateStatementStatus(supabase, statement.id, 'no_data');
