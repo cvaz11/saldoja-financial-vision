@@ -26,10 +26,10 @@ export const processWithEnhancedStrategy = async (fileData: Blob): Promise<Trans
   console.log('[ENHANCED] ===== INICIANDO PROCESSAMENTO ENHANCED =====');
   
   try {
-    // Estratégia 1: Usar Claude 3.5 Sonnet (mais recente)
+    // Estratégia 1: Usar Claude 4 (mais recente)
     const claudeResult = await tryEnhancedClaude(fileData);
     if (claudeResult.length > 0) {
-      console.log(`[ENHANCED] ✅ Claude 3.5 Sonnet encontrou ${claudeResult.length} transações`);
+      console.log(`[ENHANCED] ✅ Claude 4 encontrou ${claudeResult.length} transações`);
       return claudeResult;
     }
     
@@ -74,7 +74,7 @@ async function tryEnhancedClaude(fileData: Blob): Promise<Transaction[]> {
     // Extrair texto mais agressivamente
     const text = await extractTextAggressively(fileData);
     
-    console.log('[ENHANCED] Enviando para Claude 3.5 Sonnet...');
+    console.log('[ENHANCED] Enviando para Claude 4...');
     
     const prompt = `ANÁLISE CRÍTICA DE EXTRATO NUBANK - ESPECIALISTA EM DOCUMENTOS FINANCEIROS
 
