@@ -157,6 +157,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
                   duration: 8000,
                   action: (
                     <ToastAction 
+                      altText="Ver movimentações"
                       onClick={onNavigateToMovimentacoes}
                     >
                       Ver movimentações
