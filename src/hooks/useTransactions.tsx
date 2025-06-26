@@ -3,11 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import type { DateRange } from "@/components/DateRangePicker";
+import { useEffect } from "react";
 
 export const useTransactions = (dateRange: DateRange, showOnlyDebits: boolean = true) => {
   const { user } = useAuth();
 
-  return useQuery({
+  // Query para buscar transações
+  const query = useQuery({
     queryKey: ['transactions', user?.id, dateRange.from.toISOString(), dateRange.to.toISOString(), showOnlyDebits],
     queryFn: async () => {
       if (!user) {
@@ -29,7 +31,7 @@ export const useTransactions = (dateRange: DateRange, showOnlyDebits: boolean = 
         .gte('transaction_date', fromDate)
         .lte('transaction_date', toDate);
         
-      // Filter by debits only if requested
+      // Filtrar apenas débitos se solicitado
       if (showOnlyDebits) {
         query = query.eq('is_credit', false);
       }
@@ -45,7 +47,50 @@ export const useTransactions = (dateRange: DateRange, showOnlyDebits: boolean = 
       return data || [];
     },
     enabled: !!user,
-    refetchInterval: 5000, // Check for new transactions every 5 seconds
-    staleTime: 2000, // Consider data stale after 2 seconds
+    refetchInterval: 5000, // Verificar novas transações a cada 5 segundos
+    staleTime: 2000, // Considerar dados obsoletos após 2 segundos
   });
+
+  // Escutar eventos realtime para atualizações de transações
+  useEffect(() => {
+    if (!user) return;
+
+    console.log('[TRANSACTIONS] Setting up realtime subscription');
+    
+    const channel = supabase
+      .channel('transactions-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('[TRANSACTIONS] Realtime update received:', payload);
+          // Invalidar query para refetch
+          query.refetch();
+        }
+      )
+      .on(
+        'broadcast',
+        { event: 'statement_ready' },
+        (payload) => {
+          console.log('[TRANSACTIONS] Statement ready broadcast received:', payload);
+          if (payload.payload.user_id === user.id) {
+            // Refetch transações quando extrato estiver pronto
+            query.refetch();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('[TRANSACTIONS] Cleaning up realtime subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, query]);
+
+  return query;
 };

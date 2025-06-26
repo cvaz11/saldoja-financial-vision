@@ -1,62 +1,81 @@
 
-import { extractTextFromPDF } from './pdf-processor.ts';
-import { processTextWithOpenAI, Transaction } from './openai-processor.ts';
+import { NubankPDFParser } from './libs/pdf-parser.ts';
+import { NubankTransactionParser, NubankTransaction } from './libs/nubank-transaction-parser.ts';
 import { insertTransactions, updateStatementStatus } from './database-operations.ts';
+
+// Converter NubankTransaction para Transaction do sistema
+interface Transaction {
+  date: string;
+  description: string;
+  amount: number;
+  category: string;
+}
 
 export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`[PARSE] ===== STARTING PARSE PROCESS =====`);
+    console.log(`[PARSE] ===== INICIANDO PARSE NUBANK OTIMIZADO =====`);
     console.log(`[PARSE] File URL: ${fileUrl}`);
     
-    // Download the PDF file from Supabase storage
-    console.log(`[PARSE] Downloading file from storage...`);
+    // Download do PDF
+    console.log(`[PARSE] Fazendo download do arquivo...`);
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('statements')
       .download(fileUrl);
     
     if (downloadError) {
-      console.error('[PARSE] Download error:', downloadError);
-      throw new Error(`Failed to download PDF: ${downloadError.message}`);
+      console.error('[PARSE] Erro no download:', downloadError);
+      throw new Error(`Falha no download do PDF: ${downloadError.message}`);
     }
     
     if (!fileData) {
-      console.error('[PARSE] Downloaded file is empty or null');
-      throw new Error('Downloaded file is empty');
+      throw new Error('Arquivo baixado está vazio');
     }
     
-    console.log('[PARSE] File downloaded successfully');
-    console.log('[PARSE] File size:', fileData.size);
-    console.log('[PARSE] File type:', fileData.type);
+    console.log('[PARSE] Download concluído:', fileData.size, 'bytes');
     
-    // Extract text from PDF
-    console.log(`[PARSE] ===== STARTING TEXT EXTRACTION =====`);
-    const extractedText = await extractTextFromPDF(fileData);
-    console.log(`[PARSE] Text extraction completed`);
-    console.log(`[PARSE] Extracted text length: ${extractedText.length} characters`);
-    console.log(`[PARSE] Sample text (first 500 chars):`, extractedText.slice(0, 500));
+    // Extração de texto usando novo parser
+    console.log(`[PARSE] ===== INICIANDO EXTRAÇÃO DE TEXTO =====`);
+    const pdfParser = new NubankPDFParser();
+    const extractedText = await pdfParser.extractText(fileData);
     
-    if (extractedText.length < 10) {
-      console.error('[PARSE] ERROR: Extracted text is too short');
-      throw new Error('Extracted text is too short - PDF might be image-based or corrupted');
+    console.log(`[PARSE] Extração concluída: ${extractedText.length} caracteres`);
+    
+    if (extractedText.length < 50) {
+      throw new Error('Texto extraído muito curto - PDF pode estar corrompido ou ser baseado em imagem');
     }
     
-    // Process text to find transactions
-    console.log(`[PARSE] ===== STARTING TRANSACTION PROCESSING =====`);
-    const validTransactions = await processTextWithOpenAI(extractedText);
-    console.log(`[PARSE] Transaction processing completed`);
-    console.log(`[PARSE] Found ${validTransactions.length} valid transactions`);
+    // Parsing de transações Nubank
+    console.log(`[PARSE] ===== INICIANDO PARSE DE TRANSAÇÕES =====`);
+    const transactionParser = new NubankTransactionParser();
+    const nubankTransactions = transactionParser.parseTransactions(extractedText);
     
-    // Log sample transactions
-    if (validTransactions.length > 0) {
-      console.log(`[PARSE] Sample transactions:`, validTransactions.slice(0, 3));
+    console.log(`[PARSE] Parse concluído: ${nubankTransactions.length} transações encontradas`);
+    
+    // Converter para formato do sistema
+    const transactions: Transaction[] = nubankTransactions.map(nt => ({
+      date: nt.date,
+      description: nt.description,
+      amount: nt.amount,
+      category: nt.category
+    }));
+    
+    // Log das transações encontradas
+    if (transactions.length > 0) {
+      console.log(`[PARSE] Amostra de transações encontradas:`);
+      transactions.slice(0, 5).forEach((tx, i) => {
+        console.log(`[PARSE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)}`);
+      });
+      
+      const totalDebito = transactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+      console.log(`[PARSE] Total em débitos: R$ ${totalDebito.toFixed(2)}`);
     }
     
-    console.log(`[PARSE] ===== PARSE PROCESS COMPLETED =====`);
-    return validTransactions;
+    console.log(`[PARSE] ===== PARSE CONCLUÍDO COM SUCESSO =====`);
+    return transactions;
     
   } catch (error) {
-    console.error('[PARSE] ===== PARSE PROCESS FAILED =====');
-    console.error('[PARSE] Error:', error.message);
+    console.error('[PARSE] ===== ERRO NO PARSE =====');
+    console.error('[PARSE] Erro:', error.message);
     console.error('[PARSE] Stack:', error.stack);
     throw error;
   }
@@ -66,67 +85,87 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
   const startTime = Date.now();
   
   try {
-    console.log(`\n🚀 ===== PROCESSING STATEMENT ${statement.id} =====`);
-    console.log(`📄 File: ${statement.filename}`);
-    console.log(`👤 User: ${statement.user_id}`);
-    console.log(`🔗 File URL: ${statement.file_url}`);
-    console.log(`🏦 Bank: ${statement.bank}`);
+    console.log(`\n🚀 ===== PROCESSANDO EXTRATO NUBANK ${statement.id} =====`);
+    console.log(`📄 Arquivo: ${statement.filename}`);
+    console.log(`👤 Usuário: ${statement.user_id}`);
+    console.log(`🔗 URL: ${statement.file_url}`);
+    console.log(`🏦 Banco: ${statement.bank}`);
 
-    // Parse the statement with enhanced processing
-    console.log(`🔍 Starting comprehensive extraction...`);
+    // Parse do extrato com nova implementação
+    console.log(`🔍 Iniciando extração Nubank otimizada...`);
     const extractedTransactions = await parseStatementContent(statement.file_url, supabase);
     
-    console.log(`✅ Extraction completed: ${extractedTransactions.length} transactions found`);
+    console.log(`✅ Extração concluída: ${extractedTransactions.length} transações`);
 
-    // Enhanced logging for debugging
+    // Log detalhado das transações
     if (extractedTransactions.length > 0) {
-      console.log(`💰 Sample transactions found:`);
-      extractedTransactions.slice(0, 5).forEach((tx, i) => {
+      console.log(`💰 Transações de débito encontradas:`);
+      extractedTransactions.forEach((tx, i) => {
         console.log(`   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
       });
       
       const totalAmount = extractedTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-      console.log(`💸 Total transaction amount: R$ ${totalAmount.toFixed(2)}`);
+      console.log(`💸 Total de débitos: R$ ${totalAmount.toFixed(2)}`);
     }
 
-    // Insert transactions if found
+    // Inserir transações se encontradas
     if (extractedTransactions.length > 0) {
-      console.log(`💾 Inserting ${extractedTransactions.length} transactions into database...`);
+      console.log(`💾 Inserindo ${extractedTransactions.length} transações...`);
       await insertTransactions(supabase, extractedTransactions, statement.id, statement.user_id);
-      console.log(`✅ Successfully inserted ${extractedTransactions.length} transactions`);
+      console.log(`✅ ${extractedTransactions.length} transações inseridas com sucesso`);
       
-      // Update statement status to ready
+      // Atualizar status para 'ready'
       await updateStatementStatus(supabase, statement.id, 'ready', extractedTransactions);
-      console.log(`✅ Statement status updated to 'ready'`);
-    } else {
-      console.log(`⚠️ No transactions found - this might indicate:`);
-      console.log(`   - PDF is image-based (scanned document)`);
-      console.log(`   - PDF uses unsupported text encoding`);
-      console.log(`   - Statement period has no transactions`);
-      console.log(`   - Text extraction failed`);
+      console.log(`✅ Status do extrato atualizado para 'ready'`);
       
-      // Update statement status to no_data
+      // Emitir evento realtime para o frontend
+      try {
+        await supabase.realtime
+          .channel('statement_processed')
+          .send({
+            type: 'broadcast',
+            event: 'statement_ready',
+            payload: {
+              statement_id: statement.id,
+              user_id: statement.user_id,
+              transaction_count: extractedTransactions.length,
+              total_debit: extractedTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0)
+            }
+          });
+        console.log(`✅ Evento realtime enviado`);
+      } catch (realtimeError) {
+        console.log(`⚠️  Aviso: Falha ao enviar evento realtime:`, realtimeError.message);
+      }
+      
+    } else {
+      console.log(`⚠️  Nenhuma transação de débito encontrada`);
+      console.log(`   Possíveis causas:`);
+      console.log(`   - PDF é baseado em imagens (necessário OCR)`);
+      console.log(`   - Formato do extrato Nubank mudou`);
+      console.log(`   - Período sem movimentações de débito`);
+      
+      // Atualizar status para 'no_data'
       await updateStatementStatus(supabase, statement.id, 'no_data');
-      console.log(`✅ Statement status updated to 'no_data'`);
+      console.log(`✅ Status atualizado para 'no_data'`);
     }
 
     const processingTime = Date.now() - startTime;
-    console.log(`🎉 STATEMENT ${statement.id} COMPLETED in ${processingTime}ms`);
-    console.log(`📊 Final summary: ${extractedTransactions.length} transactions extracted`);
+    console.log(`🎉 EXTRATO ${statement.id} PROCESSADO em ${processingTime}ms`);
+    console.log(`📊 Resultado final: ${extractedTransactions.length} débitos processados\n`);
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    console.error(`💥 STATEMENT ${statement.id} FAILED after ${processingTime}ms`);
-    console.error(`❌ Error type: ${error.name}`);
-    console.error(`❌ Error message: ${error.message}`);
-    console.error(`❌ Error stack: ${error.stack}`);
+    console.error(`💥 FALHA NO PROCESSAMENTO DO EXTRATO ${statement.id} após ${processingTime}ms`);
+    console.error(`❌ Tipo do erro: ${error.name}`);
+    console.error(`❌ Mensagem: ${error.message}`);
+    console.error(`❌ Stack: ${error.stack}`);
     
-    // Mark as error with detailed logging
+    // Marcar como erro
     try {
       await updateStatementStatus(supabase, statement.id, 'error');
-      console.log(`✅ Statement status updated to 'error'`);
+      console.log(`✅ Status atualizado para 'error'`);
     } catch (updateError) {
-      console.error(`💥 Failed to update error status: ${updateError.message}`);
+      console.error(`💥 Falha ao atualizar status de erro: ${updateError.message}`);
     }
     
     throw error;
