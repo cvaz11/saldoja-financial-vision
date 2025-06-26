@@ -16,62 +16,213 @@ const validateTransaction = (transaction: any): transaction is Transaction => {
     transaction.description.trim().length > 0 &&
     typeof transaction.amount === 'number' &&
     !isNaN(transaction.amount) &&
-    transaction.amount < 0 && // Only negative amounts (debits)
+    transaction.amount < 0 &&
     typeof transaction.category === 'string' &&
     transaction.category.trim().length > 0
   );
 };
 
-export const processWithHybridApproach = async (fileData: Blob): Promise<Transaction[]> => {
-  console.log('[HYBRID] ===== INICIANDO PROCESSAMENTO HÍBRIDO =====');
+export const processWithHybridStrategy = async (fileData: Blob): Promise<Transaction[]> => {
+  console.log('[HYBRID] ===== PROCESSAMENTO HÍBRIDO INICIADO =====');
   
   try {
-    // Abordagem 1: Tentar com OpenAI Vision (mais confiável)
-    const openAIResult = await tryOpenAIVision(fileData);
-    if (openAIResult.length > 0) {
-      console.log(`[HYBRID] ✅ OpenAI Vision encontrou ${openAIResult.length} transações`);
-      return openAIResult;
+    // Estratégia 1: Extração avançada de texto
+    const extractedText = await extractAdvancedText(fileData);
+    console.log(`[HYBRID] Texto extraído: ${extractedText.length} caracteres`);
+    
+    if (extractedText.length < 100) {
+      console.log('[HYBRID] ⚠️ Texto insuficiente extraído');
+      return [];
     }
     
-    // Abordagem 2: Parser nativo melhorado
-    console.log('[HYBRID] Tentando parser nativo...');
-    const nativeResult = await tryNativeParser(fileData);
-    if (nativeResult.length > 0) {
-      console.log(`[HYBRID] ✅ Parser nativo encontrou ${nativeResult.length} transações`);
-      return nativeResult;
+    // Estratégia 2: Padrões regex específicos do Nubank
+    const regexResults = await tryNubankRegexPatterns(extractedText);
+    if (regexResults.length > 0) {
+      console.log(`[HYBRID] ✅ Regex encontrou ${regexResults.length} transações`);
+      return regexResults;
     }
     
-    // Abordagem 3: Regex patterns diretos nos bytes
-    console.log('[HYBRID] Tentando análise direta de bytes...');
-    const bytesResult = await tryBytesAnalysis(fileData);
-    if (bytesResult.length > 0) {
-      console.log(`[HYBRID] ✅ Análise de bytes encontrou ${bytesResult.length} transações`);
-      return bytesResult;
+    // Estratégia 3: Análise de linha por linha
+    const lineResults = await tryLineByLineAnalysis(extractedText);
+    if (lineResults.length > 0) {
+      console.log(`[HYBRID] ✅ Análise por linha encontrou ${lineResults.length} transações`);
+      return lineResults;
     }
     
-    console.log('[HYBRID] ❌ Todas as abordagens falharam');
+    // Estratégia 4: Tentativa com GPT (se disponível)
+    const gptResults = await tryGPTFallback(extractedText);
+    if (gptResults.length > 0) {
+      console.log(`[HYBRID] ✅ GPT encontrou ${gptResults.length} transações`);
+      return gptResults;
+    }
+    
+    console.log('[HYBRID] ❌ Nenhuma estratégia funcionou');
     return [];
     
   } catch (error) {
-    console.error('[HYBRID] Erro geral:', error);
+    console.error('[HYBRID] Erro:', error);
     return [];
   }
 };
 
-async function tryOpenAIVision(fileData: Blob): Promise<Transaction[]> {
+async function extractAdvancedText(fileData: Blob): Promise<string> {
   try {
-    const openAIKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIKey) {
-      console.log('[HYBRID] OpenAI key não disponível');
-      return [];
+    const arrayBuffer = await fileData.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    console.log('[HYBRID] Extraindo texto avançado...');
+    
+    // Extrair todos os caracteres legíveis
+    let text = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+      const byte = uint8Array[i];
+      
+      // Caracteres ASCII imprimíveis + acentos portugueses
+      if ((byte >= 32 && byte <= 126) || 
+          (byte >= 128 && byte <= 255) || 
+          byte === 10 || byte === 13) {
+        text += String.fromCharCode(byte);
+      } else if (byte === 0) {
+        text += ' '; // Substituir null por espaço
+      }
     }
     
-    // Converter PDF para base64
-    const arrayBuffer = await fileData.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    // Limpar e normalizar
+    return text
+      .replace(/\s+/g, ' ')
+      .replace(/[^\x20-\x7E\u00C0-\u00FF\s]/g, '')
+      .trim();
     
-    console.log('[HYBRID] Enviando PDF para OpenAI Vision...');
+  } catch (error) {
+    console.error('[HYBRID] Erro na extração:', error);
+    return '';
+  }
+}
+
+async function tryNubankRegexPatterns(text: string): Promise<Transaction[]> {
+  const transactions: Transaction[] = [];
+  
+  // Padrões específicos do Nubank
+  const patterns = [
+    // Padrão: DD MMM ESTABELECIMENTO R$ VALOR
+    /(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+([A-ZÀ-ÿ\s\d&*•-]{10,60}?)\s+R\$\s*([\d.,]+)/gi,
     
+    // Padrão: ESTABELECIMENTO + valor na linha seguinte
+    /(UBER|IFOOD|NETFLIX|SPOTIFY|AMAZON|MERCADO|POSTO|FARMACIA|DROGARIA|SHOPPING|MAGAZINE|CINEMA|RESTAURANTE|LANCHONETE|PADARIA|BAR|CAFE)([A-ZÀ-ÿ\s\d&*-]*?)[\s\n]*R\$\s*([\d.,]+)/gi,
+    
+    // Padrão com parcela: ESTABELECIMENTO PARCELA X/Y R$ VALOR
+    /([A-ZÀ-ÿ\s\d&*]{10,50}?)\s*PARCELA\s*(\d+)\/(\d+)\s*R\$\s*([\d.,]+)/gi,
+    
+    // IOF específico
+    /(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ).*?IOF.*?R\$\s*([\d.,]+)/gi
+  ];
+  
+  for (const pattern of patterns) {
+    const matches = Array.from(text.matchAll(pattern));
+    
+    for (const match of matches) {
+      try {
+        let transaction: Partial<Transaction> = {};
+        
+        if (match.length >= 4) {
+          if (match[1] && match[2] && match[3] && match[4]) {
+            // Padrão com data
+            const day = match[1].padStart(2, '0');
+            const monthName = match[2];
+            const description = match[3].trim();
+            const amountStr = match[4];
+            
+            const monthMap: { [key: string]: string } = {
+              'JAN': '01', 'FEV': '02', 'MAR': '03', 'ABR': '04',
+              'MAI': '05', 'JUN': '06', 'JUL': '07', 'AGO': '08',
+              'SET': '09', 'OUT': '10', 'NOV': '11', 'DEZ': '12'
+            };
+            
+            transaction.date = `2025-${monthMap[monthName] || '06'}-${day}`;
+            transaction.description = description.replace(/[•*]{2,}/g, '').trim();
+            transaction.amount = -parseFloat(amountStr.replace(/\./g, '').replace(',', '.'));
+            
+            // Verificar se é parcela
+            const parcelaMatch = description.match(/PARCELA\s*(\d+)\/(\d+)/i);
+            if (parcelaMatch) {
+              transaction.installment_number = parseInt(parcelaMatch[1]);
+              transaction.installment_total = parseInt(parcelaMatch[2]);
+            }
+          } else if (match[1] && match[3]) {
+            // Padrão sem data específica
+            transaction.date = '2025-06-15';
+            transaction.description = (match[1] + ' ' + (match[2] || '')).trim();
+            transaction.amount = -parseFloat(match[3].replace(/\./g, '').replace(',', '.'));
+          }
+          
+          transaction.category = determineCategory(transaction.description || '');
+          
+          if (validateTransaction(transaction)) {
+            transactions.push(transaction as Transaction);
+          }
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+  }
+  
+  return deduplicateTransactions(transactions);
+}
+
+async function tryLineByLineAnalysis(text: string): Promise<Transaction[]> {
+  const transactions: Transaction[] = [];
+  const lines = text.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Procurar por linhas que contêm R$ e estabelecimentos conhecidos
+    if (line.includes('R$') && line.length > 20) {
+      // Tentar extrair valor
+      const valueMatch = line.match(/R\$\s*([\d.,]+)/);
+      if (valueMatch) {
+        const amount = parseFloat(valueMatch[1].replace(/\./g, '').replace(',', '.'));
+        
+        if (amount > 0 && amount < 10000) {
+          // Tentar extrair descrição
+          let description = line
+            .replace(/R\$\s*[\d.,]+/g, '')
+            .replace(/\d{1,2}\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)/g, '')
+            .replace(/[•*]{2,}/g, '')
+            .trim();
+          
+          if (description.length > 5 && description.length < 100) {
+            transactions.push({
+              date: '2025-06-15',
+              description: description.slice(0, 80),
+              amount: -amount,
+              category: determineCategory(description)
+            });
+          }
+        }
+      }
+    }
+  }
+  
+  return deduplicateTransactions(transactions.slice(0, 50)); // Limitar a 50
+}
+
+async function tryGPTFallback(text: string): Promise<Transaction[]> {
+  try {
+    const openAIKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIKey) return [];
+    
+    const prompt = `Analise este extrato Nubank e extraia APENAS transações de DÉBITO.
+
+TEXTO:
+${text.slice(0, 15000)}
+
+Retorne JSON com transações de débito (valores negativos):
+[{"date": "2025-06-12", "description": "UBER EATS", "amount": -45.50, "category": "Alimentação"}]
+
+Se não encontrar, retorne: []`;
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -79,215 +230,30 @@ async function tryOpenAIVision(fileData: Blob): Promise<Transaction[]> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: `Você é um especialista em análise de extratos Nubank. Analise este PDF e extraia APENAS as transações de DÉBITO (gastos). 
-
-RETORNE APENAS um array JSON com as transações encontradas no formato:
-[{"date": "2025-06-12", "description": "UBER EATS", "amount": -45.50, "category": "Alimentação"}]
-
-REGRAS IMPORTANTES:
-- Valores sempre negativos (débitos)
-- Ignore pagamentos, créditos, cashback
-- Data no formato YYYY-MM-DD
-- Categorias: Alimentação, Transporte, Tecnologia, Saúde, Compras, Lazer, Financeiro, Serviços, Outros`
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Analise este extrato Nubank e extraia apenas as transações de débito:'
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:application/pdf;base64,${base64}`,
-                  detail: 'high'
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 4000,
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 2000,
         temperature: 0.1
       }),
     });
     
-    if (!response.ok) {
-      console.error('[HYBRID] OpenAI Vision API error:', response.status);
-      return [];
-    }
+    if (!response.ok) return [];
     
     const result = await response.json();
-    let responseText = result.choices[0].message.content.trim();
+    const responseText = result.choices[0].message.content.trim();
     
-    // Limpar resposta
-    responseText = responseText
+    if (!responseText || responseText === '[]') return [];
+    
+    const cleanedResponse = responseText
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')
-      .replace(/^[^[{]*/, '')
-      .replace(/[^}\]]*$/, '')
       .trim();
     
-    if (!responseText || responseText === '[]') {
-      return [];
-    }
-    
-    const transactions = JSON.parse(responseText);
-    if (!Array.isArray(transactions)) {
-      return [];
-    }
-    
-    return transactions.filter(validateTransaction);
+    const transactions = JSON.parse(cleanedResponse);
+    return Array.isArray(transactions) ? transactions.filter(validateTransaction) : [];
     
   } catch (error) {
-    console.error('[HYBRID] OpenAI Vision error:', error);
-    return [];
-  }
-}
-
-async function tryNativeParser(fileData: Blob): Promise<Transaction[]> {
-  try {
-    const arrayBuffer = await fileData.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    const text = new TextDecoder('latin1').decode(uint8Array);
-    
-    // Patterns mais específicos para Nubank
-    const patterns = [
-      // Padrão principal: DD MMM •••• #### ESTABELECIMENTO R$ valor
-      /(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+[•*]{4}\s+\d{4}\s+([^R$]{10,50})\s+R\$\s*([\d.,]+)/gi,
-      
-      // Padrão alternativo: DD/MM ESTABELECIMENTO R$ valor
-      /(\d{1,2})\/(\d{1,2})\s+([^R$]{5,40})\s+R\$\s*([\d.,]+)/gi,
-      
-      // Padrão para transações com IOF
-      /(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+.*?IOF.*?R\$\s*([\d.,]+)/gi
-    ];
-    
-    const transactions: Transaction[] = [];
-    
-    for (const pattern of patterns) {
-      const matches = Array.from(text.matchAll(pattern));
-      
-      for (const match of matches) {
-        try {
-          let day: string, month: string, description: string, amountStr: string;
-          
-          if (match.length === 5) {
-            [, day, month, description, amountStr] = match;
-          } else if (match.length === 4) {
-            [, day, month, amountStr] = match;
-            description = 'IOF Transação Internacional';
-          } else {
-            continue;
-          }
-          
-          // Limpar descrição
-          description = description
-            .replace(/[•*]{4}\s*\d{4}\s*/, '')
-            .replace(/\s+/g, ' ')
-            .trim()
-            .slice(0, 100);
-          
-          if (description.length < 3) continue;
-          
-          // Converter valores
-          const amount = parseFloat(amountStr.replace(/\./g, '').replace(',', '.'));
-          if (isNaN(amount) || amount === 0) continue;
-          
-          // Converter mês
-          const monthMap: { [key: string]: string } = {
-            'JAN': '01', 'FEV': '02', 'MAR': '03', 'ABR': '04',
-            'MAI': '05', 'JUN': '06', 'JUL': '07', 'AGO': '08',
-            'SET': '09', 'OUT': '10', 'NOV': '11', 'DEZ': '12'
-          };
-          
-          const monthNum = monthMap[month] || '01';
-          const currentYear = new Date().getFullYear();
-          const date = `${currentYear}-${monthNum}-${day.padStart(2, '0')}`;
-          
-          // Determinar categoria
-          const category = determineCategory(description);
-          
-          transactions.push({
-            date,
-            description,
-            amount: -Math.abs(amount), // Garantir negativo
-            category
-          });
-          
-        } catch (e) {
-          continue;
-        }
-      }
-    }
-    
-    return deduplicateTransactions(transactions);
-    
-  } catch (error) {
-    console.error('[HYBRID] Native parser error:', error);
-    return [];
-  }
-}
-
-async function tryBytesAnalysis(fileData: Blob): Promise<Transaction[]> {
-  try {
-    const arrayBuffer = await fileData.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    
-    // Converter para string e buscar padrões monetários
-    const text = Array.from(uint8Array)
-      .map(byte => (byte >= 32 && byte <= 126) ? String.fromCharCode(byte) : ' ')
-      .join('');
-    
-    const moneyPattern = /R\$\s*([\d.,]+)/g;
-    const datePattern = /(\d{1,2})\s*(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)/g;
-    
-    const amounts = Array.from(text.matchAll(moneyPattern));
-    const dates = Array.from(text.matchAll(datePattern));
-    
-    const transactions: Transaction[] = [];
-    
-    // Tentar associar datas com valores próximos
-    for (let i = 0; i < Math.min(amounts.length, dates.length, 20); i++) {
-      try {
-        const amountStr = amounts[i][1];
-        const amount = parseFloat(amountStr.replace(/\./g, '').replace(',', '.'));
-        
-        if (isNaN(amount) || amount === 0) continue;
-        
-        const day = dates[i][1];
-        const month = dates[i][2];
-        
-        const monthMap: { [key: string]: string } = {
-          'JAN': '01', 'FEV': '02', 'MAR': '03', 'ABR': '04',
-          'MAI': '05', 'JUN': '06', 'JUL': '07', 'AGO': '08',
-          'SET': '09', 'OUT': '10', 'NOV': '11', 'DEZ': '12'
-        };
-        
-        const monthNum = monthMap[month] || '01';
-        const currentYear = new Date().getFullYear();
-        const date = `${currentYear}-${monthNum}-${day.padStart(2, '0')}`;
-        
-        transactions.push({
-          date,
-          description: `Transação ${i + 1}`,
-          amount: -Math.abs(amount),
-          category: 'Outros'
-        });
-        
-      } catch (e) {
-        continue;
-      }
-    }
-    
-    return transactions.slice(0, 10); // Limitar para evitar duplicatas
-    
-  } catch (error) {
-    console.error('[HYBRID] Bytes analysis error:', error);
+    console.error('[HYBRID] GPT fallback error:', error);
     return [];
   }
 }
@@ -295,23 +261,29 @@ async function tryBytesAnalysis(fileData: Blob): Promise<Transaction[]> {
 function determineCategory(description: string): string {
   const desc = description.toUpperCase();
   
-  if (desc.includes('UBER') || desc.includes('99') || desc.includes('TAXI')) {
+  if (desc.includes('UBER') || desc.includes('99') || desc.includes('TAXI') || desc.includes('POSTO')) {
     return 'Transporte';
   }
-  if (desc.includes('IFOOD') || desc.includes('RESTAURANTE') || desc.includes('MERCADO')) {
+  if (desc.includes('IFOOD') || desc.includes('RESTAURANTE') || desc.includes('MERCADO') || desc.includes('PADARIA')) {
     return 'Alimentação';
   }
-  if (desc.includes('NETFLIX') || desc.includes('SPOTIFY') || desc.includes('AMAZON')) {
+  if (desc.includes('NETFLIX') || desc.includes('SPOTIFY') || desc.includes('AMAZON') || desc.includes('GOOGLE')) {
     return 'Tecnologia';
   }
-  if (desc.includes('FARMACIA') || desc.includes('DROGARIA')) {
+  if (desc.includes('FARMACIA') || desc.includes('DROGARIA') || desc.includes('HOSPITAL')) {
     return 'Saúde';
   }
-  if (desc.includes('SHOPPING') || desc.includes('LOJA')) {
+  if (desc.includes('SHOPPING') || desc.includes('LOJA') || desc.includes('MAGAZINE')) {
     return 'Compras';
   }
-  if (desc.includes('IOF')) {
+  if (desc.includes('IOF') || desc.includes('TAXA') || desc.includes('JUROS')) {
     return 'Financeiro';
+  }
+  if (desc.includes('CINEMA') || desc.includes('TEATRO') || desc.includes('SHOW')) {
+    return 'Lazer';
+  }
+  if (desc.includes('SALAO') || desc.includes('BARBEIRO') || desc.includes('MANUTENCAO')) {
+    return 'Serviços';
   }
   
   return 'Outros';

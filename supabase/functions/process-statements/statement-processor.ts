@@ -1,6 +1,5 @@
-
 import { insertTransactions, updateStatementStatus } from './database-operations.ts';
-import { processWithEnhancedStrategy } from './enhanced-processor.ts';
+import { processWithHybridStrategy } from './hybrid-processor.ts';
 
 // Convert to system Transaction format
 interface Transaction {
@@ -12,7 +11,7 @@ interface Transaction {
 
 export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`[PARSE] ===== INICIANDO ANÁLISE ENHANCED ROBUSTA =====`);
+    console.log(`[PARSE] ===== ANÁLISE HÍBRIDA ROBUSTA INICIADA =====`);
     console.log(`[PARSE] File URL: ${fileUrl}`);
     
     // Download PDF
@@ -32,11 +31,11 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     
     console.log('[PARSE] Download concluído:', fileData.size, 'bytes');
     
-    // Usar processamento enhanced com múltiplas estratégias robustas
-    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO ENHANCED =====`);
-    const debitTransactions = await processWithEnhancedStrategy(fileData);
+    // Usar processamento híbrido com múltiplas estratégias
+    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO HÍBRIDO =====`);
+    const debitTransactions = await processWithHybridStrategy(fileData);
     
-    console.log(`[PARSE] Processamento concluído: ${debitTransactions.length} transações de débito encontradas`);
+    console.log(`[PARSE] Processamento híbrido concluído: ${debitTransactions.length} transações encontradas`);
     
     if (debitTransactions.length > 0) {
       console.log(`[PARSE] ✅ SUCESSO! Transações extraídas:`);
@@ -47,18 +46,17 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
       const totalDebit = debitTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
       console.log(`[PARSE] 💰 Total de débitos: R$ ${totalDebit.toFixed(2)}`);
     } else {
-      console.log(`[PARSE] ⚠️  Nenhuma transação de débito foi encontrada`);
-      console.log(`[PARSE]     - Verifique se o PDF contém transações de débito`);
-      console.log(`[PARSE]     - PDF pode estar corrompido ou em formato não suportado`);
+      console.log(`[PARSE] ⚠️  Nenhuma transação encontrada`);
+      console.log(`[PARSE]     - Verifique se o PDF é um extrato Nubank válido`);
+      console.log(`[PARSE]     - Confirme se há transações no período`);
     }
     
-    console.log(`[PARSE] ===== ANÁLISE ENHANCED CONCLUÍDA =====`);
+    console.log(`[PARSE] ===== ANÁLISE HÍBRIDA CONCLUÍDA =====`);
     return debitTransactions;
     
   } catch (error) {
-    console.error('[PARSE] ===== ERRO CRÍTICO NA ANÁLISE =====');
+    console.error('[PARSE] ===== ERRO NA ANÁLISE HÍBRIDA =====');
     console.error('[PARSE] Erro:', error.message);
-    console.error('[PARSE] Stack:', error.stack);
     throw error;
   }
 };
