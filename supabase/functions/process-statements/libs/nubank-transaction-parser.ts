@@ -1,5 +1,4 @@
 
-// Parser especializado para transações Nubank
 export interface NubankTransaction {
   date: string;
   description: string;
@@ -9,209 +8,249 @@ export interface NubankTransaction {
 
 export class NubankTransactionParser {
   
-  // Mapeamento de meses em português
-  private readonly monthMap: Record<string, number> = {
-    'JAN': 1, 'FEV': 2, 'MAR': 3, 'ABR': 4, 'MAI': 5, 'JUN': 6,
-    'JUL': 7, 'AGO': 8, 'SET': 9, 'OUT': 10, 'NOV': 11, 'DEZ': 12
-  };
-  
-  parseTransactions(extractedText: string): NubankTransaction[] {
+  parseTransactions(text: string): NubankTransaction[] {
     console.log('[NUBANK-PARSER] ===== INICIANDO PARSE TRANSAÇÕES =====');
-    console.log('[NUBANK-PARSER] Texto total:', extractedText.length, 'caracteres');
+    console.log('[NUBANK-PARSER] Texto total:', text.length, 'caracteres');
     
-    // Encontrar seção de transações
-    const transactionSection = this.findTransactionSection(extractedText);
+    // Extrair seção de transações
+    const transactionSection = this.extractTransactionSection(text);
     console.log('[NUBANK-PARSER] Seção de transações:', transactionSection.length, 'caracteres');
     
-    if (transactionSection.length < 50) {
-      console.log('[NUBANK-PARSER] Seção de transações muito pequena, tentando todo o texto');
-      return this.extractTransactionsFromText(extractedText);
-    }
-    
-    return this.extractTransactionsFromText(transactionSection);
-  }
-  
-  private findTransactionSection(text: string): string {
-    // Tentar encontrar seção específica de transações
-    const patterns = [
-      /TRANSAÇÕES DE.*?(?=PAGAMENTOS|Pagamentos|RESUMO|$)/is,
-      /EXTRATO DETALHADO.*?(?=PAGAMENTOS|Pagamentos|RESUMO|$)/is,
-      /LANÇAMENTOS.*?(?=PAGAMENTOS|Pagamentos|RESUMO|$)/is,
-    ];
-    
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match && match[0].length > 100) {
-        console.log('[NUBANK-PARSER] Seção encontrada com padrão:', pattern.source.slice(0, 20));
-        return match[0];
-      }
-    }
-    
-    // Se não encontrar seção específica, usar todo o texto
-    return text;
-  }
-  
-  private extractTransactionsFromText(text: string): NubankTransaction[] {
     const transactions: NubankTransaction[] = [];
     
-    // Padrões para identificar transações Nubank
+    // Padrões para capturar transações Nubank
     const patterns = [
-      // Padrão principal: DD MMM •••• NNNN Descrição R$ valor
-      /(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+[•*]+\s*\d+\s+([^R$]+)\s+R\$\s*([\d.,]+)/gi,
+      // Padrão 1: DD MMM •••• #### Descrição R$ valor
+      /(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+[•*]{4}\s+\d{4}\s+([^R$]+)\s+R\$\s*([\d.,]+)/gi,
       
-      // Padrão alternativo: DD/MM Descrição R$ valor
+      // Padrão 2: DD/MM Descrição R$ valor
       /(\d{1,2})\/(\d{1,2})\s+([^R$]+)\s+R\$\s*([\d.,]+)/gi,
       
-      // Padrão para compras: DD MMM Descrição R$ valor
-      /(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+([^R$]+?)\s+R\$\s*([\d.,]+)/gi,
+      // Padrão 3: DD MMM ... R$ valor (mais flexível)
+      /(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+.*?R\$\s*([\d.,]+)/gi,
       
-      // Padrão mais flexível
-      /(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+.*?R\$\s*([\d.,]+)/gi,
+      // Padrão 4: Somente mês e valor para capturar transações perdidas
+      /(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+.*?R\$\s*([\d.,]+)/gi
     ];
     
-    let totalFound = 0;
-    
-    patterns.forEach((pattern, index) => {
-      console.log(`[NUBANK-PARSER] Testando padrão ${index + 1}:`, pattern.source.slice(0, 50));
+    for (let i = 0; i < patterns.length; i++) {
+      const pattern = patterns[i];
+      console.log(`[NUBANK-PARSER] Testando padrão ${i + 1}:`, pattern.source.slice(0, 50) + '...');
       
-      const matches = text.matchAll(pattern);
-      let patternMatches = 0;
+      const matches = Array.from(transactionSection.matchAll(pattern));
+      console.log(`[NUBANK-PARSER] Padrão ${i + 1} encontrou ${matches.length} transações`);
       
       for (const match of matches) {
         try {
-          const transaction = this.parseTransactionMatch(match, pattern);
-          if (transaction && this.isValidDebitTransaction(transaction)) {
-            transactions.push(transaction);
-            patternMatches++;
-            totalFound++;
+          const transaction = this.parseTransactionMatch(match, i + 1);
+          
+          if (transaction) {
+            // FILTRO: Só aceitar débitos (valores negativos)
+            if (transaction.amount < 0) {
+              transactions.push(transaction);
+            } else {
+              console.log(`[NUBANK-PARSER] Descartando crédito: ${transaction.description} R$ ${transaction.amount.toFixed(2)}`);
+            }
           }
-        } catch (error) {
-          console.log('[NUBANK-PARSER] Erro ao processar match:', error.message);
+        } catch (e) {
+          console.log(`[NUBANK-PARSER] Erro ao processar match do padrão ${i + 1}:`, e.message);
         }
       }
-      
-      console.log(`[NUBANK-PARSER] Padrão ${index + 1} encontrou ${patternMatches} transações`);
-    });
+    }
     
-    console.log(`[NUBANK-PARSER] Total de transações válidas: ${totalFound}`);
+    console.log(`[NUBANK-PARSER] Total de transações válidas:`, transactions.length);
     
-    // Remover duplicatas baseado em data + descrição + valor
-    const uniqueTransactions = this.removeDuplicates(transactions);
-    console.log(`[NUBANK-PARSER] Transações após deduplicação: ${uniqueTransactions.length}`);
+    // Deduplicar transações
+    const uniqueTransactions = this.deduplicateTransactions(transactions);
+    console.log(`[NUBANK-PARSER] Transações após deduplicação:`, uniqueTransactions.length);
     
     return uniqueTransactions;
   }
   
-  private parseTransactionMatch(match: RegExpMatchArray, pattern: RegExp): NubankTransaction | null {
+  private extractTransactionSection(text: string): string {
+    // Procurar por seções de transações
+    const startMarkers = [
+      'TRANSAÇÕES',
+      'MOVIMENTAÇÃO',
+      'EXTRATO',
+      'COMPRAS',
+      'GASTOS'
+    ];
+    
+    const endMarkers = [
+      'PAGAMENTOS',
+      'RESUMO',
+      'TOTAL',
+      'SALDO',
+      'NEXT',
+      'PRÓXIMA'
+    ];
+    
+    let bestSection = text;
+    let maxLength = 0;
+    
+    for (const startMarker of startMarkers) {
+      const startIndex = text.toUpperCase().indexOf(startMarker);
+      if (startIndex !== -1) {
+        let endIndex = text.length;
+        
+        // Procurar por marcador de fim
+        for (const endMarker of endMarkers) {
+          const potentialEnd = text.toUpperCase().indexOf(endMarker, startIndex + startMarker.length);
+          if (potentialEnd !== -1 && potentialEnd < endIndex) {
+            endIndex = potentialEnd;
+          }
+        }
+        
+        const section = text.slice(startIndex, endIndex);
+        if (section.length > maxLength) {
+          maxLength = section.length;
+          bestSection = section;
+        }
+      }
+    }
+    
+    return bestSection;
+  }
+  
+  private parseTransactionMatch(match: RegExpMatchArray, patternIndex: number): NubankTransaction | null {
     try {
-      let day: number, month: number, description: string, amountStr: string;
+      let day: string, month: string, description: string, amountStr: string;
       
-      // Determinar formato baseado no padrão
-      if (pattern.source.includes('DD MMM')) {
-        day = parseInt(match[1]);
-        month = this.monthMap[match[2]] || 1;
-        description = match[3]?.trim() || '';
-        amountStr = match[4] || '';
-      } else if (pattern.source.includes('DD/MM')) {
-        day = parseInt(match[1]);
-        month = parseInt(match[2]);
-        description = match[3]?.trim() || '';
-        amountStr = match[4] || '';
+      if (patternIndex === 1) {
+        // Padrão 1: DD MMM •••• #### Descrição R$ valor
+        [, day, month, description, amountStr] = match;
+      } else if (patternIndex === 2) {
+        // Padrão 2: DD/MM Descrição R$ valor
+        [, day, month, description, amountStr] = match;
+        month = this.convertNumericMonth(month);
+      } else if (patternIndex === 3) {
+        // Padrão 3: DD MMM ... R$ valor
+        [, day, month, amountStr] = match;
+        description = match[0].replace(/(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+/, '').replace(/R\$\s*[\d.,]+/, '').trim();
+      } else if (patternIndex === 4) {
+        // Padrão 4: MMM ... R$ valor
+        [, month, amountStr] = match;
+        day = '01'; // Dia padrão
+        description = match[0].replace(/(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+/, '').replace(/R\$\s*[\d.,]+/, '').trim();
       } else {
-        // Padrão mais flexível
-        month = this.monthMap[match[1]] || 1;
-        day = 1; // Default
-        description = match[0]?.replace(/R\$\s*[\d.,]+/, '').trim() || '';
-        amountStr = match[2] || '';
+        return null;
       }
       
-      // Limpar e converter valor
-      const amount = this.parseAmount(amountStr);
-      if (amount === null) return null;
-      
       // Limpar descrição
-      description = this.cleanDescription(description);
-      if (description.length < 3) return null;
+      description = description
+        .replace(/[•*]{4}\s*\d{4}\s*/, '') // Remove •••• ####
+        .replace(/\s+/g, ' ')
+        .trim();
       
-      // Criar data (assumir ano atual)
-      const year = new Date().getFullYear();
-      const date = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+      // Filtrar descrições inválidas
+      if (!description || description.length < 3) {
+        return null;
+      }
+      
+      // Descartar IOF e outras taxas
+      if (description.toUpperCase().includes('IOF') || 
+          description.toUpperCase().includes('TAXA') ||
+          description.toUpperCase().includes('TARIFA')) {
+        console.log(`[NUBANK-PARSER] Descartando taxa/IOF: ${description}`);
+        return null;
+      }
+      
+      // Converter valor para float
+      const amount = this.parseAmount(amountStr);
+      if (amount === 0) {
+        return null;
+      }
+      
+      // Converter mês para número
+      const monthNumber = this.convertMonth(month);
+      const currentYear = new Date().getFullYear();
+      
+      // Formar data
+      const date = `${currentYear}-${monthNumber.toString().padStart(2, '0')}-${day.padStart(2, '0')}`;
+      
+      // Determinar categoria
+      const category = this.determineCategory(description);
       
       return {
         date,
         description,
-        amount: -Math.abs(amount), // Sempre negativo para débitos
-        category: this.categorizeTransaction(description)
+        amount: -Math.abs(amount), // Garantir que é negativo (débito)
+        category
       };
       
     } catch (error) {
-      console.log('[NUBANK-PARSER] Erro ao processar match individual:', error.message);
+      console.log(`[NUBANK-PARSER] Erro ao processar transação:`, error.message);
       return null;
     }
   }
   
-  private parseAmount(amountStr: string): number | null {
-    if (!amountStr) return null;
-    
-    // Limpar string do valor
-    const cleaned = amountStr
-      .replace(/[^\d.,]/g, '')
-      .replace(/\./g, '')  // Remover pontos (milhares)
-      .replace(',', '.'); // Vírgula vira ponto decimal
-    
-    const amount = parseFloat(cleaned);
-    return isNaN(amount) ? null : amount;
+  private convertMonth(month: string): number {
+    const months: { [key: string]: number } = {
+      'JAN': 1, 'FEV': 2, 'MAR': 3, 'ABR': 4, 'MAI': 5, 'JUN': 6,
+      'JUL': 7, 'AGO': 8, 'SET': 9, 'OUT': 10, 'NOV': 11, 'DEZ': 12
+    };
+    return months[month.toUpperCase()] || 1;
   }
   
-  private cleanDescription(desc: string): string {
-    return desc
-      .replace(/[•*]+\s*\d+/g, '') // Remover bullets e números
-      .replace(/\s+/g, ' ')
-      .trim();
+  private convertNumericMonth(month: string): string {
+    const months = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+    const monthNum = parseInt(month);
+    return months[monthNum - 1] || 'JAN';
   }
   
-  private categorizeTransaction(description: string): string {
-    const desc = description.toLowerCase();
+  private parseAmount(amountStr: string): number {
+    // Remove espaços e converte vírgula para ponto
+    const cleanAmount = amountStr
+      .replace(/\s/g, '')
+      .replace(/\./g, '') // Remove pontos de milhares
+      .replace(',', '.'); // Converte vírgula decimal para ponto
     
-    if (desc.includes('parcela') || desc.includes('/')) return 'parcelamento';
-    if (desc.includes('pix')) return 'pix';
-    if (desc.includes('ted') || desc.includes('doc')) return 'transferencia';
-    if (desc.includes('saque')) return 'saque';
-    if (desc.includes('anuidade')) return 'taxa';
+    return parseFloat(cleanAmount) || 0;
+  }
+  
+  private determineCategory(description: string): string {
+    const desc = description.toUpperCase();
+    
+    if (desc.includes('UBER') || desc.includes('99') || desc.includes('TAXI')) {
+      return 'transporte';
+    }
+    
+    if (desc.includes('IFOOD') || desc.includes('RESTAURANTE') || desc.includes('LANCHONETE')) {
+      return 'alimentacao';
+    }
+    
+    if (desc.includes('FARMACIA') || desc.includes('DROGARIA') || desc.includes('MEDIC')) {
+      return 'saude';
+    }
+    
+    if (desc.includes('POSTO') || desc.includes('COMBUSTIVEL') || desc.includes('GASOLINA')) {
+      return 'combustivel';
+    }
+    
+    if (desc.includes('SUPERMERCADO') || desc.includes('MERCADO') || desc.includes('EXTRA')) {
+      return 'supermercado';
+    }
+    
+    if (desc.includes('PARCELA') || desc.includes('/')) {
+      return 'parcelado';
+    }
     
     return 'cartao';
   }
   
-  private isValidDebitTransaction(transaction: NubankTransaction): boolean {
-    // Filtrar apenas débitos (valores negativos)
-    if (transaction.amount >= 0) {
-      console.log('[NUBANK-PARSER] Descartando crédito:', transaction.description, transaction.amount);
-      return false;
-    }
-    
-    // Filtrar IOF (opcional)
-    if (transaction.description.toLowerCase().includes('iof')) {
-      console.log('[NUBANK-PARSER] Descartando IOF:', transaction.description);
-      return false;
-    }
-    
-    // Verificar se valor é razoável (entre R$ 0,01 e R$ 50.000)
-    const absAmount = Math.abs(transaction.amount);
-    if (absAmount < 0.01 || absAmount > 50000) {
-      console.log('[NUBANK-PARSER] Valor fora do range:', transaction.description, transaction.amount);
-      return false;
-    }
-    
-    return true;
-  }
-  
-  private removeDuplicates(transactions: NubankTransaction[]): NubankTransaction[] {
+  private deduplicateTransactions(transactions: NubankTransaction[]): NubankTransaction[] {
     const seen = new Set<string>();
-    return transactions.filter(transaction => {
-      const key = `${transaction.date}-${transaction.description}-${transaction.amount}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    const unique: NubankTransaction[] = [];
+    
+    for (const transaction of transactions) {
+      const key = `${transaction.date}_${transaction.description}_${transaction.amount}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(transaction);
+      }
+    }
+    
+    return unique;
   }
 }

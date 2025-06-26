@@ -2,6 +2,7 @@
 import { NubankPDFParser } from './libs/pdf-parser.ts';
 import { NubankTransactionParser, NubankTransaction } from './libs/nubank-transaction-parser.ts';
 import { insertTransactions, updateStatementStatus } from './database-operations.ts';
+import { extractTextFromPDF } from './pdf-processor.ts';
 
 // Converter NubankTransaction para Transaction do sistema
 interface Transaction {
@@ -33,10 +34,9 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     
     console.log('[PARSE] Download concluído:', fileData.size, 'bytes');
     
-    // Extração de texto usando novo parser
+    // Extração de texto usando novo parser Deno nativo
     console.log(`[PARSE] ===== INICIANDO EXTRAÇÃO DE TEXTO =====`);
-    const pdfParser = new NubankPDFParser();
-    const extractedText = await pdfParser.extractText(fileData);
+    const extractedText = await extractTextFromPDF(fileData);
     
     console.log(`[PARSE] Extração concluída: ${extractedText.length} caracteres`);
     
@@ -52,26 +52,30 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     console.log(`[PARSE] Parse concluído: ${nubankTransactions.length} transações encontradas`);
     
     // Converter para formato do sistema
-    const transactions: Transaction[] = nubankTransactions.map(nt => ({
+    const allTransactions: Transaction[] = nubankTransactions.map(nt => ({
       date: nt.date,
       description: nt.description,
       amount: nt.amount,
       category: nt.category
     }));
     
-    // Log das transações encontradas
-    if (transactions.length > 0) {
-      console.log(`[PARSE] Amostra de transações encontradas:`);
-      transactions.slice(0, 5).forEach((tx, i) => {
+    // FILTRAR APENAS DÉBITOS (valores negativos)
+    const debitTransactions = allTransactions.filter(t => t.amount < 0);
+    console.log(`[PARSE] Transações de débito filtradas: ${debitTransactions.length} de ${allTransactions.length} total`);
+    
+    // Log das transações de débito encontradas
+    if (debitTransactions.length > 0) {
+      console.log(`[PARSE] Amostra de transações de débito encontradas:`);
+      debitTransactions.slice(0, 5).forEach((tx, i) => {
         console.log(`[PARSE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)}`);
       });
       
-      const totalDebito = transactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+      const totalDebito = debitTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
       console.log(`[PARSE] Total em débitos: R$ ${totalDebito.toFixed(2)}`);
     }
     
     console.log(`[PARSE] ===== PARSE CONCLUÍDO COM SUCESSO =====`);
-    return transactions;
+    return debitTransactions;
     
   } catch (error) {
     console.error('[PARSE] ===== ERRO NO PARSE =====');
@@ -93,65 +97,68 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
 
     // Parse do extrato com nova implementação
     console.log(`🔍 Iniciando extração Nubank otimizada...`);
-    const extractedTransactions = await parseStatementContent(statement.file_url, supabase);
+    const debitTransactions = await parseStatementContent(statement.file_url, supabase);
     
-    console.log(`✅ Extração concluída: ${extractedTransactions.length} transações`);
+    console.log(`✅ Extração concluída: ${debitTransactions.length} transações de débito`);
 
-    // Log detalhado das transações
-    if (extractedTransactions.length > 0) {
-      console.log(`💰 Transações de débito encontradas:`);
-      extractedTransactions.forEach((tx, i) => {
-        console.log(`   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
-      });
-      
-      const totalAmount = extractedTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-      console.log(`💸 Total de débitos: R$ ${totalAmount.toFixed(2)}`);
-    }
-
-    // Inserir transações se encontradas
-    if (extractedTransactions.length > 0) {
-      console.log(`💾 Inserindo ${extractedTransactions.length} transações...`);
-      await insertTransactions(supabase, extractedTransactions, statement.id, statement.user_id);
-      console.log(`✅ ${extractedTransactions.length} transações inseridas com sucesso`);
-      
-      // Atualizar status para 'ready'
-      await updateStatementStatus(supabase, statement.id, 'ready', extractedTransactions);
-      console.log(`✅ Status do extrato atualizado para 'ready'`);
-      
-      // Emitir evento realtime para o frontend
-      try {
-        await supabase.realtime
-          .channel('statement_processed')
-          .send({
-            type: 'broadcast',
-            event: 'statement_ready',
-            payload: {
-              statement_id: statement.id,
-              user_id: statement.user_id,
-              transaction_count: extractedTransactions.length,
-              total_debit: extractedTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0)
-            }
-          });
-        console.log(`✅ Evento realtime enviado`);
-      } catch (realtimeError) {
-        console.log(`⚠️  Aviso: Falha ao enviar evento realtime:`, realtimeError.message);
-      }
-      
-    } else {
+    // Verificar se há transações de débito
+    if (debitTransactions.length === 0) {
       console.log(`⚠️  Nenhuma transação de débito encontrada`);
       console.log(`   Possíveis causas:`);
-      console.log(`   - PDF é baseado em imagens (necessário OCR)`);
-      console.log(`   - Formato do extrato Nubank mudou`);
+      console.log(`   - PDF contém apenas créditos/receitas`);
       console.log(`   - Período sem movimentações de débito`);
+      console.log(`   - Formato do extrato Nubank mudou`);
       
       // Atualizar status para 'no_data'
       await updateStatementStatus(supabase, statement.id, 'no_data');
       console.log(`✅ Status atualizado para 'no_data'`);
+      
+      const processingTime = Date.now() - startTime;
+      console.log(`🎉 EXTRATO ${statement.id} PROCESSADO em ${processingTime}ms`);
+      console.log(`📊 Resultado final: 0 débitos processados\n`);
+      return;
+    }
+
+    // Log detalhado das transações de débito
+    console.log(`💰 Transações de débito encontradas:`);
+    debitTransactions.forEach((tx, i) => {
+      console.log(`   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
+    });
+    
+    const totalAmount = debitTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+    console.log(`💸 Total de débitos: R$ ${totalAmount.toFixed(2)}`);
+
+    // Inserir transações de débito
+    console.log(`💾 Inserindo ${debitTransactions.length} transações de débito...`);
+    await insertTransactions(supabase, debitTransactions, statement.id, statement.user_id);
+    console.log(`✅ ${debitTransactions.length} transações de débito inseridas com sucesso`);
+    
+    // Atualizar status para 'ready'
+    await updateStatementStatus(supabase, statement.id, 'ready', debitTransactions);
+    console.log(`✅ Status do extrato atualizado para 'ready'`);
+    
+    // Emitir evento realtime para o frontend
+    try {
+      await supabase.realtime
+        .channel('statement_processed')
+        .send({
+          type: 'broadcast',
+          event: 'statement_ready',
+          payload: {
+            statement_id: statement.id,
+            user_id: statement.user_id,
+            transaction_count: debitTransactions.length,
+            total_debit: totalAmount
+          }
+        });
+      console.log(`✅ Evento realtime enviado`);
+    } catch (realtimeError) {
+      console.log(`⚠️  Aviso: Falha ao enviar evento realtime:`, realtimeError.message);
     }
 
     const processingTime = Date.now() - startTime;
     console.log(`🎉 EXTRATO ${statement.id} PROCESSADO em ${processingTime}ms`);
-    console.log(`📊 Resultado final: ${extractedTransactions.length} débitos processados\n`);
+    console.log(`📊 Resultado final: ${debitTransactions.length} débitos processados\n`);
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
