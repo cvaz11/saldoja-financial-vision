@@ -12,17 +12,17 @@ interface Transaction {
 
 export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`[PARSE] ===== ANÁLISE GEMINI INICIADA =====`);
+    console.log(`[PARSE] ===== INICIANDO ANÁLISE COM GEMINI =====`);
     console.log(`[PARSE] File URL: ${fileUrl}`);
     
     // Download PDF
-    console.log(`[PARSE] Baixando arquivo...`);
+    console.log(`[PARSE] 📥 Baixando arquivo do Supabase Storage...`);
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('statements')
       .download(fileUrl);
     
     if (downloadError) {
-      console.error('[PARSE] Erro no download:', downloadError);
+      console.error('[PARSE] ❌ Erro no download:', downloadError);
       throw new Error(`Download do PDF falhou: ${downloadError.message}`);
     }
     
@@ -30,38 +30,75 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
       throw new Error('Arquivo baixado está vazio');
     }
     
-    console.log('[PARSE] Download concluído:', fileData.size, 'bytes');
+    console.log('[PARSE] ✅ Download concluído:', fileData.size, 'bytes');
     
-    // Converter para ArrayBuffer
+    // Verificar se é um PDF válido
     const arrayBuffer = await fileData.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const isPDF = uint8Array[0] === 0x25 && uint8Array[1] === 0x50 && uint8Array[2] === 0x44 && uint8Array[3] === 0x46;
     
-    // Usar processamento Gemini
-    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO GEMINI =====`);
+    if (!isPDF) {
+      console.error('[PARSE] ❌ Arquivo não é um PDF válido');
+      throw new Error('Arquivo não é um PDF válido');
+    }
+    
+    console.log('[PARSE] ✅ PDF válido confirmado');
+    
+    // Processar com Gemini
+    console.log(`[PARSE] 🚀 Iniciando processamento Gemini...`);
+    const startTime = Date.now();
+    
     const debitTransactions = await processWithGemini(arrayBuffer);
     
-    console.log(`[PARSE] Processamento Gemini concluído: ${debitTransactions.length} transações encontradas`);
+    const processingTime = Date.now() - startTime;
+    console.log(`[PARSE] ⏱️  Processamento Gemini concluído em ${processingTime}ms`);
+    console.log(`[PARSE] 📊 Resultado: ${debitTransactions.length} transações encontradas`);
     
     if (debitTransactions.length > 0) {
       console.log(`[PARSE] ✅ SUCESSO! Transações extraídas via Gemini:`);
-      debitTransactions.slice(0, 5).forEach((tx, i) => {
-        console.log(`[PARSE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
+      
+      // Agrupar por categoria para mostrar resumo
+      const categoryTotals: Record<string, { count: number, total: number }> = {};
+      
+      debitTransactions.forEach((tx) => {
+        if (!categoryTotals[tx.category]) {
+          categoryTotals[tx.category] = { count: 0, total: 0 };
+        }
+        categoryTotals[tx.category].count++;
+        categoryTotals[tx.category].total += Math.abs(tx.amount);
+      });
+      
+      console.log(`[PARSE] 📋 Resumo por categoria:`);
+      Object.entries(categoryTotals).forEach(([category, stats]) => {
+        console.log(`[PARSE]   ${category}: ${stats.count} transações - R$ ${stats.total.toFixed(2)}`);
       });
       
       const totalDebit = debitTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-      console.log(`[PARSE] 💰 Total de débitos: R$ ${totalDebit.toFixed(2)}`);
+      console.log(`[PARSE] 💰 Total geral de débitos: R$ ${totalDebit.toFixed(2)}`);
+      
+      // Mostrar primeiras transações como exemplo
+      console.log(`[PARSE] 📋 Primeiras transações encontradas:`);
+      debitTransactions.slice(0, 3).forEach((tx, i) => {
+        console.log(`[PARSE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
+      });
+      
     } else {
-      console.log(`[PARSE] ⚠️  Nenhuma transação encontrada`);
-      console.log(`[PARSE]     - Verifique se o PDF é um extrato bancário válido`);
-      console.log(`[PARSE]     - Confirme se há transações no período`);
-      console.log(`[PARSE]     - PDF pode não ter sido processado corretamente`);
+      console.log(`[PARSE] ⚠️  ATENÇÃO: Nenhuma transação de débito encontrada`);
+      console.log(`[PARSE] 🔍 Possíveis causas:`);
+      console.log(`[PARSE]   - PDF contém apenas créditos/receitas`);
+      console.log(`[PARSE]   - Período do extrato sem movimentações de débito`);
+      console.log(`[PARSE]   - PDF está corrompido ou ilegível`);
+      console.log(`[PARSE]   - Formato não é compatível com Gemini`);
     }
     
     console.log(`[PARSE] ===== ANÁLISE GEMINI CONCLUÍDA =====`);
     return debitTransactions;
     
   } catch (error) {
-    console.error('[PARSE] ===== ERRO NA ANÁLISE GEMINI =====');
-    console.error('[PARSE] Erro:', error.message);
+    console.error('[PARSE] ===== ERRO CRÍTICO NA ANÁLISE =====');
+    console.error('[PARSE] Tipo do erro:', error.name);
+    console.error('[PARSE] Mensagem:', error.message);
+    console.error('[PARSE] Stack trace:', error.stack);
     throw error;
   }
 };
@@ -74,22 +111,26 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
     console.log(`📄 Arquivo: ${statement.filename}`);
     console.log(`👤 Usuário: ${statement.user_id}`);
     console.log(`🔗 URL: ${statement.file_url}`);
-    console.log(`🏦 Banco: ${statement.bank}`);
+    console.log(`🏦 Banco: ${statement.bank || 'Não especificado'}`);
+    console.log(`⏰ Iniciado em: ${new Date().toISOString()}`);
 
     // Parse com Gemini
-    console.log(`🔍 Iniciando análise Gemini...`);
+    console.log(`🔍 Iniciando análise com Gemini AI...`);
     const debitTransactions = await parseStatementContent(statement.file_url, supabase);
     
-    console.log(`✅ Análise concluída: ${debitTransactions.length} transações de débito`);
+    console.log(`✅ Análise concluída: ${debitTransactions.length} transações de débito encontradas`);
 
     // Verificar se há transações de débito
     if (debitTransactions.length === 0) {
       console.log(`⚠️  Nenhuma transação de débito encontrada`);
-      console.log(`   Possíveis causas:`);
-      console.log(`   - PDF contém apenas créditos/receitas`);
-      console.log(`   - Período sem movimentações de débito`);
-      console.log(`   - PDF corrompido ou ilegível`);
-      console.log(`   - Formato do PDF não reconhecido pelo Gemini`);
+      console.log(`📋 Detalhes do processamento:`);
+      console.log(`   - Arquivo: ${statement.filename}`);
+      console.log(`   - Tamanho: PDF processado com sucesso`);
+      console.log(`   - Status: Nenhum débito identificado`);
+      console.log(`   - Possíveis causas:`);
+      console.log(`     • Extrato contém apenas créditos/receitas`);
+      console.log(`     • Período sem movimentação de débito`);
+      console.log(`     • Formato do PDF não suportado`);
       
       // Atualizar status para 'no_data'
       await updateStatementStatus(supabase, statement.id, 'no_data');
@@ -102,18 +143,41 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
     }
 
     // Log detalhado das transações de débito
-    console.log(`💰 Transações de débito encontradas:`);
-    debitTransactions.forEach((tx, i) => {
-      console.log(`   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
+    console.log(`💰 📋 TRANSAÇÕES DE DÉBITO ENCONTRADAS:`);
+    console.log(`📊 Total: ${debitTransactions.length} transações`);
+    
+    // Mostrar estatísticas por categoria
+    const categoryStats: Record<string, { count: number, total: number }> = {};
+    debitTransactions.forEach(tx => {
+      if (!categoryStats[tx.category]) {
+        categoryStats[tx.category] = { count: 0, total: 0 };
+      }
+      categoryStats[tx.category].count++;
+      categoryStats[tx.category].total += Math.abs(tx.amount);
+    });
+    
+    console.log(`📈 Distribuição por categoria:`);
+    Object.entries(categoryStats).forEach(([category, stats]) => {
+      console.log(`   ${category}: ${stats.count} transações (R$ ${stats.total.toFixed(2)})`);
     });
     
     const totalAmount = debitTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
     console.log(`💸 Total de débitos: R$ ${totalAmount.toFixed(2)}`);
+    
+    // Mostrar algumas transações como exemplo
+    console.log(`🔍 Exemplos de transações encontradas:`);
+    debitTransactions.slice(0, 5).forEach((tx, i) => {
+      console.log(`   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
+    });
+    
+    if (debitTransactions.length > 5) {
+      console.log(`   ... e mais ${debitTransactions.length - 5} transações`);
+    }
 
     // Inserir transações de débito
-    console.log(`💾 Inserindo ${debitTransactions.length} transações de débito...`);
+    console.log(`💾 Inserindo ${debitTransactions.length} transações no banco de dados...`);
     await insertTransactions(supabase, debitTransactions, statement.id, statement.user_id);
-    console.log(`✅ ${debitTransactions.length} transações de débito inseridas com sucesso`);
+    console.log(`✅ Transações inseridas com sucesso`);
     
     // Atualizar status para 'ready'
     await updateStatementStatus(supabase, statement.id, 'ready', debitTransactions);
@@ -130,24 +194,30 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
             statement_id: statement.id,
             user_id: statement.user_id,
             transaction_count: debitTransactions.length,
-            total_debit: totalAmount
+            total_debit: totalAmount,
+            processing_time: Date.now() - startTime
           }
         });
-      console.log(`✅ Evento realtime enviado`);
+      console.log(`✅ Evento realtime enviado para o frontend`);
     } catch (realtimeError) {
       console.log(`⚠️  Aviso: Falha ao enviar evento realtime:`, realtimeError.message);
     }
 
     const processingTime = Date.now() - startTime;
-    console.log(`🎉 EXTRATO ${statement.id} PROCESSADO em ${processingTime}ms`);
-    console.log(`📊 Resultado final: ${debitTransactions.length} débitos processados\n`);
+    console.log(`🎉 ✅ EXTRATO ${statement.id} PROCESSADO COM SUCESSO`);
+    console.log(`⏱️  Tempo total: ${processingTime}ms (${(processingTime / 1000).toFixed(1)}s)`);
+    console.log(`📊 Resultado final: ${debitTransactions.length} débitos processados`);
+    console.log(`💰 Valor total: R$ ${totalAmount.toFixed(2)}`);
+    console.log(`📋 Arquivo: ${statement.filename}\n`);
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    console.error(`💥 FALHA NO PROCESSAMENTO DO EXTRATO ${statement.id} após ${processingTime}ms`);
-    console.error(`❌ Tipo do erro: ${error.name}`);
-    console.error(`❌ Mensagem: ${error.message}`);
-    console.error(`❌ Stack: ${error.stack}`);
+    console.error(`💥 ❌ FALHA CRÍTICA NO PROCESSAMENTO DO EXTRATO ${statement.id}`);
+    console.error(`⏱️  Tempo até falha: ${processingTime}ms`);
+    console.error(`📄 Arquivo: ${statement.filename}`);
+    console.error(`🔥 Tipo do erro: ${error.name}`);
+    console.error(`📝 Mensagem: ${error.message}`);
+    console.error(`📍 Stack trace: ${error.stack}`);
     
     // Marcar como erro
     try {

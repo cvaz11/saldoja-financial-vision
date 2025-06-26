@@ -23,7 +23,7 @@ export const insertTransactions = async (
     return;
   }
 
-  // Limpar transações existentes deste extrato
+  // Limpar transações existentes deste extrato PRIMEIRO
   console.log(`[DB] Limpando transações existentes do extrato ${statementId}...`);
   const { error: deleteError } = await supabase
     .from('transactions')
@@ -33,16 +33,18 @@ export const insertTransactions = async (
   if (deleteError) {
     console.error('[DB] Erro ao limpar transações existentes:', deleteError);
     // Continuar mesmo com erro de limpeza
+  } else {
+    console.log('[DB] ✅ Transações antigas removidas com sucesso');
   }
 
   // Converter transações para formato do banco
-  const dbTransactions = transactions.map(transaction => ({
+  const dbTransactions = transactions.map((transaction, index) => ({
     statement_id: statementId,
     user_id: userId,
     transaction_date: transaction.date,
     description: transaction.description.slice(0, 255), // Limitar tamanho
     amount: Math.abs(transaction.amount), // Armazenar como positivo
-    category: transaction.category,
+    category: transaction.category || 'Outros',
     installment_number: null,
     installment_total: null,
     is_credit: false, // Todas são débitos
@@ -50,22 +52,46 @@ export const insertTransactions = async (
 
   console.log('[DB] Exemplo de transação a inserir:', dbTransactions[0]);
 
-  // Inserir transações com upsert para evitar duplicatas
-  const { error: insertError, data: insertedData } = await supabase
-    .from('transactions')
-    .upsert(dbTransactions, {
-      onConflict: 'user_id,transaction_date,description,amount'
-    })
-    .select('id');
+  // Inserir transações uma por vez para evitar conflitos
+  let insertedCount = 0;
+  let errors = [];
 
-  if (insertError) {
-    console.error('[DB] Erro ao inserir transações:', insertError);
-    throw new Error(`Falha na inserção no banco: ${insertError.message}`);
+  for (let i = 0; i < dbTransactions.length; i++) {
+    const transaction = dbTransactions[i];
+    
+    try {
+      const { error: insertError } = await supabase
+        .from('transactions')
+        .insert([transaction]);
+
+      if (insertError) {
+        console.error(`[DB] Erro ao inserir transação ${i + 1}:`, insertError);
+        errors.push(`Transação ${i + 1}: ${insertError.message}`);
+      } else {
+        insertedCount++;
+        if (i % 10 === 0) {
+          console.log(`[DB] Progresso: ${i + 1}/${dbTransactions.length} transações processadas`);
+        }
+      }
+    } catch (error) {
+      console.error(`[DB] Erro inesperado ao inserir transação ${i + 1}:`, error);
+      errors.push(`Transação ${i + 1}: ${error.message}`);
+    }
   }
 
-  console.log(`[DB] ✅ ${dbTransactions.length} transações inseridas com sucesso`);
-  if (insertedData) {
-    console.log(`[DB] IDs das transações inseridas: ${insertedData.length} registros`);
+  console.log(`[DB] ✅ ${insertedCount} de ${dbTransactions.length} transações inseridas com sucesso`);
+  
+  if (errors.length > 0) {
+    console.log(`[DB] ⚠️  ${errors.length} erros durante inserção:`);
+    errors.slice(0, 3).forEach(error => console.log(`[DB]   - ${error}`));
+    if (errors.length > 3) {
+      console.log(`[DB]   ... e mais ${errors.length - 3} erros`);
+    }
+  }
+
+  // Se pelo menos algumas transações foram inseridas, considerar sucesso
+  if (insertedCount === 0) {
+    throw new Error(`Falha ao inserir transações: ${errors.join('; ')}`);
   }
 };
 
