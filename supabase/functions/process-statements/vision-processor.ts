@@ -19,22 +19,22 @@ export const processWithVision = async (pdfBuffer: ArrayBuffer): Promise<Transac
       throw new Error('OPENAI_API_KEY não configurada');
     }
 
-    // Converter PDF para imagens usando pdf-lib e canvas
-    console.log(`[VISION] Convertendo PDF para imagens...`);
+    // Converter PDF para imagens PNG usando pdf2pic
+    console.log(`[VISION] Convertendo PDF para imagens PNG...`);
     const images = await convertPdfToImages(pdfBuffer);
-    console.log(`[VISION] PDF convertido em ${images.length} imagens`);
+    console.log(`[VISION] PDF convertido em ${images.length} imagens PNG`);
 
     if (images.length === 0) {
-      console.log(`[VISION] ❌ Nenhuma imagem gerada do PDF`);
+      console.log(`[VISION] ❌ Nenhuma imagem PNG gerada do PDF`);
       return [];
     }
 
     // Processar cada imagem com GPT-4o Vision
-    console.log(`[VISION] Processando ${images.length} imagens com GPT-4o Vision...`);
+    console.log(`[VISION] Processando ${images.length} imagens PNG com GPT-4o Vision...`);
     const allMarkdown: string[] = [];
     
     for (let i = 0; i < images.length; i++) {
-      console.log(`[VISION] Processando imagem ${i + 1}/${images.length}...`);
+      console.log(`[VISION] Processando imagem PNG ${i + 1}/${images.length}...`);
       
       try {
         const markdown = await processImageWithGPT4Vision(images[i], i + 1);
@@ -82,33 +82,87 @@ export const processWithVision = async (pdfBuffer: ArrayBuffer): Promise<Transac
 
 async function convertPdfToImages(pdfBuffer: ArrayBuffer): Promise<string[]> {
   try {
-    // Usar pdf-lib para converter PDF em imagens
-    const pdfLibModule = await import('https://esm.sh/pdf-lib@1.17.1');
-    const { PDFDocument } = pdfLibModule;
+    // Usar pdf2pic library para converter PDF em imagens PNG
+    const pdf2picModule = await import('https://esm.sh/pdf2pic@2.1.4');
+    const { fromBuffer } = pdf2picModule.default;
     
-    const pdfDoc = await PDFDocument.load(pdfBuffer);
-    const pageCount = pdfDoc.getPageCount();
-    console.log(`[VISION] PDF tem ${pageCount} páginas`);
+    // Configurar pdf2pic para gerar imagens PNG
+    const convert = fromBuffer(new Uint8Array(pdfBuffer), {
+      density: 200,           // DPI para qualidade
+      saveFilename: "page",
+      savePath: "/tmp",
+      format: "png",
+      width: 1200,           // Largura fixa para melhor leitura
+      height: 1600,          // Altura proporcional
+      quality: 90
+    });
+    
+    // Converter todas as páginas
+    const results = await convert.bulk(-1); // -1 = todas as páginas
+    console.log(`[VISION] pdf2pic converteu ${results.length} páginas`);
     
     const images: string[] = [];
     
-    // Para cada página, criar uma imagem base64
-    for (let i = 0; i < Math.min(pageCount, 10); i++) { // Limitar a 10 páginas
+    for (const result of results) {
+      if (result.buffer) {
+        // Converter buffer para base64
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(result.buffer)));
+        images.push(`data:image/png;base64,${base64}`);
+        console.log(`[VISION] Página ${result.page} convertida para PNG (${base64.length} chars)`);
+      }
+    }
+    
+    return images;
+    
+  } catch (error) {
+    console.error(`[VISION] Erro na conversão PDF → PNG:`, error.message);
+    console.log(`[VISION] Tentando método alternativo com Canvas...`);
+    
+    // Método alternativo usando canvas
+    return await convertPdfToImagesCanvas(pdfBuffer);
+  }
+}
+
+async function convertPdfToImagesCanvas(pdfBuffer: ArrayBuffer): Promise<string[]> {
+  try {
+    // Usar PDF.js para renderizar páginas como imagens
+    const pdfjsModule = await import('https://esm.sh/pdfjs-dist@4.0.379');
+    const { getDocument } = pdfjsModule;
+    
+    // Carregar PDF
+    const pdf = await getDocument({ data: pdfBuffer }).promise;
+    console.log(`[VISION] PDF carregado com ${pdf.numPages} páginas`);
+    
+    const images: string[] = [];
+    
+    for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 10); pageNum++) {
       try {
-        // Extrair página como PDF
-        const singlePagePdf = await PDFDocument.create();
-        const [copiedPage] = await singlePagePdf.copyPages(pdfDoc, [i]);
-        singlePagePdf.addPage(copiedPage);
+        const page = await pdf.getPage(pageNum);
         
-        const pdfBytes = await singlePagePdf.save();
+        // Criar canvas para renderizar a página
+        const canvas = new OffscreenCanvas(1200, 1600);
+        const context = canvas.getContext('2d');
         
-        // Converter para base64 para enviar ao GPT
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(pdfBytes)));
-        images.push(`data:application/pdf;base64,${base64}`);
+        const viewport = page.getViewport({ scale: 2.0 });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
         
-        console.log(`[VISION] Página ${i + 1} convertida (${base64.length} chars)`);
+        // Renderizar página no canvas
+        await page.render({
+          canvasContext: context,
+          viewport: viewport
+        }).promise;
+        
+        // Converter canvas para PNG base64
+        const blob = await canvas.convertToBlob({ type: 'image/png', quality: 0.9 });
+        const arrayBuffer = await blob.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        
+        images.push(`data:image/png;base64,${base64}`);
+        console.log(`[VISION] Página ${pageNum} renderizada como PNG (${base64.length} chars)`);
+        
       } catch (pageError) {
-        console.error(`[VISION] Erro ao converter página ${i + 1}:`, pageError.message);
+        console.error(`[VISION] Erro ao renderizar página ${pageNum}:`, pageError.message);
         continue;
       }
     }
@@ -116,7 +170,7 @@ async function convertPdfToImages(pdfBuffer: ArrayBuffer): Promise<string[]> {
     return images;
     
   } catch (error) {
-    console.error(`[VISION] Erro na conversão PDF → imagens:`, error.message);
+    console.error(`[VISION] Erro no método Canvas:`, error.message);
     return [];
   }
 }
