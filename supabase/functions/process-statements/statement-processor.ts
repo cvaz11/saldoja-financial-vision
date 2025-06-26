@@ -1,5 +1,6 @@
+
 import { insertTransactions, updateStatementStatus } from './database-operations.ts';
-import { processWithHybridStrategy } from './hybrid-processor.ts';
+import { processWithVision } from './vision-processor.ts';
 
 // Convert to system Transaction format
 interface Transaction {
@@ -11,7 +12,7 @@ interface Transaction {
 
 export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`[PARSE] ===== ANÁLISE HÍBRIDA ROBUSTA INICIADA =====`);
+    console.log(`[PARSE] ===== ANÁLISE VISION INICIADA =====`);
     console.log(`[PARSE] File URL: ${fileUrl}`);
     
     // Download PDF
@@ -31,14 +32,17 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     
     console.log('[PARSE] Download concluído:', fileData.size, 'bytes');
     
-    // Usar processamento híbrido com múltiplas estratégias
-    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO HÍBRIDO =====`);
-    const debitTransactions = await processWithHybridStrategy(fileData);
+    // Converter para ArrayBuffer
+    const arrayBuffer = await fileData.arrayBuffer();
     
-    console.log(`[PARSE] Processamento híbrido concluído: ${debitTransactions.length} transações encontradas`);
+    // Usar processamento Vision com GPT-4o
+    console.log(`[PARSE] ===== INICIANDO PROCESSAMENTO VISION =====`);
+    const debitTransactions = await processWithVision(arrayBuffer);
+    
+    console.log(`[PARSE] Processamento Vision concluído: ${debitTransactions.length} transações encontradas`);
     
     if (debitTransactions.length > 0) {
-      console.log(`[PARSE] ✅ SUCESSO! Transações extraídas:`);
+      console.log(`[PARSE] ✅ SUCESSO! Transações extraídas via Vision:`);
       debitTransactions.slice(0, 5).forEach((tx, i) => {
         console.log(`[PARSE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
       });
@@ -46,16 +50,16 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
       const totalDebit = debitTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
       console.log(`[PARSE] 💰 Total de débitos: R$ ${totalDebit.toFixed(2)}`);
     } else {
-      console.log(`[PARSE] ⚠️  Nenhuma transação encontrada`);
+      console.log(`[PARSE] ⚠️  Nenhuma transação encontrada via Vision`);
       console.log(`[PARSE]     - Verifique se o PDF é um extrato Nubank válido`);
       console.log(`[PARSE]     - Confirme se há transações no período`);
     }
     
-    console.log(`[PARSE] ===== ANÁLISE HÍBRIDA CONCLUÍDA =====`);
+    console.log(`[PARSE] ===== ANÁLISE VISION CONCLUÍDA =====`);
     return debitTransactions;
     
   } catch (error) {
-    console.error('[PARSE] ===== ERRO NA ANÁLISE HÍBRIDA =====');
+    console.error('[PARSE] ===== ERRO NA ANÁLISE VISION =====');
     console.error('[PARSE] Erro:', error.message);
     throw error;
   }
@@ -71,8 +75,8 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
     console.log(`🔗 URL: ${statement.file_url}`);
     console.log(`🏦 Banco: ${statement.bank}`);
 
-    // Parse com abordagem multi-LLM
-    console.log(`🔍 Iniciando análise multi-LLM Nubank...`);
+    // Parse com Vision GPT-4o
+    console.log(`🔍 Iniciando análise Vision GPT-4o Nubank...`);
     const debitTransactions = await parseStatementContent(statement.file_url, supabase);
     
     console.log(`✅ Análise concluída: ${debitTransactions.length} transações de débito`);
