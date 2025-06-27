@@ -1,34 +1,12 @@
-import { useState, useEffect } from "react";
+
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle, Upload, BarChart3, Bell, Star, ArrowRight, Play } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
 
 const Landing = () => {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
-
-  // Redirecionar usuário autenticado para dashboard
-  useEffect(() => {
-    if (!loading && user) {
-      navigate("/dashboard");
-    }
-  }, [user, loading, navigate]);
-
-  // Mostrar loading enquanto verifica autenticação
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-sage-600"></div>
-      </div>
-    );
-  }
-
-  // Se usuário está logado, não mostrar landing page
-  if (user) {
-    return null;
-  }
 
   const features = [
     {
