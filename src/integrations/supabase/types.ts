@@ -36,6 +36,7 @@ export type Database = {
       statements: {
         Row: {
           bank: string | null
+          closing_day: number
           file_url: string
           filename: string
           id: string
@@ -50,6 +51,7 @@ export type Database = {
         }
         Insert: {
           bank?: string | null
+          closing_day?: number
           file_url: string
           filename: string
           id?: string
@@ -64,6 +66,7 @@ export type Database = {
         }
         Update: {
           bank?: string | null
+          closing_day?: number
           file_url?: string
           filename?: string
           id?: string

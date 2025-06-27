@@ -1,7 +1,7 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, RefreshCw, User } from "lucide-react";
+import { Plus, RefreshCw, ToggleLeft, ToggleRight } from "lucide-react";
 import DateRangePicker, { type DateRange } from "./DateRangePicker";
 
 interface TransactionTableHeaderProps {
@@ -10,6 +10,8 @@ interface TransactionTableHeaderProps {
   onRefresh: () => void;
   onAddTransaction?: () => void;
   onProfileOpen: () => void;
+  viewMode?: 'date-range' | 'invoice';
+  onViewModeChange?: (mode: 'date-range' | 'invoice') => void;
 }
 
 const TransactionTableHeader = ({
@@ -17,15 +19,33 @@ const TransactionTableHeader = ({
   onDateRangeChange,
   onRefresh,
   onAddTransaction,
-  onProfileOpen
+  onProfileOpen,
+  viewMode = 'date-range',
+  onViewModeChange
 }: TransactionTableHeaderProps) => {
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-      <DateRangePicker 
-        dateRange={dateRange}
-        onDateRangeChange={onDateRangeChange}
-        className="w-full sm:w-auto"
-      />
+      <div className="flex items-center gap-4">
+        {viewMode === 'date-range' && (
+          <DateRangePicker 
+            dateRange={dateRange}
+            onDateRangeChange={onDateRangeChange}
+            className="w-full sm:w-auto"
+          />
+        )}
+        
+        {onViewModeChange && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onViewModeChange(viewMode === 'date-range' ? 'invoice' : 'date-range')}
+            className="flex items-center gap-2"
+          >
+            {viewMode === 'date-range' ? <ToggleLeft className="h-4 w-4" /> : <ToggleRight className="h-4 w-4" />}
+            {viewMode === 'date-range' ? 'Ver por Fatura' : 'Ver por Período'}
+          </Button>
+        )}
+      </div>
       
       <div className="flex items-center gap-2">
         <Button 

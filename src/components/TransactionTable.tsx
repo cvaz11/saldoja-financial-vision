@@ -10,6 +10,7 @@ import TransactionTableInfo from "./TransactionTableInfo";
 import TransactionTableContent from "./TransactionTableContent";
 import TransactionTableFooter from "./TransactionTableFooter";
 import TransactionTableModals from "./TransactionTableModals";
+import InvoiceTransactionTable from "./InvoiceTransactionTable";
 
 interface TransactionTableProps {
   onAddTransaction?: () => void;
@@ -18,6 +19,7 @@ interface TransactionTableProps {
 
 const TransactionTable = ({ onAddTransaction, showCategories = false }: TransactionTableProps) => {
   const { profile } = useUserProfile();
+  const [viewMode, setViewMode] = useState<'date-range' | 'invoice'>('invoice');
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -45,7 +47,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
 
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
 
-  const { data: transactions = [], isLoading, refetch, error } = useTransactions(dateRange, true, false);
+  const { data: transactions = [], isLoading, refetch, error } = useTransactions(dateRange, viewMode === 'date-range', false);
 
   // Log de debug para erro
   if (error) {
@@ -81,7 +83,6 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
       
       if (success) {
         console.log('[TABLE] Deletion successful');
-        // Não precisamos mais do refetch manual, o realtime e invalidação de cache cuidam disso
       }
     }
     
@@ -93,13 +94,33 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
     console.log('[TABLE] Transaction edited successfully');
     setIsEditModalOpen(false);
     setEditingTransaction(null);
-    // Não precisamos mais do refetch manual, o realtime e invalidação de cache cuidam disso
   };
 
   const handleProfileOpen = () => {
-    // This would be handled by parent component
     console.log('[TABLE] Profile open requested');
   };
+
+  // Se modo fatura está ativado, usar componente específico
+  if (viewMode === 'invoice') {
+    return (
+      <div className="space-y-4 pb-24">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-semibold">Visualização por Faturas</h2>
+          <TransactionTableHeader
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            onRefresh={handleRefresh}
+            onAddTransaction={onAddTransaction}
+            onProfileOpen={handleProfileOpen}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+          />
+        </div>
+        
+        <InvoiceTransactionTable onAddTransaction={onAddTransaction} />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -110,6 +131,8 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
           onRefresh={handleRefresh}
           onAddTransaction={onAddTransaction}
           onProfileOpen={handleProfileOpen}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
         />
 
         <TransactionTableInfo

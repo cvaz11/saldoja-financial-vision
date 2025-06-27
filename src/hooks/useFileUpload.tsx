@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { useToast } from "./use-toast";
+import { useUserProfile } from "./useUserProfile";
 
 interface UploadData {
   file: File;
@@ -16,6 +17,7 @@ export const useFileUpload = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { profile } = useUserProfile();
 
   const uploadFile = async (data: UploadData) => {
     if (!user) {
@@ -57,7 +59,7 @@ export const useFileUpload = () => {
 
       console.log('File uploaded successfully');
 
-      // Insert statement record
+      // Insert statement record with closing day from profile
       const now = new Date();
       const insertData = {
         user_id: user.id,
@@ -68,6 +70,7 @@ export const useFileUpload = () => {
         uploaded_at: now.toISOString(),
         month: now.getMonth() + 1,
         year: now.getFullYear(),
+        closing_day: profile?.invoice_closing_day || 5, // Use closing day from profile
       };
 
       console.log('Inserting statement record:', insertData);
