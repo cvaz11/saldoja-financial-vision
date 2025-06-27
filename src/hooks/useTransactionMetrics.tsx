@@ -45,9 +45,6 @@ export const useTransactionMetrics = () => {
       .filter(t => t.is_credit)
       .reduce((sum, t) => sum + Number(t.amount), 0);
     
-    const currentInstallments = currentTransactions.filter(t => t.installment_number && t.installment_total);
-    const totalCurrentInstallments = currentInstallments.reduce((sum, t) => sum + Number(t.amount), 0);
-    
     const currentBalance = totalCurrentCredits - totalCurrentDebits;
     
     console.log('[METRICS] Using table logic - Current debits:', totalCurrentDebits);
@@ -63,9 +60,6 @@ export const useTransactionMetrics = () => {
       .filter(t => t.is_credit)
       .reduce((sum, t) => sum + Number(t.amount), 0);
     
-    const previousInstallments = previousTransactions.filter(t => t.installment_number && t.installment_total);
-    const totalPreviousInstallments = previousInstallments.reduce((sum, t) => sum + Number(t.amount), 0);
-    
     console.log('[METRICS] Using table logic - Previous debits:', totalPreviousDebits);
     console.log('[METRICS] Using table logic - Previous credits:', totalPreviousCredits);
     
@@ -75,9 +69,6 @@ export const useTransactionMetrics = () => {
     
     const creditVariation = totalPreviousCredits > 0 ? 
       ((totalCurrentCredits - totalPreviousCredits) / totalPreviousCredits) * 100 : 0;
-    
-    const installmentVariation = totalPreviousInstallments > 0 ? 
-      ((totalCurrentInstallments - totalPreviousInstallments) / totalPreviousInstallments) * 100 : 0;
 
     const hasCurrentData = currentTransactions.length > 0;
     const hasPreviousData = previousTransactions.length > 0;
@@ -85,23 +76,18 @@ export const useTransactionMetrics = () => {
     return {
       totalDebits: totalCurrentDebits,
       totalCredits: totalCurrentCredits,
-      totalInstallments: totalCurrentInstallments,
       balance: currentBalance,
       
       previousTotalDebits: totalPreviousDebits,
       previousTotalCredits: totalPreviousCredits,
-      previousTotalInstallments: totalPreviousInstallments,
       
       debitVariation,
       creditVariation,
-      installmentVariation,
       
       currentCycleName: currentCycle?.displayName || 'Mês Atual',
-      previousCycleName: previousCycle?.displayName || 'Mês Anterior',
-      
-      nextTotalInstallments: 0,
-      totalAllInstallments: totalCurrentInstallments,
-      nextCycleName: 'Próximo Mês',
+      previousCycleName: previous
+
+?.displayName || 'Mês Anterior',
       
       hasCurrentData,
       hasPreviousData,
