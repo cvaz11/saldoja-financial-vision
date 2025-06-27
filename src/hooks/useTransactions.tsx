@@ -5,7 +5,7 @@ import { useAuth } from "./useAuth";
 import { useUserProfile } from "./useUserProfile";
 import type { DateRange } from "@/components/DateRangePicker";
 import { calculateInvoiceCycle, isDateInInvoiceCycle } from "@/lib/invoice-utils";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 export const useTransactions = (
   dateRange: DateRange, 
@@ -14,7 +14,6 @@ export const useTransactions = (
 ) => {
   const { user } = useAuth();
   const { profile } = useUserProfile();
-  const channelRef = useRef<any>(null);
 
   // Calcular range baseado no ciclo de fatura se solicitado
   const getEffectiveDateRange = () => {
@@ -83,21 +82,14 @@ export const useTransactions = (
     staleTime: 2000, // Considerar dados obsoletos após 2 segundos
   });
 
-  // Escutar eventos realtime para atualizações de transações - apenas uma vez
+  // Escutar eventos realtime para atualizações de transações
   useEffect(() => {
     if (!user) return;
-
-    // Limpar canal existente se houver
-    if (channelRef.current) {
-      console.log('[TRANSACTIONS] Removing existing channel');
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
 
     console.log('[TRANSACTIONS] Setting up realtime subscription');
     
     const channel = supabase
-      .channel(`transactions-${user.id}-${Date.now()}`) // Nome único para evitar conflitos
+      .channel('transactions-realtime')
       .on(
         'postgres_changes',
         {
@@ -125,16 +117,11 @@ export const useTransactions = (
       )
       .subscribe();
 
-    channelRef.current = channel;
-
     return () => {
       console.log('[TRANSACTIONS] Cleaning up realtime subscription');
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
+      supabase.removeChannel(channel);
     };
-  }, [user?.id]); // Removi query das dependências para evitar re-subscrições
+  }, [user?.id, query]);
 
   return query;
 };
