@@ -1,6 +1,6 @@
 
 import { insertTransactions, updateStatementStatus } from './database-operations.ts';
-import { processWithGemini } from './gemini-processor.ts';
+import { processWithHybridStrategy } from './hybrid-processor.ts';
 
 // Convert to system Transaction format
 interface Transaction {
@@ -12,7 +12,7 @@ interface Transaction {
 
 export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
   try {
-    console.log(`[PARSE] ===== INICIANDO ANÁLISE COM GEMINI =====`);
+    console.log(`[PARSE] ===== INICIANDO ANÁLISE HÍBRIDA =====`);
     console.log(`[PARSE] File URL: ${fileUrl}`);
     
     // Download PDF
@@ -44,18 +44,18 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
     
     console.log('[PARSE] ✅ PDF válido confirmado');
     
-    // Processar com Gemini
-    console.log(`[PARSE] 🚀 Iniciando processamento Gemini...`);
+    // Processar com estratégia híbrida
+    console.log(`[PARSE] 🚀 Iniciando processamento híbrido...`);
     const startTime = Date.now();
     
-    const debitTransactions = await processWithGemini(arrayBuffer);
+    const debitTransactions = await processWithHybridStrategy(fileData);
     
     const processingTime = Date.now() - startTime;
-    console.log(`[PARSE] ⏱️  Processamento Gemini concluído em ${processingTime}ms`);
+    console.log(`[PARSE] ⏱️  Processamento híbrido concluído em ${processingTime}ms`);
     console.log(`[PARSE] 📊 Resultado: ${debitTransactions.length} transações encontradas`);
     
     if (debitTransactions.length > 0) {
-      console.log(`[PARSE] ✅ SUCESSO! Transações extraídas via Gemini:`);
+      console.log(`[PARSE] ✅ SUCESSO! Transações extraídas:`);
       
       // Agrupar por categoria para mostrar resumo
       const categoryTotals: Record<string, { count: number, total: number }> = {};
@@ -88,10 +88,10 @@ export const parseStatementContent = async (fileUrl: string, supabase: any): Pro
       console.log(`[PARSE]   - PDF contém apenas créditos/receitas`);
       console.log(`[PARSE]   - Período do extrato sem movimentações de débito`);
       console.log(`[PARSE]   - PDF está corrompido ou ilegível`);
-      console.log(`[PARSE]   - Formato não é compatível com Gemini`);
+      console.log(`[PARSE]   - Formato não é compatível com os processadores`);
     }
     
-    console.log(`[PARSE] ===== ANÁLISE GEMINI CONCLUÍDA =====`);
+    console.log(`[PARSE] ===== ANÁLISE HÍBRIDA CONCLUÍDA =====`);
     return debitTransactions;
     
   } catch (error) {
@@ -114,8 +114,8 @@ export const processStatement = async (statement: any, supabase: any): Promise<v
     console.log(`🏦 Banco: ${statement.bank || 'Não especificado'}`);
     console.log(`⏰ Iniciado em: ${new Date().toISOString()}`);
 
-    // Parse com Gemini
-    console.log(`🔍 Iniciando análise com Gemini AI...`);
+    // Parse com processador híbrido
+    console.log(`🔍 Iniciando análise híbrida...`);
     const debitTransactions = await parseStatementContent(statement.file_url, supabase);
     
     console.log(`✅ Análise concluída: ${debitTransactions.length} transações de débito encontradas`);
