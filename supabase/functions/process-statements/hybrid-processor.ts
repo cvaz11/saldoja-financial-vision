@@ -16,14 +16,14 @@ const validateTransaction = (transaction: any): transaction is Transaction => {
     transaction.description.trim().length > 0 &&
     typeof transaction.amount === 'number' &&
     !isNaN(transaction.amount) &&
-    transaction.amount < 0 &&
+    transaction.amount < 0 && // Sempre negativo para gastos
     typeof transaction.category === 'string' &&
     transaction.category.trim().length > 0
   );
 };
 
 export const processWithHybridStrategy = async (fileData: Blob): Promise<Transaction[]> => {
-  console.log('[HYBRID] ===== PROCESSAMENTO HÍBRIDO INICIADO =====');
+  console.log('[HYBRID] ===== PROCESSAMENTO CARTÃO DE CRÉDITO INICIADO =====');
   
   try {
     // Estratégia 1: Extração de texto otimizada
@@ -35,17 +35,17 @@ export const processWithHybridStrategy = async (fileData: Blob): Promise<Transac
       return [];
     }
     
-    // Estratégia 2: Regex otimizado para bancos brasileiros
-    const regexResults = await tryBrazilianBankPatterns(extractedText);
+    // Estratégia 2: Regex para cartão de crédito brasileiro
+    const regexResults = await tryBrazilianCreditCardPatterns(extractedText);
     if (regexResults.length > 0) {
-      console.log(`[HYBRID] ✅ Regex brasileiro encontrou ${regexResults.length} transações`);
+      console.log(`[HYBRID] ✅ Regex encontrou ${regexResults.length} compras no cartão`);
       return regexResults;
     }
     
     // Estratégia 3: OpenAI como backup
     const openAIResults = await tryOpenAIExtraction(extractedText);
     if (openAIResults.length > 0) {
-      console.log(`[HYBRID] ✅ OpenAI encontrou ${openAIResults.length} transações`);
+      console.log(`[HYBRID] ✅ OpenAI encontrou ${openAIResults.length} compras no cartão`);
       return openAIResults;
     }
     
@@ -63,7 +63,7 @@ async function extractOptimizedText(fileData: Blob): Promise<string> {
     const arrayBuffer = await fileData.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     
-    console.log('[HYBRID] Extraindo texto otimizado...');
+    console.log('[HYBRID] Extraindo texto do cartão de crédito...');
     
     // Extrair caracteres de forma mais inteligente
     const chars: string[] = [];
@@ -81,7 +81,7 @@ async function extractOptimizedText(fileData: Blob): Promise<string> {
         chars.push(String.fromCharCode(byte));
         lastWasSpace = false;
       } else if ((byte === 10 || byte === 13 || byte === 9) && !lastWasSpace) {
-        // Quebras de linha e tabs (evitar espaços duplos)
+        // Quebras de linha e tabs
         chars.push(' ');
         lastWasSpace = true;
       } else if (byte === 0 && !lastWasSpace) {
@@ -91,7 +91,7 @@ async function extractOptimizedText(fileData: Blob): Promise<string> {
     }
     
     return chars.join('')
-      .replace(/\s{3,}/g, ' ') // Reduzir múltiplos espaços
+      .replace(/\s{3,}/g, ' ')
       .trim();
     
   } catch (error) {
@@ -100,49 +100,90 @@ async function extractOptimizedText(fileData: Blob): Promise<string> {
   }
 }
 
-async function tryBrazilianBankPatterns(text: string): Promise<Transaction[]> {
+async function tryBrazilianCreditCardPatterns(text: string): Promise<Transaction[]> {
   const transactions: Transaction[] = [];
   
-  // Padrões específicos para bancos brasileiros
+  console.log('[HYBRID] 💳 Analisando padrões de CARTÃO DE CRÉDITO brasileiro...');
+  
+  // Padrões específicos para cartões brasileiros
   const patterns = [
     // Nubank: DD MMM ESTABELECIMENTO R$ VALOR
     {
       pattern: /(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+([A-ZÀ-ÿ\s\d&*•\-\.]{5,60}?)\s+R\$\s*([\d.,]+)/gi,
-      name: 'Nubank'
+      name: 'Nubank',
+      type: 'compra'
     },
     
     // C6 Bank: DD/MM ESTABELECIMENTO R$ VALOR
     {
       pattern: /(\d{1,2})\/(\d{1,2})\s+([A-ZÀ-ÿ\s\d&*\-\.]{5,60}?)\s+R\$\s*([\d.,]+)/gi,
-      name: 'C6'
+      name: 'C6',
+      type: 'compra'
     },
     
-    // Padrão geral: ESTABELECIMENTO R$ VALOR (com validação)
+    // Padrão de compras com estabelecimentos conhecidos
     {
-      pattern: /(UBER|IFOOD|NETFLIX|SPOTIFY|AMAZON|MERCADO|POSTO|FARMACIA|SHOPPING|MAGAZINE|RESTAURANTE|LANCHONETE|PADARIA)([A-ZÀ-ÿ\s\d&*\-\.]*?)\s+R\$\s*([\d.,]+)/gi,
-      name: 'Estabelecimentos'
+      pattern: /(UBER|IFOOD|NETFLIX|SPOTIFY|AMAZON|MERCADO|POSTO|FARMACIA|SHOPPING|MAGAZINE|RESTAURANTE|LANCHONETE|PADARIA|SUPERMERCADO)([A-ZÀ-ÿ\s\d&*\-\.]*?)\s+R\$\s*([\d.,]+)/gi,
+      name: 'Estabelecimentos',
+      type: 'compra'
     },
     
-    // IOF
+    // Padrão genérico: DD/MM + DESCRIÇÃO + R$ VALOR
+    {
+      pattern: /(\d{1,2})\/(\d{1,2})\s+([^R$\n]{10,50}?)\s+R\$\s*([\d.,]+)/gi,
+      name: 'Genérico',
+      type: 'compra'
+    },
+    
+    // IOF sobre compras
     {
       pattern: /IOF.*?R\$\s*([\d.,]+)/gi,
-      name: 'IOF'
+      name: 'IOF',
+      type: 'taxa'
+    },
+    
+    // Anuidade
+    {
+      pattern: /ANUIDADE.*?R\$\s*([\d.,]+)/gi,
+      name: 'Anuidade',
+      type: 'taxa'
     }
   ];
   
-  for (const { pattern, name } of patterns) {
-    console.log(`[HYBRID] Testando padrão ${name}...`);
+  // IGNORAR pagamentos de fatura
+  const ignoredPatterns = [
+    /PAGAMENTO.*FATURA/i,
+    /PIX.*PAGAMENTO/i,
+    /TED.*PAGAMENTO/i,
+    /TRANSFERENCIA.*RECEBIDA/i,
+    /CASHBACK/i,
+    /ESTORNO/i,
+    /DEVOLUCAO/i
+  ];
+  
+  for (const { pattern, name, type } of patterns) {
+    console.log(`[HYBRID] 🔍 Testando padrão ${name} (${type})...`);
     const matches = Array.from(text.matchAll(pattern));
     console.log(`[HYBRID] ${name}: ${matches.length} matches encontrados`);
     
     for (const match of matches) {
       try {
-        const transaction = parseTransaction(match, name);
+        const matchText = match[0];
+        
+        // Verificar se é um pagamento de fatura (IGNORAR)
+        const isPayment = ignoredPatterns.some(ignorePattern => ignorePattern.test(matchText));
+        if (isPayment) {
+          console.log(`[HYBRID] ⏭️ Ignorando pagamento: ${matchText.slice(0, 50)}...`);
+          continue;
+        }
+        
+        const transaction = parseTransaction(match, name, type);
         if (transaction && validateTransaction(transaction)) {
-          // Verificar se valor é razoável (entre R$ 0,10 e R$ 10.000)
+          // Verificar se valor é razoável (entre R$ 1,00 e R$ 50.000)
           const absAmount = Math.abs(transaction.amount);
-          if (absAmount >= 0.10 && absAmount <= 10000) {
+          if (absAmount >= 1.00 && absAmount <= 50000) {
             transactions.push(transaction);
+            console.log(`[HYBRID] ✅ Compra encontrada: ${transaction.description} - R$ ${absAmount.toFixed(2)}`);
           }
         }
       } catch (e) {
@@ -154,14 +195,14 @@ async function tryBrazilianBankPatterns(text: string): Promise<Transaction[]> {
   return deduplicateTransactions(transactions).slice(0, 100);
 }
 
-function parseTransaction(match: RegExpMatchArray, patternType: string): Transaction | null {
+function parseTransaction(match: RegExpMatchArray, patternType: string, transactionType: string): Transaction | null {
   try {
     let day = '15', month = '06', description = '', amountStr = '';
     
     if (patternType === 'Nubank') {
       [, day, month, description, amountStr] = match;
       month = convertMonthToNumber(month);
-    } else if (patternType === 'C6') {
+    } else if (patternType === 'C6' || patternType === 'Genérico') {
       [, day, month, description, amountStr] = match;
       month = month.padStart(2, '0');
     } else if (patternType === 'Estabelecimentos') {
@@ -169,7 +210,10 @@ function parseTransaction(match: RegExpMatchArray, patternType: string): Transac
       description = match[0].replace(/R\$\s*[\d.,]+/, '').trim();
     } else if (patternType === 'IOF') {
       [, amountStr] = match;
-      description = 'IOF';
+      description = 'IOF - Taxa sobre compras internacionais';
+    } else if (patternType === 'Anuidade') {
+      [, amountStr] = match;
+      description = 'Anuidade do cartão';
     }
     
     // Limpar descrição
@@ -184,7 +228,7 @@ function parseTransaction(match: RegExpMatchArray, patternType: string): Transac
       return null;
     }
     
-    // Converter valor
+    // Converter valor - SEMPRE NEGATIVO (é um gasto)
     const amount = -Math.abs(parseFloat(amountStr.replace(/\./g, '').replace(',', '.')));
     if (isNaN(amount) || amount >= 0) {
       return null;
@@ -193,7 +237,7 @@ function parseTransaction(match: RegExpMatchArray, patternType: string): Transac
     return {
       date: `2025-${month.padStart(2, '0')}-${day.padStart(2, '0')}`,
       description,
-      amount,
+      amount, // Sempre negativo = gasto
       category: determineCategory(description)
     };
     
@@ -207,19 +251,34 @@ async function tryOpenAIExtraction(text: string): Promise<Transaction[]> {
     const openAIKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIKey) return [];
     
-    const prompt = `Analise este extrato bancário brasileiro e extraia APENAS transações de DÉBITO (gastos/compras).
+    const prompt = `Analise este extrato de CARTÃO DE CRÉDITO brasileiro e extraia APENAS as COMPRAS/GASTOS realizados.
+
+IMPORTANTE: No cartão de crédito, "crédito" significa GASTO/COMPRA, não receita!
 
 TEXTO DO EXTRATO:
 ${text.slice(0, 12000)}
 
 INSTRUÇÕES:
-1. Extraia apenas DÉBITOS (gastos, compras, taxas)
-2. IGNORE pagamentos de fatura, transferências recebidas, cashback
-3. Para cada transação, extraia: data, descrição do estabelecimento, valor (sempre negativo)
-4. Categorize adequadamente cada transação
-5. Se não encontrar débitos, retorne array vazio []
+1. Extraia apenas GASTOS/COMPRAS (débitos no cartão)
+2. IGNORE completamente:
+   - Pagamentos da fatura
+   - Transferências recebidas
+   - Cashback/estornos
+   - Saldo anterior
+   - Limite disponível
 
-Formato de resposta (apenas JSON):
+3. Para cada COMPRA encontrada, extraia:
+   - Data no formato YYYY-MM-DD
+   - Descrição do estabelecimento
+   - Valor sempre NEGATIVO (ex: -150.00 para uma compra de R$ 150,00)
+   - Categoria adequada
+
+4. CATEGORIAS PERMITIDAS:
+   - "Alimentação", "Transporte", "Tecnologia", "Saúde", "Compras", "Lazer", "Financeiro", "Serviços", "Outros"
+
+Se não encontrar compras, retorne array vazio [].
+
+Retorne APENAS o JSON:
 [{"date": "2025-06-15", "description": "UBER EATS", "amount": -35.90, "category": "Alimentação"}]`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -271,11 +330,11 @@ function determineCategory(description: string): string {
   const desc = description.toUpperCase();
   
   const categories = {
-    'Transporte': ['UBER', '99', 'TAXI', 'POSTO', 'COMBUSTIVEL', 'GASOLINA', 'SHELL', 'PETROBRAS'],
-    'Alimentação': ['IFOOD', 'RESTAURANTE', 'MERCADO', 'PADARIA', 'LANCHONETE', 'CAFE', 'BAR', 'BURGUER', 'PIZZA'],
-    'Tecnologia': ['NETFLIX', 'SPOTIFY', 'AMAZON', 'GOOGLE', 'APPLE', 'MICROSOFT', 'STEAM'],
+    'Transporte': ['UBER', '99', 'TAXI', 'POSTO', 'COMBUSTIVEL', 'GASOLINA', 'SHELL', 'PETROBRAS', 'IPIRANGA', 'BR'],
+    'Alimentação': ['IFOOD', 'RESTAURANTE', 'MERCADO', 'PADARIA', 'LANCHONETE', 'CAFE', 'BAR', 'BURGUER', 'PIZZA', 'SUPERMERCADO', 'EXTRA', 'PÃO DE AÇÚCAR'],
+    'Tecnologia': ['NETFLIX', 'SPOTIFY', 'AMAZON', 'GOOGLE', 'APPLE', 'MICROSOFT', 'STEAM', 'PRIME'],
     'Saúde': ['FARMACIA', 'DROGARIA', 'HOSPITAL', 'CLINICA', 'MEDICO', 'DROGA'],
-    'Compras': ['SHOPPING', 'LOJA', 'MAGAZINE', 'AMERICANAS', 'CASAS BAHIA'],
+    'Compras': ['SHOPPING', 'LOJA', 'MAGAZINE', 'AMERICANAS', 'CASAS BAHIA', 'MERCADO LIVRE'],
     'Financeiro': ['IOF', 'TAXA', 'JUROS', 'ANUIDADE', 'TARIFA'],
     'Lazer': ['CINEMA', 'TEATRO', 'SHOW', 'PARQUE', 'INGRESSO'],
     'Serviços': ['SALAO', 'BARBEIRO', 'MANUTENCAO', 'TELEFONE', 'INTERNET', 'CORREIOS']
