@@ -245,12 +245,20 @@ function parseTransactionFromCSV(columns: string[], values: string[]): Transacti
       const column = columns[i];
       const value = values[i];
       
-      if (column.includes('data') || column.includes('date')) {
+      // Melhor detecção de colunas
+      if (column.includes('data') || column.includes('date') || column === 'date') {
         date = normalizeDate(value);
-      } else if (column.includes('descr') || column.includes('memo') || column.includes('estabelecimento')) {
+      } else if (column.includes('descr') || column.includes('memo') || column.includes('estabelecimento') || column === 'title') {
         description = value;
-      } else if (column.includes('valor') || column.includes('amount') || column.includes('quantia')) {
-        amount = parseFloat(value.replace(/[^\d.,-]/g, '').replace(',', '.'));
+      } else if (column.includes('valor') || column.includes('amount') || column.includes('quantia') || column === 'amount') {
+        // Melhor parsing de valores
+        const cleanValue = value.replace(/[^\d.,-]/g, '').replace(',', '.');
+        amount = parseFloat(cleanValue);
+        
+        // Se o valor é negativo, manter como negativo
+        if (value.includes('-')) {
+          amount = -Math.abs(amount);
+        }
       }
     }
     

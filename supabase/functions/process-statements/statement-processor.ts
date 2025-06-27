@@ -35,7 +35,7 @@ export const processStatement = async (statement: any, supabase: any) => {
         .from('statements')
         .update({ 
           status: 'no_data',
-          processed_at: new Date().toISOString()
+          parsed_at: new Date().toISOString()
         })
         .eq('id', statement.id);
       
@@ -43,7 +43,7 @@ export const processStatement = async (statement: any, supabase: any) => {
       return;
     }
 
-    // Insert transactions into database - removed 'bank' field
+    // Insert transactions into database - FIXED: removed 'created_at' field
     const transactionsWithStatementId = transactions.map(tx => ({
       user_id: statement.user_id,
       statement_id: statement.id,
@@ -53,8 +53,8 @@ export const processStatement = async (statement: any, supabase: any) => {
       is_credit: tx.amount > 0, // Set is_credit based on original sign
       category: tx.category,
       installment_number: tx.installment_number || null,
-      installment_total: tx.installment_total || null,
-      created_at: new Date().toISOString()
+      installment_total: tx.installment_total || null
+      // REMOVED: created_at field that was causing the error
     }));
 
     console.log(`💾 Inserting ${transactionsWithStatementId.length} transactions...`);
@@ -83,8 +83,7 @@ export const processStatement = async (statement: any, supabase: any) => {
         status: 'ready',
         total_debit: totalDebit,
         total_credit: totalCredit,
-        transaction_count: transactions.length,
-        processed_at: new Date().toISOString()
+        parsed_at: new Date().toISOString()
       })
       .eq('id', statement.id);
 
@@ -102,7 +101,7 @@ export const processStatement = async (statement: any, supabase: any) => {
       .update({
         status: 'error',
         error_message: error.message,
-        processed_at: new Date().toISOString()
+        parsed_at: new Date().toISOString()
       })
       .eq('id', statement.id);
     
