@@ -79,8 +79,10 @@ export const useTransactions = (
       return data || [];
     },
     enabled: !!user,
-    refetchInterval: 30000, // Aumentei para 30 segundos para reduzir sobrecarga
-    staleTime: 10000, // 10 segundos
+    staleTime: 0, // Sempre considerar dados como "stale" para forçar refetch
+    gcTime: 0, // Não manter cache
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 
   // Escutar eventos realtime para atualizações de transações
@@ -108,7 +110,7 @@ export const useTransactions = (
         },
         (payload) => {
           console.log('[TRANSACTIONS] Realtime update received:', payload);
-          // Invalidar query para refetch
+          // Invalidar query para refetch imediato
           query.refetch();
         }
       )

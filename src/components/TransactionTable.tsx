@@ -93,7 +93,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   };
 
   const handleRefresh = () => {
-    console.log('Manually refreshing transactions...');
+    console.log('[TABLE] Manually refreshing transactions...');
     refetch();
   };
 
@@ -103,29 +103,41 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   };
 
   const handleDeleteClick = (transactionId: string) => {
+    console.log('[TABLE] Delete clicked for transaction:', transactionId);
     setTransactionToDelete(transactionId);
     setDeleteConfirmOpen(true);
   };
 
   const handleConfirmDelete = async () => {
     if (transactionToDelete) {
-      console.log('Deleting transaction:', transactionToDelete);
+      console.log('[TABLE] Confirming deletion for:', transactionToDelete);
       const success = await deleteTransaction(transactionToDelete);
       if (success) {
-        console.log('Transaction deleted successfully, forcing refresh...');
-        // Forçar atualização imediata
-        setTimeout(() => {
-          refetch();
-        }, 500);
+        console.log('[TABLE] Deletion successful, forcing immediate refresh...');
+        // Fechar o modal imediatamente
+        setDeleteConfirmOpen(false);
+        setTransactionToDelete(null);
+        
+        // Forçar múltiplas atualizações para garantir que funcione
+        refetch();
+        setTimeout(() => refetch(), 100);
+        setTimeout(() => refetch(), 500);
+        setTimeout(() => refetch(), 1000);
+      } else {
+        console.log('[TABLE] Deletion failed');
+        setDeleteConfirmOpen(false);
+        setTransactionToDelete(null);
       }
+    } else {
+      setDeleteConfirmOpen(false);
+      setTransactionToDelete(null);
     }
-    setDeleteConfirmOpen(false);
-    setTransactionToDelete(null);
   };
 
   const handleEditSuccess = () => {
-    console.log('Transaction edited successfully, refreshing...');
+    console.log('[TABLE] Transaction edited successfully, refreshing...');
     refetch();
+    setTimeout(() => refetch(), 500);
   };
 
   // Calcular totais para a barra inferior
@@ -311,6 +323,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
                             size="sm"
                             onClick={() => handleDeleteClick(transaction.id)}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            disabled={isDeleting}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -343,7 +356,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleConfirmDelete}
                 disabled={isDeleting}
