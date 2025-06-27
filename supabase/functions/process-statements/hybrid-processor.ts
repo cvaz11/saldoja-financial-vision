@@ -16,7 +16,7 @@ const validateTransaction = (transaction: any): transaction is Transaction => {
     transaction.description.trim().length > 0 &&
     typeof transaction.amount === 'number' &&
     !isNaN(transaction.amount) &&
-    transaction.amount < 0 && // Sempre negativo para gastos
+    transaction.amount !== 0 && // Qualquer valor diferente de zero
     typeof transaction.category === 'string' &&
     transaction.category.trim().length > 0
   );
@@ -38,14 +38,14 @@ export const processWithHybridStrategy = async (fileData: Blob): Promise<Transac
     // Estratégia 2: Regex para cartão de crédito brasileiro
     const regexResults = await tryBrazilianCreditCardPatterns(extractedText);
     if (regexResults.length > 0) {
-      console.log(`[HYBRID] ✅ Regex encontrou ${regexResults.length} compras no cartão`);
+      console.log(`[HYBRID] ✅ Regex encontrou ${regexResults.length} gastos no cartão`);
       return regexResults;
     }
     
     // Estratégia 3: OpenAI como backup
     const openAIResults = await tryOpenAIExtraction(extractedText);
     if (openAIResults.length > 0) {
-      console.log(`[HYBRID] ✅ OpenAI encontrou ${openAIResults.length} compras no cartão`);
+      console.log(`[HYBRID] ✅ OpenAI encontrou ${openAIResults.length} gastos no cartão`);
       return openAIResults;
     }
     
@@ -105,8 +105,15 @@ async function tryBrazilianCreditCardPatterns(text: string): Promise<Transaction
   
   console.log('[HYBRID] 💳 Analisando padrões de CARTÃO DE CRÉDITO brasileiro...');
   
-  // Padrões específicos para cartões brasileiros
+  // Padrões específicos para cartões brasileiros - VALORES POSITIVOS
   const patterns = [
+    // C6 Bank: DD mai ESTABELECIMENTO R$ VALOR
+    {
+      pattern: /(\d{1,2})\s+(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\s+([A-ZÀ-ÿ\s\d&*•\-\.]{5,60}?)\s+([\d.,]+)/gi,
+      name: 'C6 Mensal',
+      type: 'compra'
+    },
+    
     // Nubank: DD MMM ESTABELECIMENTO R$ VALOR
     {
       pattern: /(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+([A-ZÀ-ÿ\s\d&*•\-\.]{5,60}?)\s+R\$\s*([\d.,]+)/gi,
@@ -114,43 +121,36 @@ async function tryBrazilianCreditCardPatterns(text: string): Promise<Transaction
       type: 'compra'
     },
     
-    // C6 Bank: DD/MM ESTABELECIMENTO R$ VALOR
+    // C6 Bank padrão: DD/MM ESTABELECIMENTO R$ VALOR
     {
       pattern: /(\d{1,2})\/(\d{1,2})\s+([A-ZÀ-ÿ\s\d&*\-\.]{5,60}?)\s+R\$\s*([\d.,]+)/gi,
       name: 'C6',
       type: 'compra'
     },
     
-    // Padrão de compras com estabelecimentos conhecidos
+    // Valores em reais no final da linha
     {
-      pattern: /(UBER|IFOOD|NETFLIX|SPOTIFY|AMAZON|MERCADO|POSTO|FARMACIA|SHOPPING|MAGAZINE|RESTAURANTE|LANCHONETE|PADARIA|SUPERMERCADO)([A-ZÀ-ÿ\s\d&*\-\.]*?)\s+R\$\s*([\d.,]+)/gi,
-      name: 'Estabelecimentos',
-      type: 'compra'
-    },
-    
-    // Padrão genérico: DD/MM + DESCRIÇÃO + R$ VALOR
-    {
-      pattern: /(\d{1,2})\/(\d{1,2})\s+([^R$\n]{10,50}?)\s+R\$\s*([\d.,]+)/gi,
-      name: 'Genérico',
+      pattern: /([A-ZÀ-ÿ\s\d&*\-\.]{10,60}?)\s+([\d.,]+)$/gm,
+      name: 'Valores finais',
       type: 'compra'
     },
     
     // IOF sobre compras
     {
-      pattern: /IOF.*?R\$\s*([\d.,]+)/gi,
+      pattern: /IOF.*?([\d.,]+)/gi,
       name: 'IOF',
       type: 'taxa'
     },
     
     // Anuidade
     {
-      pattern: /ANUIDADE.*?R\$\s*([\d.,]+)/gi,
+      pattern: /ANUIDADE.*?([\d.,]+)/gi,
       name: 'Anuidade',
       type: 'taxa'
     }
   ];
   
-  // IGNORAR pagamentos de fatura
+  // IGNORAR pagamentos de fatura e transferências
   const ignoredPatterns = [
     /PAGAMENTO.*FATURA/i,
     /PIX.*PAGAMENTO/i,
@@ -158,7 +158,10 @@ async function tryBrazilianCreditCardPatterns(text: string): Promise<Transaction
     /TRANSFERENCIA.*RECEBIDA/i,
     /CASHBACK/i,
     /ESTORNO/i,
-    /DEVOLUCAO/i
+    /DEVOLUCAO/i,
+    /SALDO.*ANTERIOR/i,
+    /LIMITE.*DISPONIVEL/i,
+    /TOTAL.*FATURA/i
   ];
   
   for (const { pattern, name, type } of patterns) {
@@ -183,7 +186,7 @@ async function tryBrazilianCreditCardPatterns(text: string): Promise<Transaction
           const absAmount = Math.abs(transaction.amount);
           if (absAmount >= 1.00 && absAmount <= 50000) {
             transactions.push(transaction);
-            console.log(`[HYBRID] ✅ Compra encontrada: ${transaction.description} - R$ ${absAmount.toFixed(2)}`);
+            console.log(`[HYBRID] ✅ Gasto encontrado: ${transaction.description} - R$ ${absAmount.toFixed(2)}`);
           }
         }
       } catch (e) {
@@ -199,15 +202,17 @@ function parseTransaction(match: RegExpMatchArray, patternType: string, transact
   try {
     let day = '15', month = '06', description = '', amountStr = '';
     
-    if (patternType === 'Nubank') {
+    if (patternType === 'C6 Mensal') {
+      [, day, month, description, amountStr] = match;
+      month = convertMonthToNumber(month);
+    } else if (patternType === 'Nubank') {
       [, day, month, description, amountStr] = match;
       month = convertMonthToNumber(month);
     } else if (patternType === 'C6' || patternType === 'Genérico') {
       [, day, month, description, amountStr] = match;
       month = month.padStart(2, '0');
-    } else if (patternType === 'Estabelecimentos') {
-      [, description, , amountStr] = match;
-      description = match[0].replace(/R\$\s*[\d.,]+/, '').trim();
+    } else if (patternType === 'Valores finais') {
+      [, description, amountStr] = match;
     } else if (patternType === 'IOF') {
       [, amountStr] = match;
       description = 'IOF - Taxa sobre compras internacionais';
@@ -228,11 +233,14 @@ function parseTransaction(match: RegExpMatchArray, patternType: string, transact
       return null;
     }
     
-    // Converter valor - SEMPRE NEGATIVO (é um gasto)
-    const amount = -Math.abs(parseFloat(amountStr.replace(/\./g, '').replace(',', '.')));
-    if (isNaN(amount) || amount >= 0) {
+    // Converter valor - ACEITAR POSITIVOS e converter para NEGATIVO
+    const positiveAmount = parseFloat(amountStr.replace(/\./g, '').replace(',', '.'));
+    if (isNaN(positiveAmount) || positiveAmount <= 0) {
       return null;
     }
+    
+    // SEMPRE converter para negativo (gasto)
+    const amount = -Math.abs(positiveAmount);
     
     return {
       date: `2025-${month.padStart(2, '0')}-${day.padStart(2, '0')}`,
@@ -253,19 +261,22 @@ async function tryOpenAIExtraction(text: string): Promise<Transaction[]> {
     
     const prompt = `Analise este extrato de CARTÃO DE CRÉDITO brasileiro e extraia APENAS as COMPRAS/GASTOS realizados.
 
-IMPORTANTE: No cartão de crédito, "crédito" significa GASTO/COMPRA, não receita!
+IMPORTANTE: 
+- No cartão de crédito, todas as compras são GASTOS, mesmo que apareçam como valores positivos no extrato
+- Converta TODOS os valores para NEGATIVOS (ex: R$ 150,00 vira -150.00)
 
 TEXTO DO EXTRATO:
 ${text.slice(0, 12000)}
 
 INSTRUÇÕES:
-1. Extraia apenas GASTOS/COMPRAS (débitos no cartão)
+1. Extraia apenas GASTOS/COMPRAS (todos os débitos no cartão)
 2. IGNORE completamente:
    - Pagamentos da fatura
    - Transferências recebidas
    - Cashback/estornos
    - Saldo anterior
    - Limite disponível
+   - Totais da fatura
 
 3. Para cada COMPRA encontrada, extraia:
    - Data no formato YYYY-MM-DD
@@ -276,10 +287,14 @@ INSTRUÇÕES:
 4. CATEGORIAS PERMITIDAS:
    - "Alimentação", "Transporte", "Tecnologia", "Saúde", "Compras", "Lazer", "Financeiro", "Serviços", "Outros"
 
+EXEMPLO de como os valores devem aparecer:
+- Se o extrato mostra "R$ 122,89", você deve retornar -122.89
+- Se o extrato mostra "186,39", você deve retornar -186.39
+
 Se não encontrar compras, retorne array vazio [].
 
 Retorne APENAS o JSON:
-[{"date": "2025-06-15", "description": "UBER EATS", "amount": -35.90, "category": "Alimentação"}]`;
+[{"date": "2025-05-17", "description": "DALI FRUVER SL - HORTA", "amount": -122.89, "category": "Alimentação"}]`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
