@@ -85,9 +85,7 @@ export const useTransactionMetrics = () => {
       creditVariation,
       
       currentCycleName: currentCycle?.displayName || 'Mês Atual',
-      previousCycleName: previous
-
-?.displayName || 'Mês Anterior',
+      previousCycleName: previousCycle?.displayName || 'Mês Anterior',
       
       hasCurrentData,
       hasPreviousData,
