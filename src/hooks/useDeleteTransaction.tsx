@@ -12,15 +12,43 @@ export const useDeleteTransaction = () => {
   const { user } = useAuth();
 
   const deleteTransaction = async (transactionId: string) => {
+    if (!user) {
+      console.error('[DELETE] No authenticated user');
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     console.log('[DELETE] Starting deletion for transaction:', transactionId);
     setIsDeleting(true);
     
     try {
+      // Primeiro, verificar se a transação existe e pertence ao usuário
+      const { data: existingTransaction, error: fetchError } = await supabase
+        .from('transactions')
+        .select('id, user_id')
+        .eq('id', transactionId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (fetchError) {
+        console.error('[DELETE] Error fetching transaction:', fetchError);
+        throw new Error('Transação não encontrada ou não pertence ao usuário');
+      }
+
+      if (!existingTransaction) {
+        throw new Error('Transação não encontrada');
+      }
+
+      // Executar a exclusão
       const { error: deleteError } = await supabase
         .from('transactions')
         .delete()
         .eq('id', transactionId)
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
 
       if (deleteError) {
         console.error('[DELETE] Error deleting transaction:', deleteError);
@@ -29,11 +57,12 @@ export const useDeleteTransaction = () => {
 
       console.log('[DELETE] Transaction deleted successfully');
 
-      // Invalidar todas as queries relacionadas a transações
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      
-      // Aguardar invalidação e forçar refetch
+      // Invalidação agressiva de todas as queries relacionadas
+      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
       await queryClient.refetchQueries({ queryKey: ['transactions'] });
+      
+      // Forçar atualização dos dados em cache
+      queryClient.removeQueries({ queryKey: ['transactions'] });
 
       toast({
         title: "Sucesso",

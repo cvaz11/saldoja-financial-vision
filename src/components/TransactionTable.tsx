@@ -45,11 +45,21 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
 
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
 
-  const { data: transactions = [], isLoading, refetch } = useTransactions(dateRange, true, false);
+  const { data: transactions = [], isLoading, refetch, error } = useTransactions(dateRange, true, false);
 
-  const handleRefresh = () => {
+  // Log de debug para erro
+  if (error) {
+    console.error('[TABLE] Error loading transactions:', error);
+  }
+
+  const handleRefresh = async () => {
     console.log('[TABLE] Manually refreshing transactions...');
-    refetch();
+    try {
+      await refetch();
+      console.log('[TABLE] Refresh completed successfully');
+    } catch (error) {
+      console.error('[TABLE] Refresh failed:', error);
+    }
   };
 
   const handleEditTransaction = (transaction: any) => {
@@ -70,7 +80,11 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
       const success = await deleteTransaction(transactionToDelete);
       
       if (success) {
-        console.log('[TABLE] Deletion successful');
+        console.log('[TABLE] Deletion successful, refreshing data');
+        // Aguardar um pouco e então forçar refresh
+        setTimeout(() => {
+          refetch();
+        }, 200);
       }
     }
     
@@ -79,9 +93,14 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   };
 
   const handleEditSuccess = () => {
-    console.log('[TABLE] Transaction edited successfully');
+    console.log('[TABLE] Transaction edited successfully, refreshing data');
     setIsEditModalOpen(false);
     setEditingTransaction(null);
+    
+    // Forçar refresh após edição bem-sucedida
+    setTimeout(() => {
+      refetch();
+    }, 200);
   };
 
   const handleProfileOpen = () => {

@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Transaction {
   id: string;
@@ -15,6 +16,7 @@ interface Transaction {
   amount: number;
   category: string;
   transaction_date: string;
+  user_id?: string;
 }
 
 interface EditTransactionModalProps {
@@ -39,55 +41,112 @@ const categories = [
 ];
 
 const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditTransactionModalProps) => {
-  const [description, setDescription] = useState(transaction?.description || '');
-  const [amount, setAmount] = useState(transaction?.amount?.toString() || '');
-  const [category, setCategory] = useState(transaction?.category || 'Outros');
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState('');
+  const [category, setCategory] = useState('Outros');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
-  React.useEffect(() => {
-    if (transaction) {
+  // Reset form when transaction changes
+  useEffect(() => {
+    if (transaction && isOpen) {
+      console.log('[EDIT] Setting form data for transaction:', transaction);
       setDescription(transaction.description || '');
       setAmount(transaction.amount?.toString() || '');
       setCategory(transaction.category || 'Outros');
     }
-  }, [transaction]);
+  }, [transaction, isOpen]);
+
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setDescription('');
+      setAmount('');
+      setCategory('Outros');
+    }
+  }, [isOpen]);
 
   const handleSave = async () => {
-    if (!transaction) return;
+    if (!transaction || !user) {
+      console.error('[EDIT] Missing transaction or user');
+      toast({
+        title: "Erro",
+        description: "Dados insuficientes para edição",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validações
+    if (!description.trim()) {
+      toast({
+        title: "Erro",
+        description: "Descrição é obrigatória",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      toast({
+        title: "Erro",
+        description: "Valor deve ser um número positivo",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsLoading(true);
+    console.log('[EDIT] Starting update for transaction:', transaction.id);
+    
     try {
-      console.log('[EDIT] Updating transaction:', transaction.id);
-      
-      const { error } = await supabase
+      // Primeiro verificar se a transação ainda existe e pertence ao usuário
+      const { data: existingTransaction, error: fetchError } = await supabase
+        .from('transactions')
+        .select('id, user_id')
+        .eq('id', transaction.id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (fetchError || !existingTransaction) {
+        console.error('[EDIT] Transaction not found or access denied:', fetchError);
+        throw new Error('Transação não encontrada ou sem permissão para editar');
+      }
+
+      // Executar a atualização
+      const { error: updateError } = await supabase
         .from('transactions')
         .update({
           description: description.trim(),
-          amount: parseFloat(amount),
+          amount: numericAmount,
           category: category
         })
-        .eq('id', transaction.id);
+        .eq('id', transaction.id)
+        .eq('user_id', user.id);
 
-      if (error) {
-        console.error('[EDIT] Error updating transaction:', error);
-        throw error;
+      if (updateError) {
+        console.error('[EDIT] Error updating transaction:', updateError);
+        throw updateError;
       }
 
       console.log('[EDIT] Transaction updated successfully');
 
-      // Invalidar queries para forçar atualização
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      // Invalidação agressiva de queries
+      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
       await queryClient.refetchQueries({ queryKey: ['transactions'] });
+      
+      // Remover dados em cache para forçar nova busca
+      queryClient.removeQueries({ queryKey: ['transactions'] });
 
       toast({
-        title: "Transação atualizada",
-        description: "As alterações foram salvas com sucesso!",
+        title: "Sucesso",
+        description: "Transação atualizada com sucesso!",
       });
       
       onSuccess();
-      onClose();
     } catch (error: any) {
       console.error('[EDIT] Error updating transaction:', error);
       toast({
@@ -100,6 +159,8 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
     }
   };
 
+  if (!transaction) return null;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
@@ -109,30 +170,33 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
         
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="description">Descrição</Label>
+            <Label htmlFor="description">Descrição *</Label>
             <Input
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Digite a descrição"
+              disabled={isLoading}
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="amount">Valor (R$)</Label>
+            <Label htmlFor="amount">Valor (R$) *</Label>
             <Input
               id="amount"
               type="number"
               step="0.01"
+              min="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0,00"
+              disabled={isLoading}
             />
           </div>
           
           <div className="space-y-2">
             <Label htmlFor="category">Categoria</Label>
-            <Select value={category} onValueChange={setCategory}>
+            <Select value={category} onValueChange={setCategory} disabled={isLoading}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -147,12 +211,12 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
           </div>
           
           <div className="text-xs text-gray-500">
-            Data: {transaction ? new Date(transaction.transaction_date).toLocaleDateString('pt-BR') : '-'}
+            Data: {new Date(transaction.transaction_date).toLocaleDateString('pt-BR')}
           </div>
         </div>
         
         <div className="flex justify-end space-x-2">
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
             Cancelar
           </Button>
           <Button 

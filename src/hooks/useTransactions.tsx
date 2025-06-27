@@ -55,31 +55,38 @@ export const useTransactions = (
       console.log('[TRANSACTIONS] Date range:', fromDate, 'to', toDate);
       console.log('[TRANSACTIONS] Show only debits:', showOnlyDebits);
       
-      let query = supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .gte('transaction_date', fromDate)
-        .lte('transaction_date', toDate);
+      try {
+        let query = supabase
+          .from('transactions')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('transaction_date', fromDate)
+          .lte('transaction_date', toDate);
+          
+        // Filtrar apenas débitos se solicitado
+        if (showOnlyDebits) {
+          query = query.eq('is_credit', false);
+        }
         
-      // Filtrar apenas débitos se solicitado
-      if (showOnlyDebits) {
-        query = query.eq('is_credit', false);
-      }
-      
-      const { data, error } = await query.order('transaction_date', { ascending: false });
-      
-      if (error) {
-        console.error('[TRANSACTIONS] Error fetching:', error);
+        const { data, error } = await query.order('transaction_date', { ascending: false });
+        
+        if (error) {
+          console.error('[TRANSACTIONS] Error fetching:', error);
+          throw error;
+        }
+        
+        console.log(`[TRANSACTIONS] Fetched ${data?.length || 0} transactions`);
+        return data || [];
+      } catch (error) {
+        console.error('[TRANSACTIONS] Query failed:', error);
         throw error;
       }
-      
-      console.log(`[TRANSACTIONS] Fetched ${data?.length || 0} transactions`);
-      return data || [];
     },
     enabled: !!user,
-    staleTime: 1000,
-    gcTime: 5000,
+    staleTime: 0, // Sempre considerar dados como stale para garantir atualização
+    gcTime: 0, // Não manter cache por muito tempo
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 
   // Configurar realtime updates
@@ -96,7 +103,7 @@ export const useTransactions = (
     console.log('[TRANSACTIONS] Setting up realtime subscription');
     
     const channel = supabase
-      .channel(`transactions-${user.id}`)
+      .channel(`transactions-${user.id}-${Date.now()}`) // Unique channel name
       .on(
         'postgres_changes',
         {
@@ -106,12 +113,16 @@ export const useTransactions = (
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('[TRANSACTIONS] Realtime update received:', payload);
-          // Refetch imediatamente quando houver mudanças
-          query.refetch();
+          console.log('[TRANSACTIONS] Realtime update received:', payload.eventType, payload);
+          // Refetch com delay para garantir que os dados foram processados
+          setTimeout(() => {
+            query.refetch();
+          }, 100);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[TRANSACTIONS] Subscription status:', status);
+      });
 
     channelRef.current = channel;
 
@@ -122,7 +133,7 @@ export const useTransactions = (
         channelRef.current = null;
       }
     };
-  }, [user?.id]);
+  }, [user?.id, query.refetch]);
 
   return query;
 };
