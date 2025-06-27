@@ -23,26 +23,53 @@ export const useTransactionMetrics = () => {
   const nextCycle = profile ? calculateInvoiceCycle(profile.invoice_closing_day, nextMonthDate) : null;
   const nextCycleRange = nextCycle ? { from: nextCycle.startDate, to: nextCycle.endDate } : null;
 
+  // Fallback para ranges válidos se não houver perfil
+  const safeCurrentRange = currentCycleRange || { from: new Date(), to: new Date() };
+  const safePreviousRange = previousCycleRange || { from: new Date(), to: new Date() };
+  const safeNextRange = nextCycleRange || { from: new Date(), to: new Date() };
+
   // Buscar transações dos períodos
-  const { data: currentTransactions = [] } = useTransactions(
-    currentCycleRange || { from: new Date(), to: new Date() }, 
+  const { data: currentTransactions = [], isLoading: currentLoading } = useTransactions(
+    safeCurrentRange, 
     false, // Incluir créditos e débitos
     false
   );
   
-  const { data: previousTransactions = [] } = useTransactions(
-    previousCycleRange || { from: new Date(), to: new Date() }, 
+  const { data: previousTransactions = [], isLoading: previousLoading } = useTransactions(
+    safePreviousRange, 
     false,
     false
   );
 
-  const { data: nextTransactions = [] } = useTransactions(
-    nextCycleRange || { from: new Date(), to: new Date() }, 
+  const { data: nextTransactions = [], isLoading: nextLoading } = useTransactions(
+    safeNextRange, 
     true, // Apenas débitos para próximo mês
     false
   );
 
   const metrics = useMemo(() => {
+    // Se ainda está carregando, retornar valores zerados
+    if (currentLoading || previousLoading || nextLoading) {
+      return {
+        totalDebits: 0,
+        totalCredits: 0,
+        totalInstallments: 0,
+        balance: 0,
+        previousTotalDebits: 0,
+        previousTotalCredits: 0,
+        previousTotalInstallments: 0,
+        nextTotalInstallments: 0,
+        debitVariation: 0,
+        creditVariation: 0,
+        installmentVariation: 0,
+        totalAllInstallments: 0,
+        currentCycleName: 'Mês Atual',
+        previousCycleName: 'Mês Anterior',
+        nextCycleName: 'Próximo Mês',
+        isLoading: true,
+      };
+    }
+
     // Métricas do ciclo atual
     const currentDebits = currentTransactions.filter(t => !t.is_credit);
     const currentCredits = currentTransactions.filter(t => t.is_credit);
@@ -102,8 +129,9 @@ export const useTransactionMetrics = () => {
       currentCycleName: currentCycle?.displayName || 'Mês Atual',
       previousCycleName: previousCycle?.displayName || 'Mês Anterior',
       nextCycleName: nextCycle?.displayName || 'Próximo Mês',
+      isLoading: false,
     };
-  }, [currentTransactions, previousTransactions, nextTransactions, currentCycle, previousCycle, nextCycle]);
+  }, [currentTransactions, previousTransactions, nextTransactions, currentCycle, previousCycle, nextCycle, currentLoading, previousLoading, nextLoading]);
 
   return metrics;
 };
