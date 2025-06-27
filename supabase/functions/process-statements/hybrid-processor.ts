@@ -26,8 +26,8 @@ export const processWithHybridStrategy = async (fileData: Blob): Promise<Transac
   console.log('[HYBRID] ===== PROCESSAMENTO HÍBRIDO INICIADO =====');
   
   try {
-    // Estratégia 1: Extração simples de texto
-    const extractedText = await extractSimpleText(fileData);
+    // Estratégia 1: Extração de texto otimizada
+    const extractedText = await extractOptimizedText(fileData);
     console.log(`[HYBRID] Texto extraído: ${extractedText.length} caracteres`);
     
     if (extractedText.length < 100) {
@@ -35,22 +35,15 @@ export const processWithHybridStrategy = async (fileData: Blob): Promise<Transac
       return [];
     }
     
-    // Estratégia 2: Padrões regex otimizados
-    const regexResults = await tryOptimizedRegexPatterns(extractedText);
+    // Estratégia 2: Regex otimizado para bancos brasileiros
+    const regexResults = await tryBrazilianBankPatterns(extractedText);
     if (regexResults.length > 0) {
-      console.log(`[HYBRID] ✅ Regex encontrou ${regexResults.length} transações`);
+      console.log(`[HYBRID] ✅ Regex brasileiro encontrou ${regexResults.length} transações`);
       return regexResults;
     }
     
-    // Estratégia 3: Análise linha por linha
-    const lineResults = await tryLineAnalysis(extractedText);
-    if (lineResults.length > 0) {
-      console.log(`[HYBRID] ✅ Análise por linha encontrou ${lineResults.length} transações`);
-      return lineResults;
-    }
-    
-    // Estratégia 4: OpenAI como fallback
-    const openAIResults = await tryOpenAI(extractedText);
+    // Estratégia 3: OpenAI como backup
+    const openAIResults = await tryOpenAIExtraction(extractedText);
     if (openAIResults.length > 0) {
       console.log(`[HYBRID] ✅ OpenAI encontrou ${openAIResults.length} transações`);
       return openAIResults;
@@ -65,30 +58,40 @@ export const processWithHybridStrategy = async (fileData: Blob): Promise<Transac
   }
 };
 
-async function extractSimpleText(fileData: Blob): Promise<string> {
+async function extractOptimizedText(fileData: Blob): Promise<string> {
   try {
     const arrayBuffer = await fileData.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     
-    console.log('[HYBRID] Extraindo texto simples...');
+    console.log('[HYBRID] Extraindo texto otimizado...');
     
-    // Extrair caracteres legíveis de forma segura
+    // Extrair caracteres de forma mais inteligente
     const chars: string[] = [];
-    for (let i = 0; i < Math.min(uint8Array.length, 500000); i++) { // Limitar para evitar problemas de memória
+    let lastWasSpace = false;
+    
+    for (let i = 0; i < Math.min(uint8Array.length, 1000000); i++) {
       const byte = uint8Array[i];
       
-      if ((byte >= 32 && byte <= 126) || 
-          (byte >= 128 && byte <= 255) || 
-          byte === 10 || byte === 13) {
+      if (byte >= 32 && byte <= 126) {
+        // ASCII printável
         chars.push(String.fromCharCode(byte));
-      } else if (byte === 0) {
+        lastWasSpace = false;
+      } else if (byte >= 128 && byte <= 255) {
+        // Caracteres latinos
+        chars.push(String.fromCharCode(byte));
+        lastWasSpace = false;
+      } else if ((byte === 10 || byte === 13 || byte === 9) && !lastWasSpace) {
+        // Quebras de linha e tabs (evitar espaços duplos)
         chars.push(' ');
+        lastWasSpace = true;
+      } else if (byte === 0 && !lastWasSpace) {
+        chars.push(' ');
+        lastWasSpace = true;
       }
     }
     
     return chars.join('')
-      .replace(/\s+/g, ' ')
-      .replace(/[^\x20-\x7E\u00C0-\u00FF\s]/g, '')
+      .replace(/\s{3,}/g, ' ') // Reduzir múltiplos espaços
       .trim();
     
   } catch (error) {
@@ -97,71 +100,49 @@ async function extractSimpleText(fileData: Blob): Promise<string> {
   }
 }
 
-async function tryOptimizedRegexPatterns(text: string): Promise<Transaction[]> {
+async function tryBrazilianBankPatterns(text: string): Promise<Transaction[]> {
   const transactions: Transaction[] = [];
   
-  // Padrões otimizados para bancos brasileiros
+  // Padrões específicos para bancos brasileiros
   const patterns = [
     // Nubank: DD MMM ESTABELECIMENTO R$ VALOR
-    /(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+([A-ZÀ-ÿ\s\d&*•-]{8,50}?)\s+R\$\s*([\d.,]+)/gi,
+    {
+      pattern: /(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+([A-ZÀ-ÿ\s\d&*•\-\.]{5,60}?)\s+R\$\s*([\d.,]+)/gi,
+      name: 'Nubank'
+    },
     
-    // C6 Bank: Similar ao Nubank
-    /(\d{1,2})\/(\d{1,2})\s+([A-ZÀ-ÿ\s\d&*-]{8,50}?)\s+R\$\s*([\d.,]+)/gi,
+    // C6 Bank: DD/MM ESTABELECIMENTO R$ VALOR
+    {
+      pattern: /(\d{1,2})\/(\d{1,2})\s+([A-ZÀ-ÿ\s\d&*\-\.]{5,60}?)\s+R\$\s*([\d.,]+)/gi,
+      name: 'C6'
+    },
     
-    // Estabelecimentos conhecidos
-    /(UBER|IFOOD|NETFLIX|SPOTIFY|AMAZON|MERCADO|POSTO|FARMACIA|SHOPPING|MAGAZINE)([A-ZÀ-ÿ\s\d&*-]*?)\s+R\$\s*([\d.,]+)/gi,
+    // Padrão geral: ESTABELECIMENTO R$ VALOR (com validação)
+    {
+      pattern: /(UBER|IFOOD|NETFLIX|SPOTIFY|AMAZON|MERCADO|POSTO|FARMACIA|SHOPPING|MAGAZINE|RESTAURANTE|LANCHONETE|PADARIA)([A-ZÀ-ÿ\s\d&*\-\.]*?)\s+R\$\s*([\d.,]+)/gi,
+      name: 'Estabelecimentos'
+    },
     
     // IOF
-    /IOF.*?R\$\s*([\d.,]+)/gi
+    {
+      pattern: /IOF.*?R\$\s*([\d.,]+)/gi,
+      name: 'IOF'
+    }
   ];
   
-  for (const pattern of patterns) {
+  for (const { pattern, name } of patterns) {
+    console.log(`[HYBRID] Testando padrão ${name}...`);
     const matches = Array.from(text.matchAll(pattern));
+    console.log(`[HYBRID] ${name}: ${matches.length} matches encontrados`);
     
     for (const match of matches) {
       try {
-        let transaction: Partial<Transaction> = {};
-        
-        if (match.length >= 4) {
-          // Padrão com data
-          if (match[1] && match[2] && match[3] && match[4]) {
-            const day = match[1].padStart(2, '0');
-            const monthOrDay = match[2];
-            const description = match[3].trim();
-            const amountStr = match[4];
-            
-            // Verificar se é mês em texto ou número
-            const monthMap: { [key: string]: string } = {
-              'JAN': '01', 'FEV': '02', 'MAR': '03', 'ABR': '04',
-              'MAI': '05', 'JUN': '06', 'JUL': '07', 'AGO': '08',
-              'SET': '09', 'OUT': '10', 'NOV': '11', 'DEZ': '12'
-            };
-            
-            if (monthMap[monthOrDay]) {
-              transaction.date = `2025-${monthMap[monthOrDay]}-${day}`;
-            } else {
-              const month = monthOrDay.padStart(2, '0');
-              transaction.date = `2025-${month}-${day}`;
-            }
-            
-            transaction.description = description
-              .replace(/[•*]{2,}/g, '')
-              .replace(/\s+/g, ' ')
-              .trim()
-              .slice(0, 80);
-            
-            transaction.amount = -parseFloat(amountStr.replace(/\./g, '').replace(',', '.'));
-          } else if (match[1] && match[3]) {
-            // Padrão sem data específica
-            transaction.date = '2025-06-15';
-            transaction.description = (match[1] + ' ' + (match[2] || '')).trim().slice(0, 80);
-            transaction.amount = -parseFloat(match[3].replace(/\./g, '').replace(',', '.'));
-          }
-          
-          transaction.category = determineCategory(transaction.description || '');
-          
-          if (validateTransaction(transaction) && Math.abs(transaction.amount) < 50000) {
-            transactions.push(transaction as Transaction);
+        const transaction = parseTransaction(match, name);
+        if (transaction && validateTransaction(transaction)) {
+          // Verificar se valor é razoável (entre R$ 0,10 e R$ 10.000)
+          const absAmount = Math.abs(transaction.amount);
+          if (absAmount >= 0.10 && absAmount <= 10000) {
+            transactions.push(transaction);
           }
         }
       } catch (e) {
@@ -170,59 +151,76 @@ async function tryOptimizedRegexPatterns(text: string): Promise<Transaction[]> {
     }
   }
   
-  return deduplicateTransactions(transactions).slice(0, 100); // Limitar a 100 transações
+  return deduplicateTransactions(transactions).slice(0, 100);
 }
 
-async function tryLineAnalysis(text: string): Promise<Transaction[]> {
-  const transactions: Transaction[] = [];
-  const lines = text.split('\n').slice(0, 1000); // Limitar linhas para performance
-  
-  for (const line of lines) {
-    const trimmedLine = line.trim();
+function parseTransaction(match: RegExpMatchArray, patternType: string): Transaction | null {
+  try {
+    let day = '15', month = '06', description = '', amountStr = '';
     
-    if (trimmedLine.includes('R$') && trimmedLine.length > 20 && trimmedLine.length < 150) {
-      const valueMatch = trimmedLine.match(/R\$\s*([\d.,]+)/);
-      if (valueMatch) {
-        const amount = parseFloat(valueMatch[1].replace(/\./g, '').replace(',', '.'));
-        
-        if (amount > 0 && amount < 10000) {
-          let description = trimmedLine
-            .replace(/R\$\s*[\d.,]+/g, '')
-            .replace(/\d{1,2}\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)/g, '')
-            .replace(/\d{1,2}\/\d{1,2}/g, '')
-            .replace(/[•*]{2,}/g, '')
-            .trim();
-          
-          if (description.length > 5 && description.length < 100) {
-            transactions.push({
-              date: '2025-06-15',
-              description: description.slice(0, 80),
-              amount: -amount,
-              category: determineCategory(description)
-            });
-          }
-        }
-      }
+    if (patternType === 'Nubank') {
+      [, day, month, description, amountStr] = match;
+      month = convertMonthToNumber(month);
+    } else if (patternType === 'C6') {
+      [, day, month, description, amountStr] = match;
+      month = month.padStart(2, '0');
+    } else if (patternType === 'Estabelecimentos') {
+      [, description, , amountStr] = match;
+      description = match[0].replace(/R\$\s*[\d.,]+/, '').trim();
+    } else if (patternType === 'IOF') {
+      [, amountStr] = match;
+      description = 'IOF';
     }
+    
+    // Limpar descrição
+    description = description
+      .replace(/[•*]{2,}/g, '')
+      .replace(/\s+/g, ' ')
+      .replace(/^\W+|\W+$/g, '')
+      .trim()
+      .slice(0, 80);
+    
+    if (!description || description.length < 3) {
+      return null;
+    }
+    
+    // Converter valor
+    const amount = -Math.abs(parseFloat(amountStr.replace(/\./g, '').replace(',', '.')));
+    if (isNaN(amount) || amount >= 0) {
+      return null;
+    }
+    
+    return {
+      date: `2025-${month.padStart(2, '0')}-${day.padStart(2, '0')}`,
+      description,
+      amount,
+      category: determineCategory(description)
+    };
+    
+  } catch (error) {
+    return null;
   }
-  
-  return deduplicateTransactions(transactions).slice(0, 50);
 }
 
-async function tryOpenAI(text: string): Promise<Transaction[]> {
+async function tryOpenAIExtraction(text: string): Promise<Transaction[]> {
   try {
     const openAIKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIKey) return [];
     
-    const prompt = `Analise este extrato bancário e extraia APENAS transações de DÉBITO (gastos).
+    const prompt = `Analise este extrato bancário brasileiro e extraia APENAS transações de DÉBITO (gastos/compras).
 
-TEXTO:
-${text.slice(0, 8000)}
+TEXTO DO EXTRATO:
+${text.slice(0, 12000)}
 
-Retorne JSON com transações de débito (valores negativos):
-[{"date": "2025-06-12", "description": "UBER EATS", "amount": -45.50, "category": "Alimentação"}]
+INSTRUÇÕES:
+1. Extraia apenas DÉBITOS (gastos, compras, taxas)
+2. IGNORE pagamentos de fatura, transferências recebidas, cashback
+3. Para cada transação, extraia: data, descrição do estabelecimento, valor (sempre negativo)
+4. Categorize adequadamente cada transação
+5. Se não encontrar débitos, retorne array vazio []
 
-Se não encontrar, retorne: []`;
+Formato de resposta (apenas JSON):
+[{"date": "2025-06-15", "description": "UBER EATS", "amount": -35.90, "category": "Alimentação"}]`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -233,7 +231,7 @@ Se não encontrar, retorne: []`;
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 1500,
+        max_tokens: 2000,
         temperature: 0.1
       }),
     });
@@ -251,7 +249,8 @@ Se não encontrar, retorne: []`;
       .trim();
     
     const transactions = JSON.parse(cleanedResponse);
-    return Array.isArray(transactions) ? transactions.filter(validateTransaction).slice(0, 50) : [];
+    return Array.isArray(transactions) ? 
+      transactions.filter(validateTransaction).slice(0, 50) : [];
     
   } catch (error) {
     console.error('[HYBRID] OpenAI error:', error);
@@ -259,18 +258,27 @@ Se não encontrar, retorne: []`;
   }
 }
 
+function convertMonthToNumber(month: string): string {
+  const months: { [key: string]: string } = {
+    'JAN': '01', 'FEV': '02', 'MAR': '03', 'ABR': '04',
+    'MAI': '05', 'JUN': '06', 'JUL': '07', 'AGO': '08',
+    'SET': '09', 'OUT': '10', 'NOV': '11', 'DEZ': '12'
+  };
+  return months[month.toUpperCase()] || '06';
+}
+
 function determineCategory(description: string): string {
   const desc = description.toUpperCase();
   
   const categories = {
-    'Transporte': ['UBER', '99', 'TAXI', 'POSTO', 'COMBUSTIVEL', 'GASOLINA'],
-    'Alimentação': ['IFOOD', 'RESTAURANTE', 'MERCADO', 'PADARIA', 'LANCHONETE', 'CAFE', 'BAR'],
-    'Tecnologia': ['NETFLIX', 'SPOTIFY', 'AMAZON', 'GOOGLE', 'APPLE', 'MICROSOFT'],
-    'Saúde': ['FARMACIA', 'DROGARIA', 'HOSPITAL', 'CLINICA', 'MEDICO'],
-    'Compras': ['SHOPPING', 'LOJA', 'MAGAZINE', 'MERCADO'],
-    'Financeiro': ['IOF', 'TAXA', 'JUROS', 'ANUIDADE'],
-    'Lazer': ['CINEMA', 'TEATRO', 'SHOW', 'PARQUE'],
-    'Serviços': ['SALAO', 'BARBEIRO', 'MANUTENCAO', 'TELEFONE', 'INTERNET']
+    'Transporte': ['UBER', '99', 'TAXI', 'POSTO', 'COMBUSTIVEL', 'GASOLINA', 'SHELL', 'PETROBRAS'],
+    'Alimentação': ['IFOOD', 'RESTAURANTE', 'MERCADO', 'PADARIA', 'LANCHONETE', 'CAFE', 'BAR', 'BURGUER', 'PIZZA'],
+    'Tecnologia': ['NETFLIX', 'SPOTIFY', 'AMAZON', 'GOOGLE', 'APPLE', 'MICROSOFT', 'STEAM'],
+    'Saúde': ['FARMACIA', 'DROGARIA', 'HOSPITAL', 'CLINICA', 'MEDICO', 'DROGA'],
+    'Compras': ['SHOPPING', 'LOJA', 'MAGAZINE', 'AMERICANAS', 'CASAS BAHIA'],
+    'Financeiro': ['IOF', 'TAXA', 'JUROS', 'ANUIDADE', 'TARIFA'],
+    'Lazer': ['CINEMA', 'TEATRO', 'SHOW', 'PARQUE', 'INGRESSO'],
+    'Serviços': ['SALAO', 'BARBEIRO', 'MANUTENCAO', 'TELEFONE', 'INTERNET', 'CORREIOS']
   };
   
   for (const [category, keywords] of Object.entries(categories)) {
