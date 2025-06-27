@@ -11,10 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { useDeleteStatement } from "@/hooks/useDeleteStatement";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
+import DeleteStatementDialog from "./DeleteStatementDialog";
 
 interface UploadSectionProps {
   onUpload: () => void;
@@ -35,10 +37,14 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
   const [file, setFile] = useState<File | null>(null);
   const [bankName, setBankName] = useState("Nubank");
   const [statements, setStatements] = useState<Statement[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [statementToDelete, setStatementToDelete] = useState<Statement | null>(null);
+  const [transactionCount, setTransactionCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { uploadFile, uploading } = useFileUpload();
   const { user } = useAuth();
   const { profile, updateProfile } = useUserProfile();
+  const { deleteStatement, getTransactionCount, isDeleting } = useDeleteStatement();
   const { toast } = useToast();
   const [closingDay, setClosingDay] = useState<string>(profile?.invoice_closing_day?.toString() || "5");
 
@@ -234,37 +240,24 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
     }
   };
 
-  const handleDelete = async (statementId: string) => {
-    const confirmDelete = window.confirm("Tem certeza que deseja excluir este extrato?");
-    if (!confirmDelete) return;
+  const handleDeleteClick = async (statement: Statement) => {
+    const count = await getTransactionCount(statement.id);
+    setTransactionCount(count);
+    setStatementToDelete(statement);
+    setDeleteDialogOpen(true);
+  };
 
-    try {
-      const { error } = await supabase
-        .from('statements')
-        .delete()
-        .eq('id', statementId);
+  const handleConfirmDelete = async () => {
+    if (!statementToDelete) return;
 
-      if (error) {
-        console.error("Error deleting statement:", error);
-        toast({
-          title: "Erro",
-          description: "Erro ao excluir o extrato.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({
-        title: "Sucesso",
-        description: "Extrato excluído com sucesso!",
-      });
-    } catch (err) {
-      console.error("Unexpected error deleting statement:", err);
-      toast({
-        title: "Erro",
-        description: "Ocorreu um erro inesperado ao excluir o extrato.",
-        variant: "destructive",
-      });
+    const success = await deleteStatement(statementToDelete.id);
+    if (success) {
+      setDeleteDialogOpen(false);
+      setStatementToDelete(null);
+      setTransactionCount(0);
+      
+      // Atualizar lista local
+      setStatements(prev => prev.filter(s => s.id !== statementToDelete.id));
     }
   };
 
@@ -387,9 +380,10 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDelete(statement.id);
+                        handleDeleteClick(statement);
                       }}
                       className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      disabled={isDeleting}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -419,6 +413,19 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
           </div>
         </div>
       )}
+
+      <DeleteStatementDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+          setStatementToDelete(null);
+          setTransactionCount(0);
+        }}
+        onConfirm={handleConfirmDelete}
+        statementName={statementToDelete?.filename || ""}
+        transactionCount={transactionCount}
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };
