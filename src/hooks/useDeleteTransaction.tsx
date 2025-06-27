@@ -16,26 +16,12 @@ export const useDeleteTransaction = () => {
     setIsDeleting(true);
     
     try {
-      // Primeiro, verificar se a transação existe
-      const { data: existingTransaction, error: fetchError } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('id', transactionId)
-        .single();
-
-      if (fetchError) {
-        console.error('[DELETE] Error fetching transaction:', fetchError);
-        throw new Error('Transação não encontrada');
-      }
-
-      console.log('[DELETE] Transaction found:', existingTransaction);
-
       // Executar a exclusão
       const { error: deleteError } = await supabase
         .from('transactions')
         .delete()
         .eq('id', transactionId)
-        .eq('user_id', user?.id); // Garantir que só deleta transações do usuário atual
+        .eq('user_id', user?.id);
 
       if (deleteError) {
         console.error('[DELETE] Error deleting transaction:', deleteError);
@@ -44,39 +30,13 @@ export const useDeleteTransaction = () => {
 
       console.log('[DELETE] Transaction deleted successfully');
 
-      // Invalidar e recarregar TODAS as queries relacionadas
-      const queryKeysToInvalidate = [
-        ['transactions'],
-        ['metrics'],
-        ['transaction-metrics'],
-        ['current-invoice-cycle-transactions']
-      ];
-
-      // Invalidar todas as queries em paralelo
-      await Promise.all([
-        ...queryKeysToInvalidate.map(key => 
-          queryClient.invalidateQueries({ queryKey: key })
-        ),
-        // Também invalidar qualquer query que contenha 'transaction' no nome
-        queryClient.invalidateQueries({ 
-          predicate: (query) => {
-            const queryKey = query.queryKey as string[];
-            return queryKey.some(key => 
-              typeof key === 'string' && 
-              (key.includes('transaction') || key.includes('metrics'))
-            );
-          }
-        })
-      ]);
-
-      // Forçar refetch imediato
-      await Promise.all([
-        ...queryKeysToInvalidate.map(key => 
-          queryClient.refetchQueries({ queryKey: key })
-        )
-      ]);
-
-      console.log('[DELETE] All queries invalidated and refetched');
+      // Invalidar TODAS as queries relacionadas - abordagem mais agressiva
+      await queryClient.invalidateQueries();
+      
+      // Aguardar um pouco e forçar refetch
+      setTimeout(() => {
+        queryClient.refetchQueries();
+      }, 100);
 
       toast({
         title: "Sucesso",

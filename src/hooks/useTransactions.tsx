@@ -79,8 +79,8 @@ export const useTransactions = (
       return data || [];
     },
     enabled: !!user,
-    staleTime: 0, // Sempre considerar dados como "stale" para forçar refetch
-    gcTime: 0, // Não manter cache
+    staleTime: 0,
+    gcTime: 0,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });
@@ -99,7 +99,7 @@ export const useTransactions = (
     console.log('[TRANSACTIONS] Setting up new realtime subscription');
     
     const channel = supabase
-      .channel(`transactions-${user.id}-${Date.now()}`) // Nome único para evitar conflitos
+      .channel(`transactions-${user.id}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
@@ -110,7 +110,7 @@ export const useTransactions = (
         },
         (payload) => {
           console.log('[TRANSACTIONS] Realtime update received:', payload);
-          // Invalidar query para refetch imediato
+          // Refetch imediatamente quando houver mudanças
           query.refetch();
         }
       )
@@ -125,7 +125,7 @@ export const useTransactions = (
         channelRef.current = null;
       }
     };
-  }, [user?.id]); // Removido query da dependência para evitar loops
+  }, [user?.id]);
 
   return query;
 };

@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
@@ -112,21 +113,16 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
     if (transactionToDelete) {
       console.log('[TABLE] Confirming deletion for:', transactionToDelete);
       const success = await deleteTransaction(transactionToDelete);
+      
+      setDeleteConfirmOpen(false);
+      setTransactionToDelete(null);
+      
       if (success) {
-        console.log('[TABLE] Deletion successful, forcing immediate refresh...');
-        // Fechar o modal imediatamente
-        setDeleteConfirmOpen(false);
-        setTransactionToDelete(null);
-        
-        // Forçar múltiplas atualizações para garantir que funcione
+        console.log('[TABLE] Deletion successful, forcing refresh...');
+        // Forçar refresh múltiplo para garantir atualização
         refetch();
-        setTimeout(() => refetch(), 100);
-        setTimeout(() => refetch(), 500);
+        setTimeout(() => refetch(), 200);
         setTimeout(() => refetch(), 1000);
-      } else {
-        console.log('[TABLE] Deletion failed');
-        setDeleteConfirmOpen(false);
-        setTransactionToDelete(null);
       }
     } else {
       setDeleteConfirmOpen(false);
