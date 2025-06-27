@@ -1,13 +1,21 @@
 
 import React, { useState } from "react";
-import { startOfMonth, endOfMonth } from "date-fns";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { calculateInvoiceCycle } from "@/lib/invoice-utils";
 import DateRangePicker, { type DateRange } from "./DateRangePicker";
 import { useTransactions } from "@/hooks/useTransactions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Search, RefreshCw } from "lucide-react";
+import { Plus, Search, RefreshCw, Edit } from "lucide-react";
 import TransactionRowCard from "./TransactionRowCard";
+import EditTransactionModal from "./EditTransactionModal";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 interface TransactionTableProps {
   onAddTransaction?: () => void;
@@ -15,14 +23,31 @@ interface TransactionTableProps {
 }
 
 const TransactionTable = ({ onAddTransaction, showCategories = false }: TransactionTableProps) => {
-  const [dateRange, setDateRange] = useState<DateRange>({
-    from: startOfMonth(new Date()),
-    to: endOfMonth(new Date())
-  });
+  const { profile } = useUserProfile();
+  const [editingTransaction, setEditingTransaction] = useState<any>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  
+  // Definir range padrão como ciclo de fatura anterior
+  const getDefaultDateRange = (): DateRange => {
+    if (profile) {
+      const previousMonthDate = new Date();
+      previousMonthDate.setMonth(previousMonthDate.getMonth() - 1);
+      const cycle = calculateInvoiceCycle(profile.invoice_closing_day, previousMonthDate);
+      return { from: cycle.startDate, to: cycle.endDate };
+    }
+    
+    // Fallback para mês anterior calendário se não tiver perfil
+    const now = new Date();
+    const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const startOfPrevMonth = new Date(previousMonth.getFullYear(), previousMonth.getMonth(), 1);
+    const endOfPrevMonth = new Date(previousMonth.getFullYear(), previousMonth.getMonth() + 1, 0);
+    
+    return { from: startOfPrevMonth, to: endOfPrevMonth };
+  };
 
-  const { data: transactions = [], isLoading, refetch } = useTransactions(dateRange);
+  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
 
-  console.log('TransactionTable render - transactions:', transactions);
+  const { data: transactions = [], isLoading, refetch } = useTransactions(dateRange, true, false);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -55,6 +80,15 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
 
   const handleRefresh = () => {
     console.log('Manually refreshing transactions...');
+    refetch();
+  };
+
+  const handleEditTransaction = (transaction: any) => {
+    setEditingTransaction(transaction);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSuccess = () => {
     refetch();
   };
 
@@ -105,15 +139,17 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
         </div>
       </div>
 
-      {/* Debug Info */}
-      <div className="bg-blue-50 p-3 rounded border border-blue-200 text-sm">
-        <div className="text-blue-800 font-medium mb-1">Status do Sistema:</div>
-        <div className="text-blue-700">
-          • {transactions.length} transações encontradas no período selecionado<br/>
-          • Período: {dateRange.from.toLocaleDateString('pt-BR')} a {dateRange.to.toLocaleDateString('pt-BR')}<br/>
-          • {transactions.length === 0 ? 'Aguardando processamento de extratos...' : 'Transações carregadas com sucesso!'}
+      {/* Status Info */}
+      {profile && (
+        <div className="bg-sage-50 p-3 rounded border border-sage-200 text-sm">
+          <div className="text-sage-800 font-medium mb-1">Informações do Período:</div>
+          <div className="text-sage-700">
+            • {transactions.length} transações encontradas<br/>
+            • Período: {dateRange.from.toLocaleDateString('pt-BR')} a {dateRange.to.toLocaleDateString('pt-BR')}<br/>
+            • Fechamento da fatura: dia {profile.invoice_closing_day} de cada mês
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Transactions Display */}
       {transactions.length === 0 ? (
@@ -123,10 +159,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
             Nenhuma transação encontrada
           </h3>
           <p className="text-gray-500 mb-4">
-            Faça upload de seus extratos em PDF para ver as transações aqui.
-          </p>
-          <p className="text-sm text-blue-600">
-            As transações aparecerão automaticamente após o processamento dos extratos.
+            Não há transações para o período selecionado.
           </p>
         </div>
       ) : (
@@ -134,21 +167,30 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
           {/* Mobile View */}
           <div className="lg:hidden space-y-3">
             {transactions.map((transaction) => (
-              <TransactionRowCard
-                key={transaction.id}
-                transaction={{
-                  id: transaction.id,
-                  description: transaction.description || '',
-                  value: transaction.amount,
-                  installment: transaction.installment_number && transaction.installment_total 
-                    ? `${transaction.installment_number}/${transaction.installment_total}`
-                    : 'À vista',
-                  category: transaction.category || 'Outros',
-                  bank: 'Banco', // You might want to get this from statement
-                  date: formatDate(transaction.transaction_date),
-                  status: transaction.is_credit ? 'Receita' as const : 'Pago' as const,
-                }}
-              />
+              <ContextMenu key={transaction.id}>
+                <ContextMenuTrigger>
+                  <TransactionRowCard
+                    transaction={{
+                      id: transaction.id,
+                      description: transaction.description || '',
+                      value: transaction.amount,
+                      installment: transaction.installment_number && transaction.installment_total 
+                        ? `${transaction.installment_number}/${transaction.installment_total}`
+                        : 'À vista',
+                      category: transaction.category || 'Outros',
+                      bank: 'Banco',
+                      date: formatDate(transaction.transaction_date),
+                      status: transaction.is_credit ? 'Receita' as const : 'Pago' as const,
+                    }}
+                  />
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuItem onClick={() => handleEditTransaction(transaction)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Editar
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             ))}
           </div>
 
@@ -163,6 +205,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
                   {showCategories && <TableHead>Categoria</TableHead>}
                   <TableHead>Data</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -195,6 +238,15 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
                         {transaction.is_credit ? "Receita" : "Pago"}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditTransaction(transaction)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -202,6 +254,16 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
           </div>
         </>
       )}
+
+      <EditTransactionModal
+        transaction={editingTransaction}
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingTransaction(null);
+        }}
+        onSuccess={handleEditSuccess}
+      />
     </div>
   );
 };

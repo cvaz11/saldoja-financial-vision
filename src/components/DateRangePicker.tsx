@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -7,8 +8,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { calculateInvoiceCycle, getUpcomingInvoiceCycles } from "@/lib/invoice-utils";
 
-export type DateRangeMode = 'single' | 'multiple' | 'range';
+export type DateRangeMode = 'invoice-cycle' | 'custom' | 'range';
 
 export interface DateRange {
   from: Date;
@@ -22,54 +25,42 @@ interface DateRangePickerProps {
 }
 
 const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangePickerProps) => {
-  const [mode, setMode] = useState<DateRangeMode>('range');
+  const [mode, setMode] = useState<DateRangeMode>('invoice-cycle');
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedMonths, setSelectedMonths] = useState<Date[]>([new Date()]);
+  const { profile } = useUserProfile();
+
+  const invoiceCycles = profile ? getUpcomingInvoiceCycles(profile.invoice_closing_day, 6) : [];
 
   const handleModeChange = (newMode: DateRangeMode) => {
     setMode(newMode);
-    
-    if (newMode === 'single') {
-      const now = new Date();
-      const monthStart = startOfMonth(now);
-      const monthEnd = endOfMonth(now);
-      onDateRangeChange({ from: monthStart, to: monthEnd });
+  };
+
+  const handleInvoiceCycleSelect = (cycleIndex: number) => {
+    if (invoiceCycles[cycleIndex]) {
+      const cycle = invoiceCycles[cycleIndex];
+      onDateRangeChange({ from: cycle.startDate, to: cycle.endDate });
+      setIsOpen(false);
     }
   };
 
-  const handleSingleMonthSelect = (monthOffset: number) => {
-    const targetMonth = subMonths(new Date(), monthOffset);
-    const monthStart = startOfMonth(targetMonth);
-    const monthEnd = endOfMonth(targetMonth);
-    onDateRangeChange({ from: monthStart, to: monthEnd });
-    setIsOpen(false);
-  };
-
-  const handleMultipleMonthsApply = () => {
-    if (selectedMonths.length === 0) return;
-    
-    const sortedMonths = selectedMonths.sort((a, b) => a.getTime() - b.getTime());
-    const from = startOfMonth(sortedMonths[0]);
-    const to = endOfMonth(sortedMonths[sortedMonths.length - 1]);
-    
-    onDateRangeChange({ from, to });
-    setIsOpen(false);
-  };
-
   const handleRangeSelect = (range: { from?: Date; to?: Date } | undefined) => {
-    console.log('Range selected:', range);
     if (range?.from && range?.to) {
       onDateRangeChange({ from: range.from, to: range.to });
       setIsOpen(false);
-    } else if (range?.from && !range?.to) {
-      // Keep popover open for user to select end date
-      console.log('Start date selected, waiting for end date');
     }
   };
 
   const formatDateRange = () => {
-    if (mode === 'single') {
-      return format(dateRange.from, "MMMM yyyy", { locale: ptBR });
+    if (mode === 'invoice-cycle' && profile) {
+      // Encontrar qual ciclo está sendo exibido
+      const currentCycle = invoiceCycles.find(cycle => 
+        cycle.startDate.getTime() === dateRange.from.getTime() && 
+        cycle.endDate.getTime() === dateRange.to.getTime()
+      );
+      
+      if (currentCycle) {
+        return `Fatura ${currentCycle.displayName}`;
+      }
     }
     
     const fromFormatted = format(dateRange.from, "dd/MM/yy", { locale: ptBR });
@@ -80,62 +71,45 @@ const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangeP
 
   const renderModeContent = () => {
     switch (mode) {
-      case 'single':
+      case 'invoice-cycle':
+        if (!profile) {
+          return (
+            <div className="p-3 text-sm text-gray-500">
+              Configure seu dia de fechamento no perfil para usar esta opção.
+            </div>
+          );
+        }
+        
         return (
           <div className="space-y-2">
-            <h4 className="font-medium text-sm">Selecionar mês</h4>
-            <div className="space-y-1">
-              <Button 
-                variant="ghost" 
-                className="w-full justify-start text-sm"
-                onClick={() => handleSingleMonthSelect(0)}
-              >
-                Este mês
-              </Button>
-              <Button 
-                variant="ghost" 
-                className="w-full justify-start text-sm"
-                onClick={() => handleSingleMonthSelect(1)}
-              >
-                Mês passado
-              </Button>
-              <Button 
-                variant="ghost" 
-                className="w-full justify-start text-sm" 
-                onClick={() => handleSingleMonthSelect(2)}
-              >
-                Há 2 meses
-              </Button>
+            <h4 className="font-medium text-sm">Ciclos de Fatura</h4>
+            <div className="text-xs text-gray-500 mb-2">
+              Fechamento todo dia {profile.invoice_closing_day}
             </div>
-          </div>
-        );
-        
-      case 'multiple':
-        return (
-          <div className="space-y-3">
-            <h4 className="font-medium text-sm">Selecionar múltiplos meses</h4>
-            <Calendar
-              mode="multiple"
-              selected={selectedMonths}
-              onSelect={(dates) => setSelectedMonths(dates || [])}
-              className="p-3 pointer-events-auto"
-              showOutsideDays={false}
-            />
-            <Button 
-              onClick={handleMultipleMonthsApply}
-              disabled={selectedMonths.length === 0}
-              className="w-full"
-              size="sm"
-            >
-              Aplicar ({selectedMonths.length} meses)
-            </Button>
+            <div className="space-y-1">
+              {invoiceCycles.map((cycle, index) => (
+                <Button 
+                  key={index}
+                  variant="ghost" 
+                  className="w-full justify-start text-sm"
+                  onClick={() => handleInvoiceCycleSelect(index)}
+                >
+                  <div className="text-left">
+                    <div className="font-medium">{cycle.displayName}</div>
+                    <div className="text-xs text-gray-500">
+                      {format(cycle.startDate, "dd/MM", { locale: ptBR })} a {format(cycle.endDate, "dd/MM/yyyy", { locale: ptBR })}
+                    </div>
+                  </div>
+                </Button>
+              ))}
+            </div>
           </div>
         );
         
       case 'range':
         return (
           <div className="space-y-3">
-            <h4 className="font-medium text-sm">Arrastar para selecionar período</h4>
+            <h4 className="font-medium text-sm">Selecionar período personalizado</h4>
             <Calendar
               mode="range"
               selected={{ from: dateRange.from, to: dateRange.to }}
@@ -148,11 +122,14 @@ const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangeP
               {dateRange.from && dateRange.to ? (
                 `${format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} - ${format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}`
               ) : (
-                "Arraste do dia inicial ao final ou clique em duas datas"
+                "Selecione a data inicial e final"
               )}
             </div>
           </div>
         );
+        
+      default:
+        return null;
     }
   };
 
@@ -180,9 +157,8 @@ const DateRangePicker = ({ dateRange, onDateRangeChange, className }: DateRangeP
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="single">Mês único</SelectItem>
-              <SelectItem value="multiple">Múltiplos meses</SelectItem>
-              <SelectItem value="range">Arrastar período</SelectItem>
+              <SelectItem value="invoice-cycle">Ciclo de Fatura</SelectItem>
+              <SelectItem value="range">Período Personalizado</SelectItem>
             </SelectContent>
           </Select>
         </div>
