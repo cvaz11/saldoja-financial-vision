@@ -10,9 +10,21 @@ interface MetricCardProps {
   percentage: string;
   icon: React.ReactNode;
   color: "green" | "blue" | "red" | "orange";
+  hasData?: boolean;
+  hasPreviousData?: boolean;
 }
 
-const MetricCard = ({ title, value, previousValue, trend, percentage, icon, color }: MetricCardProps) => {
+const MetricCard = ({ 
+  title, 
+  value, 
+  previousValue, 
+  trend, 
+  percentage, 
+  icon, 
+  color, 
+  hasData = true, 
+  hasPreviousData = true 
+}: MetricCardProps) => {
   const colorClasses = {
     green: "bg-sage-50 border-sage-200",
     blue: "bg-blue-50 border-blue-200", 
@@ -29,16 +41,26 @@ const MetricCard = ({ title, value, previousValue, trend, percentage, icon, colo
           <div className="mr-3">{icon}</div>
           <div>
             <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-2xl font-bold text-gray-900">{value}</p>
+            <p className="text-2xl font-bold text-gray-900">
+              {hasData ? value : "R$ 0,00"}
+            </p>
           </div>
         </div>
         <div className="text-right">
-          <div className={cn("flex items-center text-sm", trendColor)}>
-            {trend === "up" ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
-            {percentage}
-          </div>
-          <p className="text-xs text-gray-500">Vs mês anterior</p>
-          <p className="text-xs text-gray-500">{previousValue}</p>
+          {hasPreviousData && hasData ? (
+            <>
+              <div className={cn("flex items-center text-sm", trendColor)}>
+                {trend === "up" ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
+                {percentage}
+              </div>
+              <p className="text-xs text-gray-500">Vs mês anterior</p>
+              <p className="text-xs text-gray-500">{previousValue}</p>
+            </>
+          ) : (
+            <div className="text-xs text-gray-400">
+              {!hasData ? "Sem dados" : "Primeiro mês"}
+            </div>
+          )}
         </div>
       </div>
     </div>

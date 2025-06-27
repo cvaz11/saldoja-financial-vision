@@ -52,7 +52,7 @@ export const useTransactionMetrics = () => {
     const totalPreviousCredits = previousCredits.reduce((sum, t) => sum + Number(t.amount), 0);
     const totalPreviousInstallments = previousInstallments.reduce((sum, t) => sum + Number(t.amount), 0);
     
-    // Calcular variações percentuais
+    // Calcular variações percentuais - apenas se houver dados anteriores
     const debitVariation = totalPreviousDebits > 0 ? 
       ((totalCurrentDebits - totalPreviousDebits) / totalPreviousDebits) * 100 : 0;
     
@@ -63,7 +63,7 @@ export const useTransactionMetrics = () => {
       ((totalCurrentInstallments - totalPreviousInstallments) / totalPreviousInstallments) * 100 : 0;
 
     return {
-      // Ciclo atual
+      // Ciclo atual - apenas valores reais
       totalDebits: totalCurrentDebits,
       totalCredits: totalCurrentCredits,
       totalInstallments: totalCurrentInstallments,
@@ -74,7 +74,7 @@ export const useTransactionMetrics = () => {
       previousTotalCredits: totalPreviousCredits,
       previousTotalInstallments: totalPreviousInstallments,
       
-      // Variações
+      // Variações - apenas se houver dados para comparar
       debitVariation,
       creditVariation,
       installmentVariation,
@@ -83,10 +83,14 @@ export const useTransactionMetrics = () => {
       currentCycleName: currentCycle?.displayName || 'Mês Atual',
       previousCycleName: previousCycle?.displayName || 'Mês Anterior',
       
-      // Simplificado
+      // Próximo ciclo - sem dados falsos
       nextTotalInstallments: 0,
       totalAllInstallments: totalCurrentInstallments,
       nextCycleName: 'Próximo Mês',
+      
+      // Flag para indicar se há dados
+      hasCurrentData: currentTransactions.length > 0,
+      hasPreviousData: previousTransactions.length > 0,
     };
   }, [currentTransactions, previousTransactions, currentCycle, previousCycle]);
 

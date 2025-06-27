@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Sidebar from "@/components/Sidebar";
@@ -155,7 +156,7 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Metrics Cards - Agora com dados reais */}
+      {/* Metrics Cards - Agora com dados reais e flags */}
       <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
         <MetricCard
           title={`Despesas - ${metrics.currentCycleName}`}
@@ -165,6 +166,8 @@ const Index = () => {
           percentage={formatPercentage(metrics.debitVariation)}
           icon={<TrendingDown className="h-6 w-6 text-sage-600" />}
           color="green"
+          hasData={metrics.hasCurrentData}
+          hasPreviousData={metrics.hasPreviousData}
         />
         <MetricCard
           title={`Receitas - ${metrics.currentCycleName}`}
@@ -174,6 +177,8 @@ const Index = () => {
           percentage={formatPercentage(metrics.creditVariation)}
           icon={<DollarSign className="h-6 w-6 text-sage-600" />}
           color="green"
+          hasData={metrics.hasCurrentData}
+          hasPreviousData={metrics.hasPreviousData}
         />
         <MetricCard
           title={`Resultado - ${metrics.currentCycleName}`}
@@ -186,6 +191,8 @@ const Index = () => {
           )}
           icon={<TrendingUp className="h-6 w-6 text-sage-600" />}
           color="green"
+          hasData={metrics.hasCurrentData}
+          hasPreviousData={metrics.hasPreviousData}
         />
       </div>
 
@@ -198,6 +205,8 @@ const Index = () => {
           percentage={formatPercentage(metrics.installmentVariation)}
           icon={<CreditCard className="h-6 w-6 text-sage-600" />}
           color="green"
+          hasData={metrics.hasCurrentData}
+          hasPreviousData={metrics.hasPreviousData}
         />
         <MetricCard
           title={`Parcelas - ${metrics.nextCycleName}`}
@@ -210,6 +219,8 @@ const Index = () => {
           )}
           icon={<CreditCard className="h-6 w-6 text-sage-600" />}
           color="green"
+          hasData={false}
+          hasPreviousData={metrics.hasCurrentData}
         />
         <MetricCard
           title="Total de Parcelas"
@@ -222,6 +233,8 @@ const Index = () => {
           )}
           icon={<TrendingUp className="h-6 w-6 text-sage-600" />}
           color="green"
+          hasData={metrics.hasCurrentData}
+          hasPreviousData={metrics.hasPreviousData}
         />
       </div>
 

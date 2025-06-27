@@ -4,10 +4,11 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
 import DateRangePicker, { type DateRange } from "./DateRangePicker";
 import { useTransactions } from "@/hooks/useTransactions";
+import { useDeleteTransaction } from "@/hooks/useDeleteTransaction";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Search, RefreshCw, Edit } from "lucide-react";
+import { Plus, Search, RefreshCw, Edit, Trash2 } from "lucide-react";
 import TransactionRowCard from "./TransactionRowCard";
 import EditTransactionModal from "./EditTransactionModal";
 import {
@@ -16,6 +17,16 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface TransactionTableProps {
   onAddTransaction?: () => void;
@@ -26,6 +37,10 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   const { profile } = useUserProfile();
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
+  
+  const { deleteTransaction, isDeleting } = useDeleteTransaction();
   
   // Definir range padrão como ciclo de fatura anterior
   const getDefaultDateRange = (): DateRange => {
@@ -86,6 +101,22 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   const handleEditTransaction = (transaction: any) => {
     setEditingTransaction(transaction);
     setIsEditModalOpen(true);
+  };
+
+  const handleDeleteClick = (transactionId: string) => {
+    setTransactionToDelete(transactionId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (transactionToDelete) {
+      const success = await deleteTransaction(transactionToDelete);
+      if (success) {
+        refetch(); // Atualizar a lista após exclusão
+      }
+    }
+    setDeleteConfirmOpen(false);
+    setTransactionToDelete(null);
   };
 
   const handleEditSuccess = () => {
@@ -189,6 +220,13 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
                     <Edit className="h-4 w-4 mr-2" />
                     Editar
                   </ContextMenuItem>
+                  <ContextMenuItem 
+                    onClick={() => handleDeleteClick(transaction.id)}
+                    className="text-red-600 focus:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Excluir
+                  </ContextMenuItem>
                 </ContextMenuContent>
               </ContextMenu>
             ))}
@@ -239,13 +277,23 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEditTransaction(transaction)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditTransaction(transaction)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteClick(transaction.id)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -264,6 +312,27 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
         }}
         onSuccess={handleEditSuccess}
       />
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
