@@ -1,6 +1,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
 import { processStructuredFile } from './structured-processor.ts';
+import { insertTransactions, updateStatementStatus } from './database-operations.ts';
 
 export const processStatement = async (statement: any, supabase: any) => {
   console.log(`\n🔄 Processing statement: ${statement.filename}`);
@@ -31,79 +32,25 @@ export const processStatement = async (statement: any, supabase: any) => {
 
     if (transactions.length === 0) {
       // No transactions found
-      await supabase
-        .from('statements')
-        .update({ 
-          status: 'no_data',
-          parsed_at: new Date().toISOString()
-        })
-        .eq('id', statement.id);
-      
+      await updateStatementStatus(supabase, statement.id, 'no_data');
       console.log('⚠️ No transactions found - marked as no_data');
       return;
     }
 
-    // Insert transactions into database - FIXED: removed 'created_at' field
-    const transactionsWithStatementId = transactions.map(tx => ({
-      user_id: statement.user_id,
-      statement_id: statement.id,
-      transaction_date: tx.date,
-      description: tx.description,
-      amount: Math.abs(tx.amount), // Store as positive value
-      is_credit: tx.amount > 0, // Set is_credit based on original sign
-      category: tx.category,
-      installment_number: tx.installment_number || null,
-      installment_total: tx.installment_total || null
-      // REMOVED: created_at field that was causing the error
-    }));
+    // Insert transactions using the new module
+    await insertTransactions(supabase, transactions, statement.id, statement.user_id);
 
-    console.log(`💾 Inserting ${transactionsWithStatementId.length} transactions...`);
-
-    const { error: insertError } = await supabase
-      .from('transactions')
-      .insert(transactionsWithStatementId);
-
-    if (insertError) {
-      throw new Error(`Transaction insert failed: ${insertError.message}`);
-    }
-
-    // Calculate totals
-    const totalDebit = transactions
-      .filter(tx => tx.amount < 0)
-      .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-    
-    const totalCredit = transactions
-      .filter(tx => tx.amount > 0)
-      .reduce((sum, tx) => sum + tx.amount, 0);
-
-    // Update statement with results
-    await supabase
-      .from('statements')
-      .update({
-        status: 'ready',
-        total_debit: totalDebit,
-        total_credit: totalCredit,
-        parsed_at: new Date().toISOString()
-      })
-      .eq('id', statement.id);
+    // Update statement with success status
+    await updateStatementStatus(supabase, statement.id, 'ready', transactions);
 
     console.log(`✅ Statement processed successfully:`);
     console.log(`   - ${transactions.length} transactions`);
-    console.log(`   - R$ ${totalDebit.toFixed(2)} in debits`);
-    console.log(`   - R$ ${totalCredit.toFixed(2)} in credits`);
 
   } catch (error) {
     console.error(`❌ Error processing statement ${statement.id}:`, error.message);
     
     // Update statement with error status
-    await supabase
-      .from('statements')
-      .update({
-        status: 'error',
-        error_message: error.message,
-        parsed_at: new Date().toISOString()
-      })
-      .eq('id', statement.id);
+    await updateStatementStatus(supabase, statement.id, 'error');
     
     throw error;
   }
