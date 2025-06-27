@@ -34,6 +34,12 @@ const MetricCard = ({
 
   const trendColor = trend === "up" ? "text-green-600" : "text-red-600";
 
+  // Se não tem dados atuais, mostrar zero
+  const displayValue = hasData ? value : "R$ 0,00";
+  
+  // Se o valor é zero ou não tem dados, não mostrar variação
+  const shouldShowVariation = hasData && hasPreviousData && value !== "R$ 0,00" && previousValue !== "R$ 0,00";
+
   return (
     <div className={cn("rounded-lg border p-4", colorClasses[color])}>
       <div className="flex items-center justify-between">
@@ -42,12 +48,12 @@ const MetricCard = ({
           <div>
             <p className="text-sm font-medium text-gray-600">{title}</p>
             <p className="text-2xl font-bold text-gray-900">
-              {hasData ? value : "R$ 0,00"}
+              {displayValue}
             </p>
           </div>
         </div>
         <div className="text-right">
-          {hasPreviousData && hasData ? (
+          {shouldShowVariation ? (
             <>
               <div className={cn("flex items-center text-sm", trendColor)}>
                 {trend === "up" ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
@@ -58,7 +64,7 @@ const MetricCard = ({
             </>
           ) : (
             <div className="text-xs text-gray-400">
-              {!hasData ? "Sem dados" : "Primeiro mês"}
+              {!hasData ? "Sem dados" : "Primeiro período"}
             </div>
           )}
         </div>

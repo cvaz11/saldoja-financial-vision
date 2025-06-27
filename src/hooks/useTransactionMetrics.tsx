@@ -33,17 +33,27 @@ export const useTransactionMetrics = () => {
   );
 
   const metrics = useMemo(() => {
-    // Verificar se realmente há transações - só conta se tem dados válidos
-    const hasCurrentTransactions = currentTransactions && currentTransactions.length > 0;
-    const hasPreviousTransactions = previousTransactions && previousTransactions.length > 0;
+    console.log('[METRICS] Raw current transactions:', currentTransactions);
+    console.log('[METRICS] Raw previous transactions:', previousTransactions);
 
-    console.log('[METRICS] Current transactions:', currentTransactions?.length || 0);
-    console.log('[METRICS] Previous transactions:', previousTransactions?.length || 0);
-    console.log('[METRICS] Has current data:', hasCurrentTransactions);
-    console.log('[METRICS] Has previous data:', hasPreviousTransactions);
+    // Verificar se realmente há transações válidas
+    const validCurrentTransactions = Array.isArray(currentTransactions) ? 
+      currentTransactions.filter(t => t && t.amount !== null && t.amount !== undefined && Number(t.amount) !== 0) : [];
+    
+    const validPreviousTransactions = Array.isArray(previousTransactions) ? 
+      previousTransactions.filter(t => t && t.amount !== null && t.amount !== undefined && Number(t.amount) !== 0) : [];
 
-    // Se não há transações atuais, retornar tudo zerado
-    if (!hasCurrentTransactions || !currentTransactions || currentTransactions.length === 0) {
+    const hasCurrentData = validCurrentTransactions.length > 0;
+    const hasPreviousData = validPreviousTransactions.length > 0;
+
+    console.log('[METRICS] Valid current transactions:', validCurrentTransactions.length);
+    console.log('[METRICS] Valid previous transactions:', validPreviousTransactions.length);
+    console.log('[METRICS] Has current data:', hasCurrentData);
+    console.log('[METRICS] Has previous data:', hasPreviousData);
+
+    // Se não há transações válidas atuais, retornar tudo zerado
+    if (!hasCurrentData) {
+      console.log('[METRICS] No current data - returning all zeros');
       return {
         totalDebits: 0,
         totalCredits: 0,
@@ -61,13 +71,11 @@ export const useTransactionMetrics = () => {
         totalAllInstallments: 0,
         nextCycleName: 'Próximo Mês',
         hasCurrentData: false,
-        hasPreviousData: hasPreviousTransactions,
+        hasPreviousData: hasPreviousData,
       };
     }
 
-    // Filtrar e calcular apenas transações válidas
-    const validCurrentTransactions = currentTransactions.filter(t => t && t.amount !== null && t.amount !== undefined);
-    
+    // Calcular apenas com transações válidas
     const currentDebits = validCurrentTransactions.filter(t => !t.is_credit);
     const currentCredits = validCurrentTransactions.filter(t => t.is_credit);
     const currentInstallments = validCurrentTransactions.filter(t => t.installment_number && t.installment_total);
@@ -77,18 +85,16 @@ export const useTransactionMetrics = () => {
     const totalCurrentInstallments = currentInstallments.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
     const currentBalance = totalCurrentCredits - totalCurrentDebits;
     
-    console.log('[METRICS] Calculated debits:', totalCurrentDebits);
-    console.log('[METRICS] Calculated credits:', totalCurrentCredits);
-    console.log('[METRICS] Calculated balance:', currentBalance);
+    console.log('[METRICS] Calculated current debits:', totalCurrentDebits);
+    console.log('[METRICS] Calculated current credits:', totalCurrentCredits);
+    console.log('[METRICS] Calculated current balance:', currentBalance);
 
-    // Métricas do ciclo anterior - só calcular se há dados
+    // Métricas do ciclo anterior - só calcular se há dados válidos
     let totalPreviousDebits = 0;
     let totalPreviousCredits = 0;
     let totalPreviousInstallments = 0;
     
-    if (hasPreviousTransactions && previousTransactions && previousTransactions.length > 0) {
-      const validPreviousTransactions = previousTransactions.filter(t => t && t.amount !== null && t.amount !== undefined);
-      
+    if (hasPreviousData) {
       const previousDebits = validPreviousTransactions.filter(t => !t.is_credit);
       const previousCredits = validPreviousTransactions.filter(t => t.is_credit);
       const previousInstallments = validPreviousTransactions.filter(t => t.installment_number && t.installment_total);
@@ -96,6 +102,9 @@ export const useTransactionMetrics = () => {
       totalPreviousDebits = previousDebits.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
       totalPreviousCredits = previousCredits.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
       totalPreviousInstallments = previousInstallments.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+      
+      console.log('[METRICS] Calculated previous debits:', totalPreviousDebits);
+      console.log('[METRICS] Calculated previous credits:', totalPreviousCredits);
     }
     
     // Calcular variações percentuais - apenas se houver dados anteriores válidos
@@ -129,8 +138,8 @@ export const useTransactionMetrics = () => {
       totalAllInstallments: totalCurrentInstallments,
       nextCycleName: 'Próximo Mês',
       
-      hasCurrentData: true, // Só chega aqui se tem dados válidos
-      hasPreviousData: hasPreviousTransactions,
+      hasCurrentData: true,
+      hasPreviousData: hasPreviousData,
     };
   }, [currentTransactions, previousTransactions, currentCycle, previousCycle]);
 
