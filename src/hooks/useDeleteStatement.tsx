@@ -71,11 +71,20 @@ export const useDeleteStatement = () => {
 
       console.log('[DELETE_STATEMENT] Statement and transactions deleted successfully');
 
-      // Invalidar todas as queries relacionadas
+      // Invalidar e refetch todas as queries relacionadas
       await queryClient.invalidateQueries({ queryKey: ['transactions'] });
       await queryClient.invalidateQueries({ queryKey: ['statements'] });
+      await queryClient.invalidateQueries({ queryKey: ['invoice-transactions'] });
+      
+      // Forçar refetch das queries
+      await queryClient.refetchQueries({ queryKey: ['transactions'] });
+      await queryClient.refetchQueries({ queryKey: ['statements'] });
+      await queryClient.refetchQueries({ queryKey: ['invoice-transactions'] });
+
+      // Remover dados antigos do cache
       queryClient.removeQueries({ queryKey: ['transactions'] });
       queryClient.removeQueries({ queryKey: ['statements'] });
+      queryClient.removeQueries({ queryKey: ['invoice-transactions'] });
 
       toast({
         title: "Sucesso",

@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { FileText, Upload, Trash2, AlertCircle, CheckCircle } from "lucide-react";
+import { FileText, Upload, Trash2, AlertCircle, CheckCircle, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [statementToDelete, setStatementToDelete] = useState<Statement | null>(null);
   const [transactionCount, setTransactionCount] = useState(0);
+  const [isLoadingStatements, setIsLoadingStatements] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { uploadFile, uploading } = useFileUpload();
   const { user } = useAuth();
@@ -109,11 +111,14 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
     }
   };
 
-  // Buscar extratos do usuário
-  useEffect(() => {
-    const fetchStatements = async () => {
-      if (!user) return;
+  // Função para buscar extratos
+  const fetchStatements = async () => {
+    if (!user) return;
+    
+    setIsLoadingStatements(true);
+    console.log('[UPLOAD_SECTION] Fetching statements for user:', user.id);
 
+    try {
       const { data, error } = await supabase
         .from('statements')
         .select('*')
@@ -121,13 +126,21 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
         .order('uploaded_at', { ascending: false });
 
       if (error) {
-        console.error("Error fetching statements:", error);
+        console.error("[UPLOAD_SECTION] Error fetching statements:", error);
         return;
       }
 
-      setStatements(data as Statement[]);
-    };
+      console.log('[UPLOAD_SECTION] Fetched statements:', data?.length || 0);
+      setStatements(data as Statement[] || []);
+    } catch (error) {
+      console.error("[UPLOAD_SECTION] Unexpected error fetching statements:", error);
+    } finally {
+      setIsLoadingStatements(false);
+    }
+  };
 
+  // Buscar extratos do usuário
+  useEffect(() => {
     fetchStatements();
   }, [user]);
 
@@ -135,7 +148,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
   useEffect(() => {
     if (!user) return;
 
-    console.log('[UPLOAD] Setting up realtime subscription for statements');
+    console.log('[UPLOAD_SECTION] Setting up realtime subscription for statements');
     
     const channel = supabase
       .channel('statements-realtime')
@@ -148,50 +161,34 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('[UPLOAD] Statement realtime update:', payload);
+          console.log('[UPLOAD_SECTION] Statement realtime update:', payload);
           
-          // Atualizar lista de extratos
-          setStatements(current => {
-            const updated = [...current];
-            const newRecord = payload.new as Statement;
-            const oldRecord = payload.old as Statement;
-            const index = updated.findIndex(s => s.id === newRecord?.id || s.id === oldRecord?.id);
-            
-            if (payload.eventType === 'INSERT' && newRecord) {
-              updated.unshift(newRecord);
-            } else if (payload.eventType === 'UPDATE' && newRecord) {
-              if (index >= 0) {
-                updated[index] = newRecord;
-              }
-              
-              // Se extrato ficou pronto com transações, mostrar toast
-              if (newRecord.status === 'ready' && newRecord.total_debit > 0) {
-                toast({
-                  title: "🎉 Extrato processado!",
-                  description: `${newRecord.total_debit > 0 ? `${formatCurrency(newRecord.total_debit)} em despesas encontradas.` : ''} Clique para ver as movimentações.`,
-                  duration: 8000,
-                  action: (
-                    <ToastAction 
-                      altText="Ver movimentações"
-                      onClick={onNavigateToMovimentacoes}
-                    >
-                      Ver movimentações
-                    </ToastAction>
-                  )
-                });
-              }
-            } else if (payload.eventType === 'DELETE' && index >= 0) {
-              updated.splice(index, 1);
-            }
-            
-            return updated;
-          });
+          // Refetch statements para garantir dados atualizados
+          fetchStatements();
+          
+          // Tratamento específico para novos extratos processados
+          const newRecord = payload.new as Statement;
+          if (payload.eventType === 'UPDATE' && newRecord && newRecord.status === 'ready' && newRecord.total_debit > 0) {
+            toast({
+              title: "🎉 Extrato processado!",
+              description: `${newRecord.total_debit > 0 ? `${formatCurrency(newRecord.total_debit)} em despesas encontradas.` : ''} Clique para ver as movimentações.`,
+              duration: 8000,
+              action: (
+                <ToastAction 
+                  altText="Ver movimentações"
+                  onClick={onNavigateToMovimentacoes}
+                >
+                  Ver movimentações
+                </ToastAction>
+              )
+            });
+          }
         }
       )
       .subscribe();
 
     return () => {
-      console.log('[UPLOAD] Cleaning up statements realtime subscription');
+      console.log('[UPLOAD_SECTION] Cleaning up statements realtime subscription');
       supabase.removeChannel(channel);
     };
   }, [user?.id, toast, onNavigateToMovimentacoes]);
@@ -237,6 +234,8 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+      // Refetch statements após upload
+      fetchStatements();
     }
   };
 
@@ -256,8 +255,8 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
       setStatementToDelete(null);
       setTransactionCount(0);
       
-      // Atualizar lista local
-      setStatements(prev => prev.filter(s => s.id !== statementToDelete.id));
+      // Refetch statements após exclusão para garantir lista atualizada
+      await fetchStatements();
     }
   };
 
@@ -276,6 +275,11 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
         description: "Seu extrato está sendo analisado. Aguarde alguns minutos.",
       });
     }
+  };
+
+  const handleRefreshStatements = () => {
+    console.log('[UPLOAD_SECTION] Manual refresh requested');
+    fetchStatements();
   };
 
   return (
@@ -351,66 +355,85 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
       {/* Statements List */}
       {statements && statements.length > 0 && (
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">Extratos Enviados</h3>
-          <div className="grid gap-4">
-            {statements.map((statement: Statement) => (
-              <div 
-                key={statement.id} 
-                className={`bg-white rounded-lg border p-4 transition-all ${
-                  statement.status === 'ready' && statement.total_debit > 0 ? 'cursor-pointer hover:shadow-md hover:border-sage-300' : ''
-                } ${statement.status === 'error' ? 'cursor-pointer hover:bg-red-50' : ''}`}
-                onClick={() => handleStatementClick(statement)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3">
-                      <FileText className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium text-gray-900">{statement.filename}</p>
-                        <p className="text-xs text-gray-500">
-                          Enviado em {format(parseISO(statement.uploaded_at), 'dd/MM/yyyy às HH:mm', { locale: ptBR })}
-                        </p>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Extratos Enviados</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshStatements}
+              disabled={isLoadingStatements}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingStatements ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+          </div>
+          
+          {isLoadingStatements ? (
+            <div className="text-center py-4">
+              <div className="animate-spin h-6 w-6 mx-auto border border-gray-300 border-t-sage-600 rounded-full" />
+              <p className="text-sm text-gray-500 mt-2">Carregando extratos...</p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {statements.map((statement: Statement) => (
+                <div 
+                  key={statement.id} 
+                  className={`bg-white rounded-lg border p-4 transition-all ${
+                    statement.status === 'ready' && statement.total_debit > 0 ? 'cursor-pointer hover:shadow-md hover:border-sage-300' : ''
+                  } ${statement.status === 'error' ? 'cursor-pointer hover:bg-red-50' : ''}`}
+                  onClick={() => handleStatementClick(statement)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3">
+                        <FileText className="h-5 w-5 text-gray-400" />
+                        <div>
+                          <p className="font-medium text-gray-900">{statement.filename}</p>
+                          <p className="text-xs text-gray-500">
+                            Enviado em {format(parseISO(statement.uploaded_at), 'dd/MM/yyyy às HH:mm', { locale: ptBR })}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {getStatusBadge(statement.status)}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(statement);
-                      }}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                      disabled={isDeleting}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                
-                <div className="mt-3 text-sm text-gray-600">
-                  <div className="flex items-center justify-between">
-                    <span>{getStatusMessage(statement)}</span>
-                    {statement.status === 'ready' && statement.total_debit > 0 && (
+                    <div className="flex items-center space-x-2">
+                      {getStatusBadge(statement.status)}
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onNavigateToMovimentacoes();
+                          handleDeleteClick(statement);
                         }}
-                        className="text-xs ml-2"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        disabled={isDeleting}
                       >
-                        Ver Movimentações
+                        <Trash2 className="h-4 w-4" />
                       </Button>
-                    )}
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3 text-sm text-gray-600">
+                    <div className="flex items-center justify-between">
+                      <span>{getStatusMessage(statement)}</span>
+                      {statement.status === 'ready' && statement.total_debit > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onNavigateToMovimentacoes();
+                          }}
+                          className="text-xs ml-2"
+                        >
+                          Ver Movimentações
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
