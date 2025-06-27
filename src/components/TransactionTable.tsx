@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
@@ -112,7 +111,8 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
     if (transactionToDelete) {
       const success = await deleteTransaction(transactionToDelete);
       if (success) {
-        refetch(); // Atualizar a lista após exclusão
+        // A query será invalidada automaticamente pelo hook
+        console.log('Transaction deleted successfully');
       }
     }
     setDeleteConfirmOpen(false);
@@ -122,6 +122,21 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   const handleEditSuccess = () => {
     refetch();
   };
+
+  // Calcular totais para a barra inferior
+  const totals = React.useMemo(() => {
+    const totalDebits = transactions
+      .filter(t => !t.is_credit)
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+    
+    const totalCredits = transactions
+      .filter(t => t.is_credit)
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+    
+    const balance = totalCredits - totalDebits;
+    
+    return { totalDebits, totalCredits, balance };
+  }, [transactions]);
 
   if (isLoading) {
     return (
@@ -230,6 +245,27 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
                 </ContextMenuContent>
               </ContextMenu>
             ))}
+
+            {/* Mobile Total Bar */}
+            <div className="bg-sage-100 border border-sage-300 rounded-lg p-4 mt-4">
+              <div className="font-semibold text-sage-900 mb-2">Resumo do Período:</div>
+              <div className="grid grid-cols-1 gap-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Total Despesas:</span>
+                  <span className="text-red-600 font-medium">-{formatCurrency(totals.totalDebits)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total Receitas:</span>
+                  <span className="text-green-600 font-medium">+{formatCurrency(totals.totalCredits)}</span>
+                </div>
+                <div className="flex justify-between border-t pt-2 font-semibold">
+                  <span>Saldo:</span>
+                  <span className={totals.balance >= 0 ? "text-green-600" : "text-red-600"}>
+                    {totals.balance >= 0 ? "+" : ""}{formatCurrency(totals.balance)}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Desktop View */}
@@ -297,6 +333,23 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
                     </TableCell>
                   </TableRow>
                 ))}
+                
+                {/* Desktop Total Bar */}
+                <TableRow className="bg-sage-100 font-semibold border-t-2 border-sage-300">
+                  <TableCell className="font-bold">TOTAL</TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <div className="text-red-600">-{formatCurrency(totals.totalDebits)}</div>
+                      <div className="text-green-600">+{formatCurrency(totals.totalCredits)}</div>
+                      <div className={`font-bold ${totals.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        {totals.balance >= 0 ? "+" : ""}{formatCurrency(totals.balance)}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell colSpan={showCategories ? 5 : 4} className="text-center text-sage-700">
+                    {transactions.length} transação{transactions.length !== 1 ? 'ões' : ''} no período
+                  </TableCell>
+                </TableRow>
               </TableBody>
             </Table>
           </div>

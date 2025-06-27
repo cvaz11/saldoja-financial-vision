@@ -33,7 +33,33 @@ export const useTransactionMetrics = () => {
   );
 
   const metrics = useMemo(() => {
-    // Métricas do ciclo atual
+    // Verificar se realmente há transações
+    const hasCurrentTransactions = currentTransactions.length > 0;
+    const hasPreviousTransactions = previousTransactions.length > 0;
+
+    if (!hasCurrentTransactions) {
+      return {
+        totalDebits: 0,
+        totalCredits: 0,
+        totalInstallments: 0,
+        balance: 0,
+        previousTotalDebits: 0,
+        previousTotalCredits: 0,
+        previousTotalInstallments: 0,
+        debitVariation: 0,
+        creditVariation: 0,
+        installmentVariation: 0,
+        currentCycleName: currentCycle?.displayName || 'Mês Atual',
+        previousCycleName: previousCycle?.displayName || 'Mês Anterior',
+        nextTotalInstallments: 0,
+        totalAllInstallments: 0,
+        nextCycleName: 'Próximo Mês',
+        hasCurrentData: false,
+        hasPreviousData: hasPreviousTransactions,
+      };
+    }
+
+    // Métricas do ciclo atual - apenas valores reais
     const currentDebits = currentTransactions.filter(t => !t.is_credit);
     const currentCredits = currentTransactions.filter(t => t.is_credit);
     const currentInstallments = currentTransactions.filter(t => t.installment_number && t.installment_total);
@@ -63,34 +89,28 @@ export const useTransactionMetrics = () => {
       ((totalCurrentInstallments - totalPreviousInstallments) / totalPreviousInstallments) * 100 : 0;
 
     return {
-      // Ciclo atual - apenas valores reais
       totalDebits: totalCurrentDebits,
       totalCredits: totalCurrentCredits,
       totalInstallments: totalCurrentInstallments,
       balance: currentBalance,
       
-      // Ciclo anterior (para comparação)
       previousTotalDebits: totalPreviousDebits,
       previousTotalCredits: totalPreviousCredits,
       previousTotalInstallments: totalPreviousInstallments,
       
-      // Variações - apenas se houver dados para comparar
       debitVariation,
       creditVariation,
       installmentVariation,
       
-      // Metadados
       currentCycleName: currentCycle?.displayName || 'Mês Atual',
       previousCycleName: previousCycle?.displayName || 'Mês Anterior',
       
-      // Próximo ciclo - sem dados falsos
       nextTotalInstallments: 0,
       totalAllInstallments: totalCurrentInstallments,
       nextCycleName: 'Próximo Mês',
       
-      // Flag para indicar se há dados
-      hasCurrentData: currentTransactions.length > 0,
-      hasPreviousData: previousTransactions.length > 0,
+      hasCurrentData: hasCurrentTransactions,
+      hasPreviousData: hasPreviousTransactions,
     };
   }, [currentTransactions, previousTransactions, currentCycle, previousCycle]);
 
