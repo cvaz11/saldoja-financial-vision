@@ -47,7 +47,7 @@ const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: U
     const result = await uploadFile({
       file: formData.file,
       bankName: formData.bankName,
-      isInvoicePaid: true // Sempre true agora, não perguntamos mais
+      isInvoicePaid: true
     });
 
     if (result.success) {
@@ -56,11 +56,10 @@ const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: U
       if (onSubmit) {
         onSubmit(formData);
       }
-      // Auto-navigate to movimentacoes after successful upload
       if (onNavigateToMovimentacoes) {
         setTimeout(() => {
           onNavigateToMovimentacoes();
-        }, 2000); // Small delay to allow the upload dialog to show
+        }, 2000);
       }
     }
   };
@@ -82,10 +81,10 @@ const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: U
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
             <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
             <p className="text-gray-600 mb-2">Arraste e solte ou escolha o arquivo para enviar</p>
-            <p className="text-sm text-gray-500 mb-4">PDF, CSV, ou OFX</p>
+            <p className="text-sm text-gray-500 mb-4">OFX, CSV ou XLS</p>
             <input
               type="file"
-              accept=".pdf,.csv,.ofx"
+              accept=".ofx,.csv,.xls,.xlsx"
               onChange={handleFileChange}
               className="hidden"
               id="file-upload"

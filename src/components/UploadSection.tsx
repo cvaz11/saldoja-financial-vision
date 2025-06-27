@@ -303,14 +303,17 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
             />
           </div>
           <div>
-            <Label htmlFor="fileUpload">Extrato PDF</Label>
+            <Label htmlFor="fileUpload">Extrato (OFX, CSV, XLS)</Label>
             <Input
               type="file"
               id="fileUpload"
-              accept="application/pdf"
+              accept=".ofx,.csv,.xls,.xlsx"
               onChange={handleFileChange}
               ref={fileInputRef}
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Formatos aceitos: OFX, CSV, XLS, XLSX
+            </p>
           </div>
         </div>
 

@@ -1,231 +1,105 @@
 
-import { insertTransactions, updateStatementStatus } from './database-operations.ts';
-import { processWithHybridStrategy } from './hybrid-processor.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
+import { processStructuredFile } from './structured-processor.ts';
 
-// Convert to system Transaction format
-interface Transaction {
-  date: string;
-  description: string;
-  amount: number;
-  category: string;
-}
-
-export const parseStatementContent = async (fileUrl: string, supabase: any): Promise<Transaction[]> => {
-  try {
-    console.log(`[PARSE] ===== INICIANDO ANÁLISE HÍBRIDA =====`);
-    console.log(`[PARSE] File URL: ${fileUrl}`);
-    
-    // Download PDF
-    console.log(`[PARSE] 📥 Baixando arquivo do Supabase Storage...`);
-    const { data: fileData, error: downloadError } = await supabase.storage
-      .from('statements')
-      .download(fileUrl);
-    
-    if (downloadError) {
-      console.error('[PARSE] ❌ Erro no download:', downloadError);
-      throw new Error(`Download do PDF falhou: ${downloadError.message}`);
-    }
-    
-    if (!fileData) {
-      throw new Error('Arquivo baixado está vazio');
-    }
-    
-    console.log('[PARSE] ✅ Download concluído:', fileData.size, 'bytes');
-    
-    // Verificar se é um PDF válido
-    const arrayBuffer = await fileData.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    const isPDF = uint8Array[0] === 0x25 && uint8Array[1] === 0x50 && uint8Array[2] === 0x44 && uint8Array[3] === 0x46;
-    
-    if (!isPDF) {
-      console.error('[PARSE] ❌ Arquivo não é um PDF válido');
-      throw new Error('Arquivo não é um PDF válido');
-    }
-    
-    console.log('[PARSE] ✅ PDF válido confirmado');
-    
-    // Processar com estratégia híbrida
-    console.log(`[PARSE] 🚀 Iniciando processamento híbrido...`);
-    const startTime = Date.now();
-    
-    const debitTransactions = await processWithHybridStrategy(fileData);
-    
-    const processingTime = Date.now() - startTime;
-    console.log(`[PARSE] ⏱️  Processamento híbrido concluído em ${processingTime}ms`);
-    console.log(`[PARSE] 📊 Resultado: ${debitTransactions.length} transações encontradas`);
-    
-    if (debitTransactions.length > 0) {
-      console.log(`[PARSE] ✅ SUCESSO! Transações extraídas:`);
-      
-      // Agrupar por categoria para mostrar resumo
-      const categoryTotals: Record<string, { count: number, total: number }> = {};
-      
-      debitTransactions.forEach((tx) => {
-        if (!categoryTotals[tx.category]) {
-          categoryTotals[tx.category] = { count: 0, total: 0 };
-        }
-        categoryTotals[tx.category].count++;
-        categoryTotals[tx.category].total += Math.abs(tx.amount);
-      });
-      
-      console.log(`[PARSE] 📋 Resumo por categoria:`);
-      Object.entries(categoryTotals).forEach(([category, stats]) => {
-        console.log(`[PARSE]   ${category}: ${stats.count} transações - R$ ${stats.total.toFixed(2)}`);
-      });
-      
-      const totalDebit = debitTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-      console.log(`[PARSE] 💰 Total geral de débitos: R$ ${totalDebit.toFixed(2)}`);
-      
-      // Mostrar primeiras transações como exemplo
-      console.log(`[PARSE] 📋 Primeiras transações encontradas:`);
-      debitTransactions.slice(0, 3).forEach((tx, i) => {
-        console.log(`[PARSE]   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
-      });
-      
-    } else {
-      console.log(`[PARSE] ⚠️  ATENÇÃO: Nenhuma transação de débito encontrada`);
-      console.log(`[PARSE] 🔍 Possíveis causas:`);
-      console.log(`[PARSE]   - PDF contém apenas créditos/receitas`);
-      console.log(`[PARSE]   - Período do extrato sem movimentações de débito`);
-      console.log(`[PARSE]   - PDF está corrompido ou ilegível`);
-      console.log(`[PARSE]   - Formato não é compatível com os processadores`);
-    }
-    
-    console.log(`[PARSE] ===== ANÁLISE HÍBRIDA CONCLUÍDA =====`);
-    return debitTransactions;
-    
-  } catch (error) {
-    console.error('[PARSE] ===== ERRO CRÍTICO NA ANÁLISE =====');
-    console.error('[PARSE] Tipo do erro:', error.name);
-    console.error('[PARSE] Mensagem:', error.message);
-    console.error('[PARSE] Stack trace:', error.stack);
-    throw error;
-  }
-};
-
-export const processStatement = async (statement: any, supabase: any): Promise<void> => {
-  const startTime = Date.now();
+export const processStatement = async (statement: any, supabase: any) => {
+  console.log(`\n🔄 Processing statement: ${statement.filename}`);
   
   try {
-    console.log(`\n🚀 ===== PROCESSANDO EXTRATO ${statement.id} =====`);
-    console.log(`📄 Arquivo: ${statement.filename}`);
-    console.log(`👤 Usuário: ${statement.user_id}`);
-    console.log(`🔗 URL: ${statement.file_url}`);
-    console.log(`🏦 Banco: ${statement.bank || 'Não especificado'}`);
-    console.log(`⏰ Iniciado em: ${new Date().toISOString()}`);
+    // Update status to processing
+    await supabase
+      .from('statements')
+      .update({ status: 'processing' })
+      .eq('id', statement.id);
 
-    // Parse com processador híbrido
-    console.log(`🔍 Iniciando análise híbrida...`);
-    const debitTransactions = await parseStatementContent(statement.file_url, supabase);
+    // Download file from storage
+    console.log(`📁 Downloading file: ${statement.file_url}`);
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('statements')
+      .download(statement.file_url);
+
+    if (downloadError) {
+      throw new Error(`Download failed: ${downloadError.message}`);
+    }
+
+    console.log(`📊 File downloaded: ${fileData.size} bytes`);
+
+    // Process the structured file
+    const transactions = await processStructuredFile(fileData, statement.filename);
     
-    console.log(`✅ Análise concluída: ${debitTransactions.length} transações de débito encontradas`);
+    console.log(`💫 Extracted ${transactions.length} transactions`);
 
-    // Verificar se há transações de débito
-    if (debitTransactions.length === 0) {
-      console.log(`⚠️  Nenhuma transação de débito encontrada`);
-      console.log(`📋 Detalhes do processamento:`);
-      console.log(`   - Arquivo: ${statement.filename}`);
-      console.log(`   - Tamanho: PDF processado com sucesso`);
-      console.log(`   - Status: Nenhum débito identificado`);
-      console.log(`   - Possíveis causas:`);
-      console.log(`     • Extrato contém apenas créditos/receitas`);
-      console.log(`     • Período sem movimentação de débito`);
-      console.log(`     • Formato do PDF não suportado`);
+    if (transactions.length === 0) {
+      // No transactions found
+      await supabase
+        .from('statements')
+        .update({ 
+          status: 'no_data',
+          processed_at: new Date().toISOString()
+        })
+        .eq('id', statement.id);
       
-      // Atualizar status para 'no_data'
-      await updateStatementStatus(supabase, statement.id, 'no_data');
-      console.log(`✅ Status atualizado para 'no_data'`);
-      
-      const processingTime = Date.now() - startTime;
-      console.log(`🎉 EXTRATO ${statement.id} PROCESSADO em ${processingTime}ms`);
-      console.log(`📊 Resultado final: 0 débitos processados\n`);
+      console.log('⚠️ No transactions found - marked as no_data');
       return;
     }
 
-    // Log detalhado das transações de débito
-    console.log(`💰 📋 TRANSAÇÕES DE DÉBITO ENCONTRADAS:`);
-    console.log(`📊 Total: ${debitTransactions.length} transações`);
-    
-    // Mostrar estatísticas por categoria
-    const categoryStats: Record<string, { count: number, total: number }> = {};
-    debitTransactions.forEach(tx => {
-      if (!categoryStats[tx.category]) {
-        categoryStats[tx.category] = { count: 0, total: 0 };
-      }
-      categoryStats[tx.category].count++;
-      categoryStats[tx.category].total += Math.abs(tx.amount);
-    });
-    
-    console.log(`📈 Distribuição por categoria:`);
-    Object.entries(categoryStats).forEach(([category, stats]) => {
-      console.log(`   ${category}: ${stats.count} transações (R$ ${stats.total.toFixed(2)})`);
-    });
-    
-    const totalAmount = debitTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-    console.log(`💸 Total de débitos: R$ ${totalAmount.toFixed(2)}`);
-    
-    // Mostrar algumas transações como exemplo
-    console.log(`🔍 Exemplos de transações encontradas:`);
-    debitTransactions.slice(0, 5).forEach((tx, i) => {
-      console.log(`   ${i + 1}. ${tx.date} - ${tx.description} - R$ ${Math.abs(tx.amount).toFixed(2)} (${tx.category})`);
-    });
-    
-    if (debitTransactions.length > 5) {
-      console.log(`   ... e mais ${debitTransactions.length - 5} transações`);
+    // Insert transactions into database
+    const transactionsWithStatementId = transactions.map(tx => ({
+      ...tx,
+      user_id: statement.user_id,
+      statement_id: statement.id,
+      bank: statement.bank,
+      created_at: new Date().toISOString()
+    }));
+
+    console.log(`💾 Inserting ${transactionsWithStatementId.length} transactions...`);
+
+    const { error: insertError } = await supabase
+      .from('transactions')
+      .insert(transactionsWithStatementId);
+
+    if (insertError) {
+      throw new Error(`Transaction insert failed: ${insertError.message}`);
     }
 
-    // Inserir transações de débito
-    console.log(`💾 Inserindo ${debitTransactions.length} transações no banco de dados...`);
-    await insertTransactions(supabase, debitTransactions, statement.id, statement.user_id);
-    console.log(`✅ Transações inseridas com sucesso`);
+    // Calculate totals
+    const totalDebit = transactions
+      .filter(tx => tx.amount < 0)
+      .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
     
-    // Atualizar status para 'ready'
-    await updateStatementStatus(supabase, statement.id, 'ready', debitTransactions);
-    console.log(`✅ Status do extrato atualizado para 'ready'`);
-    
-    // Emitir evento realtime para o frontend
-    try {
-      await supabase.realtime
-        .channel('statement_processed')
-        .send({
-          type: 'broadcast',
-          event: 'statement_ready',
-          payload: {
-            statement_id: statement.id,
-            user_id: statement.user_id,
-            transaction_count: debitTransactions.length,
-            total_debit: totalAmount,
-            processing_time: Date.now() - startTime
-          }
-        });
-      console.log(`✅ Evento realtime enviado para o frontend`);
-    } catch (realtimeError) {
-      console.log(`⚠️  Aviso: Falha ao enviar evento realtime:`, realtimeError.message);
-    }
+    const totalCredit = transactions
+      .filter(tx => tx.amount > 0)
+      .reduce((sum, tx) => sum + tx.amount, 0);
 
-    const processingTime = Date.now() - startTime;
-    console.log(`🎉 ✅ EXTRATO ${statement.id} PROCESSADO COM SUCESSO`);
-    console.log(`⏱️  Tempo total: ${processingTime}ms (${(processingTime / 1000).toFixed(1)}s)`);
-    console.log(`📊 Resultado final: ${debitTransactions.length} débitos processados`);
-    console.log(`💰 Valor total: R$ ${totalAmount.toFixed(2)}`);
-    console.log(`📋 Arquivo: ${statement.filename}\n`);
+    // Update statement with results
+    await supabase
+      .from('statements')
+      .update({
+        status: 'ready',
+        total_debit: totalDebit,
+        total_credit: totalCredit,
+        transaction_count: transactions.length,
+        processed_at: new Date().toISOString()
+      })
+      .eq('id', statement.id);
+
+    console.log(`✅ Statement processed successfully:`);
+    console.log(`   - ${transactions.length} transactions`);
+    console.log(`   - R$ ${totalDebit.toFixed(2)} in debits`);
+    console.log(`   - R$ ${totalCredit.toFixed(2)} in credits`);
 
   } catch (error) {
-    const processingTime = Date.now() - startTime;
-    console.error(`💥 ❌ FALHA CRÍTICA NO PROCESSAMENTO DO EXTRATO ${statement.id}`);
-    console.error(`⏱️  Tempo até falha: ${processingTime}ms`);
-    console.error(`📄 Arquivo: ${statement.filename}`);
-    console.error(`🔥 Tipo do erro: ${error.name}`);
-    console.error(`📝 Mensagem: ${error.message}`);
-    console.error(`📍 Stack trace: ${error.stack}`);
+    console.error(`❌ Error processing statement ${statement.id}:`, error.message);
     
-    // Marcar como erro
-    try {
-      await updateStatementStatus(supabase, statement.id, 'error');
-      console.log(`✅ Status atualizado para 'error'`);
-    } catch (updateError) {
-      console.error(`💥 Falha ao atualizar status de erro: ${updateError.message}`);
-    }
+    // Update statement with error status
+    await supabase
+      .from('statements')
+      .update({
+        status: 'error',
+        error_message: error.message,
+        processed_at: new Date().toISOString()
+      })
+      .eq('id', statement.id);
     
     throw error;
   }
