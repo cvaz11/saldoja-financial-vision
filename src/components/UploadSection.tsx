@@ -50,7 +50,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
   const { toast } = useToast();
   const [closingDay, setClosingDay] = useState<string>(profile?.invoice_closing_day?.toString() || "5");
 
-  // Atualizar closingDay quando o perfil carregar
+  // Update closingDay when profile loads
   useEffect(() => {
     if (profile?.invoice_closing_day) {
       setClosingDay(profile.invoice_closing_day.toString());
@@ -111,14 +111,19 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
     }
   };
 
-  // Função para buscar extratos
-  const fetchStatements = async () => {
+  // Function to fetch statements with forced refresh
+  const fetchStatements = async (forceRefresh = false) => {
     if (!user) return;
     
     setIsLoadingStatements(true);
-    console.log('[UPLOAD_SECTION] Fetching statements for user:', user.id);
+    console.log('[UPLOAD_SECTION] Fetching statements for user:', user.id, forceRefresh ? '(forced refresh)' : '');
 
     try {
+      // If forcing refresh, clear any cached data first
+      if (forceRefresh) {
+        await supabase.removeAllChannels();
+      }
+
       const { data, error } = await supabase
         .from('statements')
         .select('*')
@@ -127,6 +132,11 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
 
       if (error) {
         console.error("[UPLOAD_SECTION] Error fetching statements:", error);
+        toast({
+          title: "Erro",
+          description: "Erro ao carregar extratos. Tente novamente.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -134,24 +144,31 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
       setStatements(data as Statement[] || []);
     } catch (error) {
       console.error("[UPLOAD_SECTION] Unexpected error fetching statements:", error);
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao carregar extratos.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoadingStatements(false);
     }
   };
 
-  // Buscar extratos do usuário
+  // Fetch statements on component mount and user change
   useEffect(() => {
-    fetchStatements();
+    if (user) {
+      fetchStatements();
+    }
   }, [user]);
 
-  // Escutar atualizações realtime dos extratos
+  // Listen to realtime updates for statements
   useEffect(() => {
     if (!user) return;
 
     console.log('[UPLOAD_SECTION] Setting up realtime subscription for statements');
     
     const channel = supabase
-      .channel('statements-realtime')
+      .channel(`statements-realtime-${user.id}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
@@ -163,10 +180,12 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
         (payload) => {
           console.log('[UPLOAD_SECTION] Statement realtime update:', payload);
           
-          // Refetch statements para garantir dados atualizados
-          fetchStatements();
+          // Force refresh statements after any change
+          setTimeout(() => {
+            fetchStatements(true);
+          }, 100);
           
-          // Tratamento específico para novos extratos processados
+          // Handle specific events
           const newRecord = payload.new as Statement;
           if (payload.eventType === 'UPDATE' && newRecord && newRecord.status === 'ready' && newRecord.total_debit > 0) {
             toast({
@@ -198,7 +217,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
       const selectedFile = event.target.files[0];
       setFile(selectedFile);
       
-      // Auto-detectar banco baseado no nome do arquivo
+      // Auto-detect bank based on filename
       if (selectedFile.name.toLowerCase().includes('nubank')) {
         setBankName('Nubank');
       }
@@ -215,7 +234,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
       return;
     }
 
-    // Atualizar dia de fechamento se foi alterado
+    // Update closing day if changed
     const newClosingDay = parseInt(closingDay);
     if (profile && profile.invoice_closing_day !== newClosingDay) {
       updateProfile({ invoice_closing_day: newClosingDay });
@@ -234,8 +253,10 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
-      // Refetch statements após upload
-      fetchStatements();
+      // Force refresh statements after upload
+      setTimeout(() => {
+        fetchStatements(true);
+      }, 1000);
     }
   };
 
@@ -249,14 +270,25 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
   const handleConfirmDelete = async () => {
     if (!statementToDelete) return;
 
+    console.log('[UPLOAD_SECTION] Confirming deletion for statement:', statementToDelete.id);
     const success = await deleteStatement(statementToDelete.id);
+    
     if (success) {
+      console.log('[UPLOAD_SECTION] Deletion successful, updating local state');
+      
+      // Immediately remove from local state
+      setStatements(prevStatements => 
+        prevStatements.filter(stmt => stmt.id !== statementToDelete.id)
+      );
+      
       setDeleteDialogOpen(false);
       setStatementToDelete(null);
       setTransactionCount(0);
       
-      // Refetch statements após exclusão para garantir lista atualizada
-      await fetchStatements();
+      // Force refresh after a short delay to ensure consistency
+      setTimeout(() => {
+        fetchStatements(true);
+      }, 500);
     }
   };
 
@@ -279,7 +311,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
 
   const handleRefreshStatements = () => {
     console.log('[UPLOAD_SECTION] Manual refresh requested');
-    fetchStatements();
+    fetchStatements(true);
   };
 
   return (

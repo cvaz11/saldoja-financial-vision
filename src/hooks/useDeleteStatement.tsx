@@ -43,7 +43,7 @@ export const useDeleteStatement = () => {
     setIsDeleting(true);
     
     try {
-      // Primeiro, excluir todas as transações associadas
+      // First, delete all associated transactions
       console.log('[DELETE_STATEMENT] Deleting associated transactions...');
       const { error: transactionsError } = await supabase
         .from('transactions')
@@ -56,7 +56,7 @@ export const useDeleteStatement = () => {
         throw transactionsError;
       }
 
-      // Depois, excluir o extrato
+      // Then, delete the statement
       console.log('[DELETE_STATEMENT] Deleting statement...');
       const { error: statementError } = await supabase
         .from('statements')
@@ -71,20 +71,20 @@ export const useDeleteStatement = () => {
 
       console.log('[DELETE_STATEMENT] Statement and transactions deleted successfully');
 
-      // Invalidar e refetch todas as queries relacionadas
-      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      await queryClient.invalidateQueries({ queryKey: ['statements'] });
-      await queryClient.invalidateQueries({ queryKey: ['invoice-transactions'] });
-      
-      // Forçar refetch das queries
-      await queryClient.refetchQueries({ queryKey: ['transactions'] });
-      await queryClient.refetchQueries({ queryKey: ['statements'] });
-      await queryClient.refetchQueries({ queryKey: ['invoice-transactions'] });
-
-      // Remover dados antigos do cache
+      // Clear all related cache immediately
       queryClient.removeQueries({ queryKey: ['transactions'] });
       queryClient.removeQueries({ queryKey: ['statements'] });
       queryClient.removeQueries({ queryKey: ['invoice-transactions'] });
+      
+      // Invalidate and refetch all related queries
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['transactions'] }),
+        queryClient.invalidateQueries({ queryKey: ['statements'] }),
+        queryClient.invalidateQueries({ queryKey: ['invoice-transactions'] }),
+        queryClient.refetchQueries({ queryKey: ['transactions'] }),
+        queryClient.refetchQueries({ queryKey: ['statements'] }),
+        queryClient.refetchQueries({ queryKey: ['invoice-transactions'] })
+      ]);
 
       toast({
         title: "Sucesso",
