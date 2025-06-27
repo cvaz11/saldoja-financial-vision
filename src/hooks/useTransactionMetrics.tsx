@@ -36,12 +36,26 @@ export const useTransactionMetrics = () => {
     console.log('[METRICS] Raw current transactions:', currentTransactions);
     console.log('[METRICS] Raw previous transactions:', previousTransactions);
 
-    // Verificar se realmente há transações válidas
+    // Verificar se realmente há transações válidas - sendo mais rigoroso
     const validCurrentTransactions = Array.isArray(currentTransactions) ? 
-      currentTransactions.filter(t => t && t.amount !== null && t.amount !== undefined && Number(t.amount) !== 0) : [];
+      currentTransactions.filter(t => 
+        t && 
+        t.amount !== null && 
+        t.amount !== undefined && 
+        Number(t.amount) !== 0 &&
+        t.description && // Garantir que tem descrição
+        t.transaction_date // Garantir que tem data
+      ) : [];
     
     const validPreviousTransactions = Array.isArray(previousTransactions) ? 
-      previousTransactions.filter(t => t && t.amount !== null && t.amount !== undefined && Number(t.amount) !== 0) : [];
+      previousTransactions.filter(t => 
+        t && 
+        t.amount !== null && 
+        t.amount !== undefined && 
+        Number(t.amount) !== 0 &&
+        t.description && 
+        t.transaction_date
+      ) : [];
 
     const hasCurrentData = validCurrentTransactions.length > 0;
     const hasPreviousData = validPreviousTransactions.length > 0;
