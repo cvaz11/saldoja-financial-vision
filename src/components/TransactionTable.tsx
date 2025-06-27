@@ -80,11 +80,8 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
       const success = await deleteTransaction(transactionToDelete);
       
       if (success) {
-        console.log('[TABLE] Deletion successful, refreshing data');
-        // Aguardar um pouco e então forçar refresh
-        setTimeout(() => {
-          refetch();
-        }, 200);
+        console.log('[TABLE] Deletion successful');
+        // Não precisamos mais do refetch manual, o realtime e invalidação de cache cuidam disso
       }
     }
     
@@ -93,14 +90,10 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   };
 
   const handleEditSuccess = () => {
-    console.log('[TABLE] Transaction edited successfully, refreshing data');
+    console.log('[TABLE] Transaction edited successfully');
     setIsEditModalOpen(false);
     setEditingTransaction(null);
-    
-    // Forçar refresh após edição bem-sucedida
-    setTimeout(() => {
-      refetch();
-    }, 200);
+    // Não precisamos mais do refetch manual, o realtime e invalidação de cache cuidam disso
   };
 
   const handleProfileOpen = () => {

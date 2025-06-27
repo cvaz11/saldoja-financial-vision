@@ -90,7 +90,7 @@ export type Database = {
           raw: Json | null
           statement_id: string | null
           transaction_date: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           amount: number
@@ -103,7 +103,7 @@ export type Database = {
           raw?: Json | null
           statement_id?: string | null
           transaction_date: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           amount?: number
@@ -116,7 +116,7 @@ export type Database = {
           raw?: Json | null
           statement_id?: string | null
           transaction_date?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {

@@ -26,24 +26,7 @@ export const useDeleteTransaction = () => {
     setIsDeleting(true);
     
     try {
-      // Primeiro, verificar se a transação existe e pertence ao usuário
-      const { data: existingTransaction, error: fetchError } = await supabase
-        .from('transactions')
-        .select('id, user_id')
-        .eq('id', transactionId)
-        .eq('user_id', user.id)
-        .single();
-
-      if (fetchError) {
-        console.error('[DELETE] Error fetching transaction:', fetchError);
-        throw new Error('Transação não encontrada ou não pertence ao usuário');
-      }
-
-      if (!existingTransaction) {
-        throw new Error('Transação não encontrada');
-      }
-
-      // Executar a exclusão
+      // Executar a exclusão diretamente
       const { error: deleteError } = await supabase
         .from('transactions')
         .delete()
@@ -57,11 +40,8 @@ export const useDeleteTransaction = () => {
 
       console.log('[DELETE] Transaction deleted successfully');
 
-      // Invalidação agressiva de todas as queries relacionadas
+      // Invalidação imediata de todas as queries relacionadas
       await queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      await queryClient.refetchQueries({ queryKey: ['transactions'] });
-      
-      // Forçar atualização dos dados em cache
       queryClient.removeQueries({ queryKey: ['transactions'] });
 
       toast({

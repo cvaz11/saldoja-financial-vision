@@ -5,10 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/useAuth";
+import { useEditTransaction } from "@/hooks/useEditTransaction";
 
 interface Transaction {
   id: string;
@@ -44,15 +41,12 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('Outros');
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { editTransaction, isEditing } = useEditTransaction();
 
   // Reset form when transaction changes
   useEffect(() => {
     if (transaction && isOpen) {
-      console.log('[EDIT] Setting form data for transaction:', transaction);
+      console.log('[EDIT MODAL] Setting form data for transaction:', transaction);
       setDescription(transaction.description || '');
       setAmount(transaction.amount?.toString() || '');
       setCategory(transaction.category || 'Outros');
@@ -69,93 +63,32 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
   }, [isOpen]);
 
   const handleSave = async () => {
-    if (!transaction || !user) {
-      console.error('[EDIT] Missing transaction or user');
-      toast({
-        title: "Erro",
-        description: "Dados insuficientes para edição",
-        variant: "destructive",
-      });
+    if (!transaction) {
+      console.error('[EDIT MODAL] No transaction provided');
       return;
     }
 
     // Validações
     if (!description.trim()) {
-      toast({
-        title: "Erro",
-        description: "Descrição é obrigatória",
-        variant: "destructive",
-      });
       return;
     }
 
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount) || numericAmount <= 0) {
-      toast({
-        title: "Erro",
-        description: "Valor deve ser um número positivo",
-        variant: "destructive",
-      });
       return;
     }
     
-    setIsLoading(true);
-    console.log('[EDIT] Starting update for transaction:', transaction.id);
+    console.log('[EDIT MODAL] Attempting to save transaction:', transaction.id);
     
-    try {
-      // Primeiro verificar se a transação ainda existe e pertence ao usuário
-      const { data: existingTransaction, error: fetchError } = await supabase
-        .from('transactions')
-        .select('id, user_id')
-        .eq('id', transaction.id)
-        .eq('user_id', user.id)
-        .single();
-
-      if (fetchError || !existingTransaction) {
-        console.error('[EDIT] Transaction not found or access denied:', fetchError);
-        throw new Error('Transação não encontrada ou sem permissão para editar');
-      }
-
-      // Executar a atualização
-      const { error: updateError } = await supabase
-        .from('transactions')
-        .update({
-          description: description.trim(),
-          amount: numericAmount,
-          category: category
-        })
-        .eq('id', transaction.id)
-        .eq('user_id', user.id);
-
-      if (updateError) {
-        console.error('[EDIT] Error updating transaction:', updateError);
-        throw updateError;
-      }
-
-      console.log('[EDIT] Transaction updated successfully');
-
-      // Invalidação agressiva de queries
-      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      await queryClient.refetchQueries({ queryKey: ['transactions'] });
-      
-      // Remover dados em cache para forçar nova busca
-      queryClient.removeQueries({ queryKey: ['transactions'] });
-
-      toast({
-        title: "Sucesso",
-        description: "Transação atualizada com sucesso!",
-      });
-      
+    const success = await editTransaction(transaction.id, {
+      description: description.trim(),
+      amount: numericAmount,
+      category: category
+    });
+    
+    if (success) {
+      console.log('[EDIT MODAL] Edit successful, calling onSuccess');
       onSuccess();
-    } catch (error: any) {
-      console.error('[EDIT] Error updating transaction:', error);
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível atualizar a transação.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -176,7 +109,7 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Digite a descrição"
-              disabled={isLoading}
+              disabled={isEditing}
             />
           </div>
           
@@ -190,13 +123,13 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0,00"
-              disabled={isLoading}
+              disabled={isEditing}
             />
           </div>
           
           <div className="space-y-2">
             <Label htmlFor="category">Categoria</Label>
-            <Select value={category} onValueChange={setCategory} disabled={isLoading}>
+            <Select value={category} onValueChange={setCategory} disabled={isEditing}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -216,15 +149,15 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
         </div>
         
         <div className="flex justify-end space-x-2">
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+          <Button variant="outline" onClick={onClose} disabled={isEditing}>
             Cancelar
           </Button>
           <Button 
             onClick={handleSave} 
-            disabled={isLoading || !description.trim() || !amount}
+            disabled={isEditing || !description.trim() || !amount}
             className="bg-sage-600 hover:bg-sage-700"
           >
-            {isLoading ? 'Salvando...' : 'Salvar'}
+            {isEditing ? 'Salvando...' : 'Salvar'}
           </Button>
         </div>
       </DialogContent>
