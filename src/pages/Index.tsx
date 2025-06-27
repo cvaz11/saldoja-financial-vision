@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Sidebar from "@/components/Sidebar";
@@ -14,7 +13,7 @@ import BankPieChart from "@/components/BankPieChart";
 import ConfiguracoesSidebar from "@/components/ConfiguracoesSidebar";
 import UserProfile from "@/components/UserProfile";
 import { Button } from "@/components/ui/button";
-import { TrendingDown, DollarSign, CreditCard, TrendingUp, Upload, User, Menu } from "lucide-react";
+import { TrendingDown, DollarSign, TrendingUp, Upload, User, Menu } from "lucide-react";
 import { useTransactionMetrics } from "@/hooks/useTransactionMetrics";
 
 const Index = () => {
@@ -188,48 +187,6 @@ const Index = () => {
           percentage={formatPercentage(
             metrics.previousTotalCredits - metrics.previousTotalDebits !== 0 ? 
             ((metrics.balance - (metrics.previousTotalCredits - metrics.previousTotalDebits)) / Math.abs(metrics.previousTotalCredits - metrics.previousTotalDebits)) * 100 : 0
-          )}
-          icon={<TrendingUp className="h-6 w-6 text-sage-600" />}
-          color="green"
-          hasData={metrics.hasCurrentData}
-          hasPreviousData={metrics.hasPreviousData}
-        />
-      </div>
-
-      <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-        <MetricCard
-          title={`Parcelas - ${metrics.currentCycleName}`}
-          value={formatCurrency(metrics.totalInstallments)}
-          previousValue={formatCurrency(metrics.previousTotalInstallments)}
-          trend={metrics.installmentVariation >= 0 ? "up" : "down"}
-          percentage={formatPercentage(metrics.installmentVariation)}
-          icon={<CreditCard className="h-6 w-6 text-sage-600" />}
-          color="green"
-          hasData={metrics.hasCurrentData}
-          hasPreviousData={metrics.hasPreviousData}
-        />
-        <MetricCard
-          title={`Parcelas - ${metrics.nextCycleName}`}
-          value={formatCurrency(metrics.nextTotalInstallments)}
-          previousValue={formatCurrency(metrics.totalInstallments)}
-          trend={metrics.nextTotalInstallments >= metrics.totalInstallments ? "up" : "down"}
-          percentage={formatPercentage(
-            metrics.totalInstallments > 0 ? 
-            ((metrics.nextTotalInstallments - metrics.totalInstallments) / metrics.totalInstallments) * 100 : 0
-          )}
-          icon={<CreditCard className="h-6 w-6 text-sage-600" />}
-          color="green"
-          hasData={false}
-          hasPreviousData={metrics.hasCurrentData}
-        />
-        <MetricCard
-          title="Total de Parcelas"
-          value={formatCurrency(metrics.totalAllInstallments)}
-          previousValue={formatCurrency(metrics.previousTotalInstallments)}
-          trend={metrics.totalAllInstallments >= metrics.previousTotalInstallments ? "up" : "down"}
-          percentage={formatPercentage(
-            metrics.previousTotalInstallments > 0 ? 
-            ((metrics.totalAllInstallments - metrics.previousTotalInstallments) / metrics.previousTotalInstallments) * 100 : 0
           )}
           icon={<TrendingUp className="h-6 w-6 text-sage-600" />}
           color="green"
