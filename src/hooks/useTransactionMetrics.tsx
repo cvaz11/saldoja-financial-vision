@@ -33,11 +33,17 @@ export const useTransactionMetrics = () => {
   );
 
   const metrics = useMemo(() => {
-    // Verificar se realmente há transações
-    const hasCurrentTransactions = currentTransactions.length > 0;
-    const hasPreviousTransactions = previousTransactions.length > 0;
+    // Verificar se realmente há transações - só conta se tem dados válidos
+    const hasCurrentTransactions = currentTransactions && currentTransactions.length > 0;
+    const hasPreviousTransactions = previousTransactions && previousTransactions.length > 0;
 
-    if (!hasCurrentTransactions) {
+    console.log('[METRICS] Current transactions:', currentTransactions?.length || 0);
+    console.log('[METRICS] Previous transactions:', previousTransactions?.length || 0);
+    console.log('[METRICS] Has current data:', hasCurrentTransactions);
+    console.log('[METRICS] Has previous data:', hasPreviousTransactions);
+
+    // Se não há transações atuais, retornar tudo zerado
+    if (!hasCurrentTransactions || !currentTransactions || currentTransactions.length === 0) {
       return {
         totalDebits: 0,
         totalCredits: 0,
@@ -59,26 +65,40 @@ export const useTransactionMetrics = () => {
       };
     }
 
-    // Métricas do ciclo atual - apenas valores reais
-    const currentDebits = currentTransactions.filter(t => !t.is_credit);
-    const currentCredits = currentTransactions.filter(t => t.is_credit);
-    const currentInstallments = currentTransactions.filter(t => t.installment_number && t.installment_total);
+    // Filtrar e calcular apenas transações válidas
+    const validCurrentTransactions = currentTransactions.filter(t => t && t.amount !== null && t.amount !== undefined);
     
-    const totalCurrentDebits = currentDebits.reduce((sum, t) => sum + Number(t.amount), 0);
-    const totalCurrentCredits = currentCredits.reduce((sum, t) => sum + Number(t.amount), 0);
-    const totalCurrentInstallments = currentInstallments.reduce((sum, t) => sum + Number(t.amount), 0);
+    const currentDebits = validCurrentTransactions.filter(t => !t.is_credit);
+    const currentCredits = validCurrentTransactions.filter(t => t.is_credit);
+    const currentInstallments = validCurrentTransactions.filter(t => t.installment_number && t.installment_total);
+    
+    const totalCurrentDebits = currentDebits.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+    const totalCurrentCredits = currentCredits.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+    const totalCurrentInstallments = currentInstallments.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
     const currentBalance = totalCurrentCredits - totalCurrentDebits;
     
-    // Métricas do ciclo anterior
-    const previousDebits = previousTransactions.filter(t => !t.is_credit);
-    const previousCredits = previousTransactions.filter(t => t.is_credit);
-    const previousInstallments = previousTransactions.filter(t => t.installment_number && t.installment_total);
+    console.log('[METRICS] Calculated debits:', totalCurrentDebits);
+    console.log('[METRICS] Calculated credits:', totalCurrentCredits);
+    console.log('[METRICS] Calculated balance:', currentBalance);
+
+    // Métricas do ciclo anterior - só calcular se há dados
+    let totalPreviousDebits = 0;
+    let totalPreviousCredits = 0;
+    let totalPreviousInstallments = 0;
     
-    const totalPreviousDebits = previousDebits.reduce((sum, t) => sum + Number(t.amount), 0);
-    const totalPreviousCredits = previousCredits.reduce((sum, t) => sum + Number(t.amount), 0);
-    const totalPreviousInstallments = previousInstallments.reduce((sum, t) => sum + Number(t.amount), 0);
+    if (hasPreviousTransactions && previousTransactions && previousTransactions.length > 0) {
+      const validPreviousTransactions = previousTransactions.filter(t => t && t.amount !== null && t.amount !== undefined);
+      
+      const previousDebits = validPreviousTransactions.filter(t => !t.is_credit);
+      const previousCredits = validPreviousTransactions.filter(t => t.is_credit);
+      const previousInstallments = validPreviousTransactions.filter(t => t.installment_number && t.installment_total);
+      
+      totalPreviousDebits = previousDebits.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+      totalPreviousCredits = previousCredits.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+      totalPreviousInstallments = previousInstallments.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+    }
     
-    // Calcular variações percentuais - apenas se houver dados anteriores
+    // Calcular variações percentuais - apenas se houver dados anteriores válidos
     const debitVariation = totalPreviousDebits > 0 ? 
       ((totalCurrentDebits - totalPreviousDebits) / totalPreviousDebits) * 100 : 0;
     
@@ -109,7 +129,7 @@ export const useTransactionMetrics = () => {
       totalAllInstallments: totalCurrentInstallments,
       nextCycleName: 'Próximo Mês',
       
-      hasCurrentData: hasCurrentTransactions,
+      hasCurrentData: true, // Só chega aqui se tem dados válidos
       hasPreviousData: hasPreviousTransactions,
     };
   }, [currentTransactions, previousTransactions, currentCycle, previousCycle]);
