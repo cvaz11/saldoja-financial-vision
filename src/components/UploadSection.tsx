@@ -206,7 +206,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
     if (!file || !bankName) {
       toast({
         title: "Erro",
-        description: "Por favor, selecione um arquivo PDF e confirme o banco.",
+        description: "Por favor, selecione um arquivo e confirme o banco.",
         variant: "destructive",
       });
       return;
@@ -221,7 +221,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
     const result = await uploadFile({
       file: file,
       bankName: bankName,
-      isInvoicePaid: true, // Sempre true agora
+      isInvoicePaid: true,
     });
 
     if (result?.success) {
@@ -303,7 +303,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
             />
           </div>
           <div>
-            <Label htmlFor="fileUpload">Extrato (OFX, CSV, XLS)</Label>
+            <Label htmlFor="fileUpload">Extrato (OFX, CSV, XLS, XLSX)</Label>
             <Input
               type="file"
               id="fileUpload"

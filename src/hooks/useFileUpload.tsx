@@ -91,12 +91,12 @@ export const useFileUpload = () => {
       // Show processing toast
       toast({
         title: "🚀 Extrato enviado com sucesso!",
-        description: "Estamos processando seu extrato – isso leva ~5-8 min. Você verá as movimentações assim que estiver pronto.",
+        description: "Estamos processando seu extrato – isso leva ~3-5 min. Você verá as movimentações assim que estiver pronto.",
         duration: 8000,
       });
 
-      // Navigate to movimentacoes immediately
-      navigate('/movimentacoes');
+      // Navigate to extratos tab to watch processing
+      navigate('/dashboard', { state: { activeSection: 'extratos' } });
 
       // Trigger the processing function
       console.log('Triggering process-statements function...');

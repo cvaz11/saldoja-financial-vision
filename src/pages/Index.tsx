@@ -25,14 +25,19 @@ const Index = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [modalType, setModalType] = useState<"receita" | "despesa">("receita");
 
-  // Set active section based on current route
+  // Set active section based on current route or state
   useEffect(() => {
-    if (location.pathname === '/movimentacoes') {
+    // Check if we have a specific section from navigation state
+    if (location.state?.activeSection) {
+      setActiveSection(location.state.activeSection);
+      // Clear the location state to prevent staying on extratos
+      navigate(location.pathname, { replace: true, state: {} });
+    } else if (location.pathname === '/movimentacoes') {
       setActiveSection('movimentacoes');
     } else if (location.pathname === '/dashboard') {
       setActiveSection('visao-geral');
     }
-  }, [location.pathname]);
+  }, [location.pathname, location.state, navigate]);
 
   const handleAddTransaction = (type: "receita" | "despesa") => {
     setModalType(type);
@@ -91,16 +96,16 @@ const Index = () => {
           <CashFlowChart />
         </div>
         
-        {/* Enviar Extratos - Fixed height and proper proportions */}
+        {/* Enviar Extratos - Updated text and formats */}
         <div className="bg-gradient-to-br from-sage-100 to-sage-200 rounded-xl p-6 text-center shadow-sm flex flex-col justify-center min-h-[300px] lg:min-h-[400px] order-2">
           <Upload className="mx-auto h-12 w-12 lg:h-16 lg:w-16 text-sage-700 mb-4" />
           <h3 className="font-semibold text-gray-900 mb-2 text-lg lg:text-xl">Enviar Extratos</h3>
-          <p className="text-sm text-gray-600 mb-6 lg:mb-8">Faça upload dos seus extratos em PDF</p>
+          <p className="text-sm text-gray-600 mb-6 lg:mb-8">Faça upload dos seus extratos em OFX, CSV ou Excel</p>
           <Button 
             onClick={() => setIsUploadModalOpen(true)}
             className="bg-sage-600 hover:bg-sage-700 text-white shadow-md w-full py-3"
           >
-            Upload PDF
+            Upload Extrato
           </Button>
         </div>
       </div>
