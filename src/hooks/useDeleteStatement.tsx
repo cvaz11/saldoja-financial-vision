@@ -43,47 +43,59 @@ export const useDeleteStatement = () => {
     setIsDeleting(true);
     
     try {
-      // First, delete all associated transactions
-      console.log('[DELETE_STATEMENT] Deleting associated transactions...');
-      const { error: transactionsError } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('statement_id', statementId)
-        .eq('user_id', user.id);
+      // First, get the statement to retrieve file_url
+      console.log('[DELETE_STATEMENT] Getting statement details...');
+      const { data: statement, error: getError } = await supabase
+        .from('statements')
+        .select('file_url')
+        .eq('id', statementId)
+        .eq('user_id', user.id)
+        .single();
 
-      if (transactionsError) {
-        console.error('[DELETE_STATEMENT] Error deleting transactions:', transactionsError);
-        throw transactionsError;
+      if (getError) {
+        console.error('[DELETE_STATEMENT] Error getting statement:', getError);
+        throw new Error('Erro ao buscar detalhes do extrato');
       }
 
-      // Then, delete the statement
-      console.log('[DELETE_STATEMENT] Deleting statement...');
-      const { error: statementError } = await supabase
+      // Delete the file from storage if it exists
+      if (statement?.file_url) {
+        console.log('[DELETE_STATEMENT] Deleting file from storage:', statement.file_url);
+        const { error: storageError } = await supabase.storage
+          .from('statements')
+          .remove([statement.file_url]);
+
+        if (storageError) {
+          console.error('[DELETE_STATEMENT] Error deleting file from storage:', storageError);
+          // Continue with deletion even if file removal fails
+        } else {
+          console.log('[DELETE_STATEMENT] ✅ File deleted from storage successfully');
+        }
+      }
+
+      // Delete the statement (transactions will be automatically deleted via CASCADE)
+      console.log('[DELETE_STATEMENT] Deleting statement from database...');
+      const { error: deleteError } = await supabase
         .from('statements')
         .delete()
         .eq('id', statementId)
         .eq('user_id', user.id);
 
-      if (statementError) {
-        console.error('[DELETE_STATEMENT] Error deleting statement:', statementError);
-        throw statementError;
+      if (deleteError) {
+        console.error('[DELETE_STATEMENT] Error deleting statement:', deleteError);
+        throw deleteError;
       }
 
-      console.log('[DELETE_STATEMENT] Statement and transactions deleted successfully');
+      console.log('[DELETE_STATEMENT] ✅ Statement and related data deleted successfully');
 
-      // Clear all related cache immediately
+      // Clear and invalidate cache
       queryClient.removeQueries({ queryKey: ['transactions'] });
       queryClient.removeQueries({ queryKey: ['statements'] });
       queryClient.removeQueries({ queryKey: ['invoice-transactions'] });
       
-      // Invalidate and refetch all related queries
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['transactions'] }),
         queryClient.invalidateQueries({ queryKey: ['statements'] }),
-        queryClient.invalidateQueries({ queryKey: ['invoice-transactions'] }),
-        queryClient.refetchQueries({ queryKey: ['transactions'] }),
-        queryClient.refetchQueries({ queryKey: ['statements'] }),
-        queryClient.refetchQueries({ queryKey: ['invoice-transactions'] })
+        queryClient.invalidateQueries({ queryKey: ['invoice-transactions'] })
       ]);
 
       toast({

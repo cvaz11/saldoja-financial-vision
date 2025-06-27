@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -119,11 +118,6 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
     console.log('[UPLOAD_SECTION] Fetching statements for user:', user.id, forceRefresh ? '(forced refresh)' : '');
 
     try {
-      // If forcing refresh, clear any cached data first
-      if (forceRefresh) {
-        await supabase.removeAllChannels();
-      }
-
       const { data, error } = await supabase
         .from('statements')
         .select('*')
@@ -288,7 +282,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
       // Force refresh after a short delay to ensure consistency
       setTimeout(() => {
         fetchStatements(true);
-      }, 500);
+      }, 1000);
     }
   };
 
