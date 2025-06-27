@@ -43,12 +43,17 @@ export const processStatement = async (statement: any, supabase: any) => {
       return;
     }
 
-    // Insert transactions into database
+    // Insert transactions into database - removed 'bank' field
     const transactionsWithStatementId = transactions.map(tx => ({
-      ...tx,
       user_id: statement.user_id,
       statement_id: statement.id,
-      bank: statement.bank,
+      transaction_date: tx.date,
+      description: tx.description,
+      amount: Math.abs(tx.amount), // Store as positive value
+      is_credit: tx.amount > 0, // Set is_credit based on original sign
+      category: tx.category,
+      installment_number: tx.installment_number || null,
+      installment_total: tx.installment_total || null,
       created_at: new Date().toISOString()
     }));
 
