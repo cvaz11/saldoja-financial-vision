@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -8,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -33,12 +34,20 @@ interface Statement {
 const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [bankName, setBankName] = useState("Nubank");
-  const [isInvoicePaid, setIsInvoicePaid] = useState(false);
   const [statements, setStatements] = useState<Statement[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { uploadFile, uploading } = useFileUpload();
   const { user } = useAuth();
+  const { profile, updateProfile } = useUserProfile();
   const { toast } = useToast();
+  const [closingDay, setClosingDay] = useState<string>(profile?.invoice_closing_day?.toString() || "5");
+
+  // Atualizar closingDay quando o perfil carregar
+  useEffect(() => {
+    if (profile?.invoice_closing_day) {
+      setClosingDay(profile.invoice_closing_day.toString());
+    }
+  }, [profile]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -203,17 +212,22 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
       return;
     }
 
+    // Atualizar dia de fechamento se foi alterado
+    const newClosingDay = parseInt(closingDay);
+    if (profile && profile.invoice_closing_day !== newClosingDay) {
+      updateProfile({ invoice_closing_day: newClosingDay });
+    }
+
     const result = await uploadFile({
       file: file,
       bankName: bankName,
-      isInvoicePaid: isInvoicePaid,
+      isInvoicePaid: true, // Sempre true agora
     });
 
     if (result?.success) {
       onUpload();
       setFile(null);
       setBankName("Nubank");
-      setIsInvoicePaid(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -275,7 +289,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
     <div className="space-y-6">
       {/* Upload Section */}
       <div className="bg-white rounded-lg border p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900">Enviar Extrato Nubank</h2>
+        <h2 className="text-lg font-semibold text-gray-900">Enviar Extrato</h2>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -298,6 +312,25 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
               ref={fileInputRef}
             />
           </div>
+        </div>
+
+        <div>
+          <Label htmlFor="closingDay">Dia de Fechamento da Fatura</Label>
+          <Select value={closingDay} onValueChange={setClosingDay}>
+            <SelectTrigger className="mt-1">
+              <SelectValue placeholder="Selecione o dia" />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                <SelectItem key={day} value={day.toString()}>
+                  Dia {day}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-sm text-gray-500 mt-1">
+            Dia do mês em que sua fatura de cartão fecha
+          </p>
         </div>
         
         <Button

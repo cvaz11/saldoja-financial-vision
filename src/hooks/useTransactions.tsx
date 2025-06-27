@@ -2,27 +2,58 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { useUserProfile } from "./useUserProfile";
 import type { DateRange } from "@/components/DateRangePicker";
+import { calculateInvoiceCycle, isDateInInvoiceCycle } from "@/lib/invoice-utils";
 import { useEffect } from "react";
 
-export const useTransactions = (dateRange: DateRange, showOnlyDebits: boolean = true) => {
+export const useTransactions = (
+  dateRange: DateRange, 
+  showOnlyDebits: boolean = true,
+  useInvoiceCycle: boolean = false
+) => {
   const { user } = useAuth();
+  const { profile } = useUserProfile();
+
+  // Calcular range baseado no ciclo de fatura se solicitado
+  const getEffectiveDateRange = () => {
+    if (!useInvoiceCycle || !profile) {
+      return dateRange;
+    }
+
+    const cycle = calculateInvoiceCycle(profile.invoice_closing_day, dateRange.from);
+    return {
+      from: cycle.startDate,
+      to: cycle.endDate
+    };
+  };
+
+  const effectiveRange = getEffectiveDateRange();
 
   // Query para buscar transações
   const query = useQuery({
-    queryKey: ['transactions', user?.id, dateRange.from.toISOString(), dateRange.to.toISOString(), showOnlyDebits],
+    queryKey: [
+      'transactions', 
+      user?.id, 
+      effectiveRange.from.toISOString(), 
+      effectiveRange.to.toISOString(), 
+      showOnlyDebits,
+      useInvoiceCycle,
+      profile?.invoice_closing_day
+    ],
     queryFn: async () => {
       if (!user) {
         console.log('[TRANSACTIONS] No user found, returning empty array');
         return [];
       }
       
-      const fromDate = dateRange.from.toISOString().split('T')[0];
-      const toDate = dateRange.to.toISOString().split('T')[0];
+      const fromDate = effectiveRange.from.toISOString().split('T')[0];
+      const toDate = effectiveRange.to.toISOString().split('T')[0];
       
       console.log('[TRANSACTIONS] Fetching for user:', user.id);
       console.log('[TRANSACTIONS] Date range:', fromDate, 'to', toDate);
       console.log('[TRANSACTIONS] Show only debits:', showOnlyDebits);
+      console.log('[TRANSACTIONS] Use invoice cycle:', useInvoiceCycle);
       
       let query = supabase
         .from('transactions')
@@ -93,4 +124,16 @@ export const useTransactions = (dateRange: DateRange, showOnlyDebits: boolean = 
   }, [user?.id, query]);
 
   return query;
+};
+
+// Hook específico para buscar transações do ciclo atual
+export const useCurrentInvoiceCycleTransactions = () => {
+  const { profile } = useUserProfile();
+  const currentCycle = profile ? calculateInvoiceCycle(profile.invoice_closing_day) : null;
+  
+  return useTransactions(
+    currentCycle ? { from: currentCycle.startDate, to: currentCycle.endDate } : { from: new Date(), to: new Date() },
+    true, // Apenas débitos
+    true  // Usar ciclo de fatura
+  );
 };

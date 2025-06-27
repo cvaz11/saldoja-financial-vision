@@ -4,7 +4,9 @@ import { X, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFileUpload } from "@/hooks/useFileUpload";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -15,11 +17,12 @@ interface UploadModalProps {
 
 const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: UploadModalProps) => {
   const { uploadFile, uploading } = useFileUpload();
+  const { profile, updateProfile } = useUserProfile();
   const [formData, setFormData] = useState({
     file: null as File | null,
-    isInvoicePaid: true,
-    bankName: ""
+    bankName: "Nubank"
   });
+  const [closingDay, setClosingDay] = useState<string>(profile?.invoice_closing_day?.toString() || "5");
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -35,14 +38,20 @@ const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: U
       return;
     }
 
+    // Atualizar dia de fechamento se foi alterado
+    const newClosingDay = parseInt(closingDay);
+    if (profile && profile.invoice_closing_day !== newClosingDay) {
+      updateProfile({ invoice_closing_day: newClosingDay });
+    }
+
     const result = await uploadFile({
       file: formData.file,
       bankName: formData.bankName,
-      isInvoicePaid: formData.isInvoicePaid
+      isInvoicePaid: true // Sempre true agora, não perguntamos mais
     });
 
     if (result.success) {
-      setFormData({ file: null, isInvoicePaid: true, bankName: "" });
+      setFormData({ file: null, bankName: "Nubank" });
       onClose();
       if (onSubmit) {
         onSubmit(formData);
@@ -95,39 +104,7 @@ const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: U
           </div>
 
           <div>
-            <Label className="text-base font-medium">1 - Fatura foi paga?</Label>
-            <div className="flex items-center space-x-4 mt-2">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="isInvoicePaid"
-                  checked={formData.isInvoicePaid === true}
-                  onChange={() => setFormData({ ...formData, isInvoicePaid: true })}
-                  className="mr-2"
-                />
-                <span className="flex items-center">
-                  <span className="w-4 h-4 bg-green-500 rounded-full mr-2"></span>
-                  Sim
-                </span>
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="isInvoicePaid"
-                  checked={formData.isInvoicePaid === false}
-                  onChange={() => setFormData({ ...formData, isInvoicePaid: false })}
-                  className="mr-2"
-                />
-                <span className="flex items-center">
-                  <span className="w-4 h-4 bg-red-500 rounded-full mr-2"></span>
-                  Não
-                </span>
-              </label>
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="bankName" className="text-base font-medium">2 - Nome do Banco</Label>
+            <Label htmlFor="bankName" className="text-base font-medium">Nome do Banco</Label>
             <Input
               id="bankName"
               value={formData.bankName}
@@ -136,6 +113,25 @@ const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: U
               placeholder="Digite o nome do banco"
               required
             />
+          </div>
+
+          <div>
+            <Label htmlFor="closingDay" className="text-base font-medium">Dia de Fechamento da Fatura</Label>
+            <Select value={closingDay} onValueChange={setClosingDay}>
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder="Selecione o dia" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                  <SelectItem key={day} value={day.toString()}>
+                    Dia {day}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-gray-500 mt-1">
+              Dia do mês em que sua fatura de cartão fecha
+            </p>
           </div>
 
           <Button 

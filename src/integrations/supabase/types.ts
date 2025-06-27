@@ -12,18 +12,21 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string | null
+          invoice_closing_day: number | null
           pdf_uploads_this_month: number | null
           plan: string | null
           user_id: string
         }
         Insert: {
           created_at?: string | null
+          invoice_closing_day?: number | null
           pdf_uploads_this_month?: number | null
           plan?: string | null
           user_id: string
         }
         Update: {
           created_at?: string | null
+          invoice_closing_day?: number | null
           pdf_uploads_this_month?: number | null
           plan?: string | null
           user_id?: string
