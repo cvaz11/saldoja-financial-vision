@@ -43,22 +43,47 @@ export const useDeleteStatement = () => {
     setIsDeleting(true);
     
     try {
-      // First, get the statement to retrieve file_url
+      // First, get the statement to retrieve file_url and confirm ownership
       console.log('[DELETE_STATEMENT] Getting statement details...');
       const { data: statement, error: getError } = await supabase
         .from('statements')
-        .select('file_url')
+        .select('file_url, user_id')
         .eq('id', statementId)
-        .eq('user_id', user.id)
         .single();
 
       if (getError) {
         console.error('[DELETE_STATEMENT] Error getting statement:', getError);
-        throw new Error('Erro ao buscar detalhes do extrato');
+        toast({
+          title: "Erro",
+          description: `Erro ao buscar extrato: ${getError.message}`,
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      if (!statement) {
+        console.error('[DELETE_STATEMENT] Statement not found');
+        toast({
+          title: "Erro",
+          description: "Extrato não encontrado",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      // Verify ownership
+      if (statement.user_id !== user.id) {
+        console.error('[DELETE_STATEMENT] User does not own this statement');
+        toast({
+          title: "Erro",
+          description: "Você não tem permissão para excluir este extrato",
+          variant: "destructive",
+        });
+        return false;
       }
 
       // Delete the file from storage if it exists
-      if (statement?.file_url) {
+      if (statement.file_url) {
         console.log('[DELETE_STATEMENT] Deleting file from storage:', statement.file_url);
         const { error: storageError } = await supabase.storage
           .from('statements')
@@ -66,7 +91,10 @@ export const useDeleteStatement = () => {
 
         if (storageError) {
           console.error('[DELETE_STATEMENT] Error deleting file from storage:', storageError);
-          // Continue with deletion even if file removal fails
+          toast({
+            title: "Aviso",
+            description: `Erro ao remover arquivo: ${storageError.message}. Continuando com exclusão do registro.`,
+          });
         } else {
           console.log('[DELETE_STATEMENT] ✅ File deleted from storage successfully');
         }
@@ -74,18 +102,33 @@ export const useDeleteStatement = () => {
 
       // Delete the statement (transactions will be automatically deleted via CASCADE)
       console.log('[DELETE_STATEMENT] Deleting statement from database...');
-      const { error: deleteError } = await supabase
+      const { error: deleteError, count } = await supabase
         .from('statements')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('id', statementId)
         .eq('user_id', user.id);
 
       if (deleteError) {
         console.error('[DELETE_STATEMENT] Error deleting statement:', deleteError);
-        throw deleteError;
+        toast({
+          title: "Erro",
+          description: `Falha ao excluir extrato: ${deleteError.message}`,
+          variant: "destructive",
+        });
+        return false;
       }
 
-      console.log('[DELETE_STATEMENT] ✅ Statement and related data deleted successfully');
+      if (count === 0) {
+        console.error('[DELETE_STATEMENT] No rows were deleted');
+        toast({
+          title: "Erro",
+          description: "Nenhum registro foi excluído. Verifique se o extrato ainda existe.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      console.log('[DELETE_STATEMENT] ✅ Statement and related data deleted successfully. Rows affected:', count);
 
       // Clear and invalidate cache
       queryClient.removeQueries({ queryKey: ['transactions'] });
@@ -105,10 +148,10 @@ export const useDeleteStatement = () => {
 
       return true;
     } catch (error: any) {
-      console.error('[DELETE_STATEMENT] Complete error:', error);
+      console.error('[DELETE_STATEMENT] Unexpected error:', error);
       toast({
         title: "Erro",
-        description: error.message || "Erro ao excluir o extrato",
+        description: `Erro inesperado: ${error.message || 'Erro desconhecido'}`,
         variant: "destructive",
       });
       return false;

@@ -128,7 +128,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
         console.error("[UPLOAD_SECTION] Error fetching statements:", error);
         toast({
           title: "Erro",
-          description: "Erro ao carregar extratos. Tente novamente.",
+          description: `Erro ao carregar extratos: ${error.message}`,
           variant: "destructive",
         });
         return;
@@ -136,11 +136,11 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
 
       console.log('[UPLOAD_SECTION] Fetched statements:', data?.length || 0);
       setStatements(data as Statement[] || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error("[UPLOAD_SECTION] Unexpected error fetching statements:", error);
       toast({
         title: "Erro",
-        description: "Erro inesperado ao carregar extratos.",
+        description: `Erro inesperado ao carregar extratos: ${error.message || 'Erro desconhecido'}`,
         variant: "destructive",
       });
     } finally {
@@ -270,7 +270,7 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
     if (success) {
       console.log('[UPLOAD_SECTION] Deletion successful, updating local state');
       
-      // Immediately remove from local state
+      // Only update local state if deletion was successful
       setStatements(prevStatements => 
         prevStatements.filter(stmt => stmt.id !== statementToDelete.id)
       );
@@ -283,6 +283,10 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
       setTimeout(() => {
         fetchStatements(true);
       }, 1000);
+    } else {
+      console.log('[UPLOAD_SECTION] Deletion failed, keeping dialog open');
+      // Don't close dialog or update local state if deletion failed
+      // The error toast will be shown by useDeleteStatement
     }
   };
 
