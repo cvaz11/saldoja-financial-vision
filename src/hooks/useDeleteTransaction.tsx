@@ -16,7 +16,6 @@ export const useDeleteTransaction = () => {
     setIsDeleting(true);
     
     try {
-      // Executar a exclusão
       const { error: deleteError } = await supabase
         .from('transactions')
         .delete()
@@ -30,12 +29,11 @@ export const useDeleteTransaction = () => {
 
       console.log('[DELETE] Transaction deleted successfully');
 
-      // Invalidar e refazer TODAS as queries de transações de forma mais agressiva
-      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      await queryClient.refetchQueries({ queryKey: ['transactions'] });
+      // Invalidar todas as queries relacionadas a transações
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
       
-      // Forçar atualização imediata dos dados
-      await queryClient.resetQueries({ queryKey: ['transactions'] });
+      // Aguardar invalidação e forçar refetch
+      await queryClient.refetchQueries({ queryKey: ['transactions'] });
 
       toast({
         title: "Sucesso",

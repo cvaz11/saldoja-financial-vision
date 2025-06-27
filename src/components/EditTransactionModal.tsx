@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Transaction {
   id: string;
@@ -43,6 +44,7 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
   const [category, setCategory] = useState(transaction?.category || 'Outros');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   React.useEffect(() => {
     if (transaction) {
@@ -57,6 +59,8 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
     
     setIsLoading(true);
     try {
+      console.log('[EDIT] Updating transaction:', transaction.id);
+      
       const { error } = await supabase
         .from('transactions')
         .update({
@@ -66,7 +70,16 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
         })
         .eq('id', transaction.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('[EDIT] Error updating transaction:', error);
+        throw error;
+      }
+
+      console.log('[EDIT] Transaction updated successfully');
+
+      // Invalidar queries para forçar atualização
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      await queryClient.refetchQueries({ queryKey: ['transactions'] });
 
       toast({
         title: "Transação atualizada",
@@ -75,21 +88,16 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
       
       onSuccess();
       onClose();
-    } catch (error) {
-      console.error('Error updating transaction:', error);
+    } catch (error: any) {
+      console.error('[EDIT] Error updating transaction:', error);
       toast({
         title: "Erro",
-        description: "Não foi possível atualizar a transação.",
+        description: error.message || "Não foi possível atualizar a transação.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const formatCurrency = (value: string) => {
-    const numericValue = value.replace(/[^\d,.-]/g, '');
-    return numericValue;
   };
 
   return (

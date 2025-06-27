@@ -20,21 +20,20 @@ export const useTransactionMetrics = () => {
   // Buscar transações dos períodos - com fallback seguro
   const fallbackRange = { from: new Date(), to: new Date() };
   
-  const { data: currentTransactions = [], refetch: refetchCurrent } = useTransactions(
+  const { data: currentTransactions = [] } = useTransactions(
     currentCycleRange || fallbackRange, 
     false, // Incluir créditos e débitos
     false
   );
   
-  const { data: previousTransactions = [], refetch: refetchPrevious } = useTransactions(
+  const { data: previousTransactions = [] } = useTransactions(
     previousCycleRange || fallbackRange, 
     false,
     false
   );
 
   const metrics = useMemo(() => {
-    console.log('[METRICS] Raw current transactions:', currentTransactions.length);
-    console.log('[METRICS] Raw previous transactions:', previousTransactions.length);
+    console.log('[METRICS] Calculating metrics...');
 
     // Usar EXATAMENTE a mesma lógica da tabela de transações
     const totalCurrentDebits = currentTransactions
@@ -46,10 +45,6 @@ export const useTransactionMetrics = () => {
       .reduce((sum, t) => sum + Number(t.amount), 0);
     
     const currentBalance = totalCurrentCredits - totalCurrentDebits;
-    
-    console.log('[METRICS] Current debits:', totalCurrentDebits);
-    console.log('[METRICS] Current credits:', totalCurrentCredits);
-    console.log('[METRICS] Current balance:', currentBalance);
 
     // Métricas do ciclo anterior - mesma lógica
     const totalPreviousDebits = previousTransactions
@@ -59,9 +54,6 @@ export const useTransactionMetrics = () => {
     const totalPreviousCredits = previousTransactions
       .filter(t => t.is_credit)
       .reduce((sum, t) => sum + Number(t.amount), 0);
-    
-    console.log('[METRICS] Previous debits:', totalPreviousDebits);
-    console.log('[METRICS] Previous credits:', totalPreviousCredits);
     
     // Calcular variações percentuais
     const debitVariation = totalPreviousDebits > 0 ? 
@@ -89,15 +81,8 @@ export const useTransactionMetrics = () => {
       
       hasCurrentData,
       hasPreviousData,
-      
-      // Métodos para forçar atualização
-      refetchMetrics: () => {
-        console.log('[METRICS] Force refreshing metrics data...');
-        refetchCurrent();
-        refetchPrevious();
-      }
     };
-  }, [currentTransactions, previousTransactions, currentCycle, previousCycle, refetchCurrent, refetchPrevious]);
+  }, [currentTransactions, previousTransactions, currentCycle, previousCycle]);
 
   return metrics;
 };

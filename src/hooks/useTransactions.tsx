@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { useUserProfile } from "./useUserProfile";
 import type { DateRange } from "@/components/DateRangePicker";
-import { calculateInvoiceCycle, isDateInInvoiceCycle } from "@/lib/invoice-utils";
+import { calculateInvoiceCycle } from "@/lib/invoice-utils";
 import { useEffect, useRef } from "react";
 
 export const useTransactions = (
@@ -54,7 +54,6 @@ export const useTransactions = (
       console.log('[TRANSACTIONS] Fetching for user:', user.id);
       console.log('[TRANSACTIONS] Date range:', fromDate, 'to', toDate);
       console.log('[TRANSACTIONS] Show only debits:', showOnlyDebits);
-      console.log('[TRANSACTIONS] Use invoice cycle:', useInvoiceCycle);
       
       let query = supabase
         .from('transactions')
@@ -79,14 +78,11 @@ export const useTransactions = (
       return data || [];
     },
     enabled: !!user,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
-    refetchInterval: false,
+    staleTime: 1000,
+    gcTime: 5000,
   });
 
-  // Escutar eventos realtime para atualizações de transações
+  // Configurar realtime updates
   useEffect(() => {
     if (!user) return;
 
@@ -97,10 +93,10 @@ export const useTransactions = (
       channelRef.current = null;
     }
 
-    console.log('[TRANSACTIONS] Setting up new realtime subscription');
+    console.log('[TRANSACTIONS] Setting up realtime subscription');
     
     const channel = supabase
-      .channel(`transactions-${user.id}-${Date.now()}`)
+      .channel(`transactions-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -115,9 +111,7 @@ export const useTransactions = (
           query.refetch();
         }
       )
-      .subscribe((status) => {
-        console.log('[TRANSACTIONS] Subscription status:', status);
-      });
+      .subscribe();
 
     channelRef.current = channel;
 
@@ -128,7 +122,7 @@ export const useTransactions = (
         channelRef.current = null;
       }
     };
-  }, [user?.id, query.refetch]);
+  }, [user?.id]);
 
   return query;
 };

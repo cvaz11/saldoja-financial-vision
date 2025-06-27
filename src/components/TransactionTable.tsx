@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
@@ -98,6 +99,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   };
 
   const handleEditTransaction = (transaction: any) => {
+    console.log('[TABLE] Opening edit modal for transaction:', transaction.id);
     setEditingTransaction(transaction);
     setIsEditModalOpen(true);
   };
@@ -114,9 +116,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
       const success = await deleteTransaction(transactionToDelete);
       
       if (success) {
-        console.log('[TABLE] Deletion successful, updating UI...');
-        // Forçar atualização imediata da UI
-        await refetch();
+        console.log('[TABLE] Deletion successful');
       }
     }
     
@@ -125,8 +125,9 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   };
 
   const handleEditSuccess = () => {
-    console.log('[TABLE] Transaction edited successfully, refreshing...');
-    refetch();
+    console.log('[TABLE] Transaction edited successfully');
+    setIsEditModalOpen(false);
+    setEditingTransaction(null);
   };
 
   // Calcular totais para a barra inferior
