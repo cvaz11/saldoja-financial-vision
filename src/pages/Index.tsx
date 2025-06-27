@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Sidebar from "@/components/Sidebar";
 import MobileMenuDrawer from "@/components/MobileMenuDrawer";
-import MetricCard from "@/components/MetricCard";
 import TransactionTable from "@/components/TransactionTable";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import UploadModal from "@/components/UploadModal";
@@ -13,8 +12,7 @@ import BankPieChart from "@/components/BankPieChart";
 import ConfiguracoesSidebar from "@/components/ConfiguracoesSidebar";
 import UserProfile from "@/components/UserProfile";
 import { Button } from "@/components/ui/button";
-import { TrendingDown, DollarSign, TrendingUp, Upload, User, Menu } from "lucide-react";
-import { useTransactionMetrics } from "@/hooks/useTransactionMetrics";
+import { Upload, User, Menu } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -26,7 +24,6 @@ const Index = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [modalType, setModalType] = useState<"receita" | "despesa">("receita");
-  const metrics = useTransactionMetrics();
 
   // Set active section based on current route
   useEffect(() => {
@@ -64,17 +61,6 @@ const Index = () => {
     } else if (section === 'visao-geral') {
       navigate('/dashboard');
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
-
-  const formatPercentage = (value: number): string => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
   };
 
   const renderVisaoGeral = () => (
@@ -153,46 +139,6 @@ const Index = () => {
             <span className="hidden sm:inline">Perfil</span>
           </Button>
         </div>
-      </div>
-
-      {/* Metrics Cards - Agora com dados reais e flags */}
-      <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-        <MetricCard
-          title={`Despesas - ${metrics.currentCycleName}`}
-          value={formatCurrency(metrics.totalDebits)}
-          previousValue={formatCurrency(metrics.previousTotalDebits)}
-          trend={metrics.debitVariation >= 0 ? "up" : "down"}
-          percentage={formatPercentage(metrics.debitVariation)}
-          icon={<TrendingDown className="h-6 w-6 text-sage-600" />}
-          color="green"
-          hasData={metrics.hasCurrentData}
-          hasPreviousData={metrics.hasPreviousData}
-        />
-        <MetricCard
-          title={`Receitas - ${metrics.currentCycleName}`}
-          value={formatCurrency(metrics.totalCredits)}
-          previousValue={formatCurrency(metrics.previousTotalCredits)}
-          trend={metrics.creditVariation >= 0 ? "up" : "down"}
-          percentage={formatPercentage(metrics.creditVariation)}
-          icon={<DollarSign className="h-6 w-6 text-sage-600" />}
-          color="green"
-          hasData={metrics.hasCurrentData}
-          hasPreviousData={metrics.hasPreviousData}
-        />
-        <MetricCard
-          title={`Resultado - ${metrics.currentCycleName}`}
-          value={formatCurrency(metrics.balance)}
-          previousValue={formatCurrency(metrics.previousTotalCredits - metrics.previousTotalDebits)}
-          trend={metrics.balance >= 0 ? "up" : "down"}
-          percentage={formatPercentage(
-            metrics.previousTotalCredits - metrics.previousTotalDebits !== 0 ? 
-            ((metrics.balance - (metrics.previousTotalCredits - metrics.previousTotalDebits)) / Math.abs(metrics.previousTotalCredits - metrics.previousTotalDebits)) * 100 : 0
-          )}
-          icon={<TrendingUp className="h-6 w-6 text-sage-600" />}
-          color="green"
-          hasData={metrics.hasCurrentData}
-          hasPreviousData={metrics.hasPreviousData}
-        />
       </div>
 
       {/* Action Buttons - Stack on mobile */}
