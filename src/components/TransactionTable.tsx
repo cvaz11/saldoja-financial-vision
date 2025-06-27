@@ -109,10 +109,14 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
 
   const handleConfirmDelete = async () => {
     if (transactionToDelete) {
+      console.log('Deleting transaction:', transactionToDelete);
       const success = await deleteTransaction(transactionToDelete);
       if (success) {
-        // A query será invalidada automaticamente pelo hook
-        console.log('Transaction deleted successfully');
+        console.log('Transaction deleted successfully, forcing refresh...');
+        // Forçar atualização imediata
+        setTimeout(() => {
+          refetch();
+        }, 500);
       }
     }
     setDeleteConfirmOpen(false);
@@ -120,6 +124,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   };
 
   const handleEditSuccess = () => {
+    console.log('Transaction edited successfully, refreshing...');
     refetch();
   };
 

@@ -24,9 +24,23 @@ export const useDeleteTransaction = () => {
         throw error;
       }
 
-      // Invalidar todas as queries relacionadas a transações para forçar atualização
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      // Invalidar TODAS as queries relacionadas a transações para forçar atualização completa
+      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
       
+      // Forçar refetch de todas as queries ativas relacionadas a transações
+      await queryClient.refetchQueries({ queryKey: ['transactions'] });
+      
+      // Também invalidar queries de métricas que dependem das transações
+      await queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const queryKey = query.queryKey as string[];
+          return queryKey.some(key => 
+            typeof key === 'string' && 
+            (key.includes('transaction') || key.includes('metrics'))
+          );
+        }
+      });
+
       toast({
         title: "Sucesso",
         description: "Transação excluída com sucesso",
