@@ -83,6 +83,7 @@ export const useTransactions = (
     gcTime: 0,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
+    refetchInterval: false,
   });
 
   // Escutar eventos realtime para atualizações de transações
@@ -114,7 +115,9 @@ export const useTransactions = (
           query.refetch();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[TRANSACTIONS] Subscription status:', status);
+      });
 
     channelRef.current = channel;
 
@@ -125,7 +128,7 @@ export const useTransactions = (
         channelRef.current = null;
       }
     };
-  }, [user?.id]);
+  }, [user?.id, query.refetch]);
 
   return query;
 };

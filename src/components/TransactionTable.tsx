@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
@@ -114,26 +113,20 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
       console.log('[TABLE] Confirming deletion for:', transactionToDelete);
       const success = await deleteTransaction(transactionToDelete);
       
-      setDeleteConfirmOpen(false);
-      setTransactionToDelete(null);
-      
       if (success) {
-        console.log('[TABLE] Deletion successful, forcing refresh...');
-        // Forçar refresh múltiplo para garantir atualização
-        refetch();
-        setTimeout(() => refetch(), 200);
-        setTimeout(() => refetch(), 1000);
+        console.log('[TABLE] Deletion successful, updating UI...');
+        // Forçar atualização imediata da UI
+        await refetch();
       }
-    } else {
-      setDeleteConfirmOpen(false);
-      setTransactionToDelete(null);
     }
+    
+    setDeleteConfirmOpen(false);
+    setTransactionToDelete(null);
   };
 
   const handleEditSuccess = () => {
     console.log('[TABLE] Transaction edited successfully, refreshing...');
     refetch();
-    setTimeout(() => refetch(), 500);
   };
 
   // Calcular totais para a barra inferior

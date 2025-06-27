@@ -30,13 +30,12 @@ export const useDeleteTransaction = () => {
 
       console.log('[DELETE] Transaction deleted successfully');
 
-      // Invalidar TODAS as queries relacionadas - abordagem mais agressiva
-      await queryClient.invalidateQueries();
+      // Invalidar e refazer TODAS as queries de transações de forma mais agressiva
+      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      await queryClient.refetchQueries({ queryKey: ['transactions'] });
       
-      // Aguardar um pouco e forçar refetch
-      setTimeout(() => {
-        queryClient.refetchQueries();
-      }, 100);
+      // Forçar atualização imediata dos dados
+      await queryClient.resetQueries({ queryKey: ['transactions'] });
 
       toast({
         title: "Sucesso",
