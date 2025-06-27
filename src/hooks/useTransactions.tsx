@@ -5,7 +5,7 @@ import { useAuth } from "./useAuth";
 import { useUserProfile } from "./useUserProfile";
 import type { DateRange } from "@/components/DateRangePicker";
 import { calculateInvoiceCycle, isDateInInvoiceCycle } from "@/lib/invoice-utils";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export const useTransactions = (
   dateRange: DateRange, 
@@ -14,6 +14,7 @@ export const useTransactions = (
 ) => {
   const { user } = useAuth();
   const { profile } = useUserProfile();
+  const channelRef = useRef<any>(null);
 
   // Calcular range baseado no ciclo de fatura se solicitado
   const getEffectiveDateRange = () => {
@@ -78,18 +79,25 @@ export const useTransactions = (
       return data || [];
     },
     enabled: !!user,
-    refetchInterval: 5000, // Verificar novas transações a cada 5 segundos
-    staleTime: 2000, // Considerar dados obsoletos após 2 segundos
+    refetchInterval: 30000, // Aumentei para 30 segundos para reduzir sobrecarga
+    staleTime: 10000, // 10 segundos
   });
 
   // Escutar eventos realtime para atualizações de transações
   useEffect(() => {
     if (!user) return;
 
-    console.log('[TRANSACTIONS] Setting up realtime subscription');
+    // Limpar canal anterior se existir
+    if (channelRef.current) {
+      console.log('[TRANSACTIONS] Cleaning up previous channel');
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    console.log('[TRANSACTIONS] Setting up new realtime subscription');
     
     const channel = supabase
-      .channel('transactions-realtime')
+      .channel(`transactions-${user.id}-${Date.now()}`) // Nome único para evitar conflitos
       .on(
         'postgres_changes',
         {
@@ -104,24 +112,18 @@ export const useTransactions = (
           query.refetch();
         }
       )
-      .on(
-        'broadcast',
-        { event: 'statement_ready' },
-        (payload) => {
-          console.log('[TRANSACTIONS] Statement ready broadcast received:', payload);
-          if (payload.payload.user_id === user.id) {
-            // Refetch transações quando extrato estiver pronto
-            query.refetch();
-          }
-        }
-      )
       .subscribe();
 
+    channelRef.current = channel;
+
     return () => {
-      console.log('[TRANSACTIONS] Cleaning up realtime subscription');
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        console.log('[TRANSACTIONS] Cleaning up realtime subscription');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
-  }, [user?.id, query]);
+  }, [user?.id]); // Removido query da dependência para evitar loops
 
   return query;
 };

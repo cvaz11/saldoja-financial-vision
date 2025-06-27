@@ -17,28 +17,18 @@ export const useTransactionMetrics = () => {
   const previousCycle = profile ? calculateInvoiceCycle(profile.invoice_closing_day, previousMonthDate) : null;
   const previousCycleRange = previousCycle ? { from: previousCycle.startDate, to: previousCycle.endDate } : null;
 
-  // Próximo ciclo
-  const nextMonthDate = new Date();
-  nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-  const nextCycle = profile ? calculateInvoiceCycle(profile.invoice_closing_day, nextMonthDate) : null;
-  const nextCycleRange = nextCycle ? { from: nextCycle.startDate, to: nextCycle.endDate } : null;
-
-  // Buscar transações dos períodos
+  // Buscar transações dos períodos - com fallback seguro
+  const fallbackRange = { from: new Date(), to: new Date() };
+  
   const { data: currentTransactions = [] } = useTransactions(
-    currentCycleRange || { from: new Date(), to: new Date() }, 
+    currentCycleRange || fallbackRange, 
     false, // Incluir créditos e débitos
     false
   );
   
   const { data: previousTransactions = [] } = useTransactions(
-    previousCycleRange || { from: new Date(), to: new Date() }, 
+    previousCycleRange || fallbackRange, 
     false,
-    false
-  );
-
-  const { data: nextTransactions = [] } = useTransactions(
-    nextCycleRange || { from: new Date(), to: new Date() }, 
-    true, // Apenas débitos para próximo mês
     false
   );
 
@@ -62,9 +52,6 @@ export const useTransactionMetrics = () => {
     const totalPreviousCredits = previousCredits.reduce((sum, t) => sum + Number(t.amount), 0);
     const totalPreviousInstallments = previousInstallments.reduce((sum, t) => sum + Number(t.amount), 0);
     
-    // Métricas do próximo ciclo (parcelas futuras)
-    const totalNextInstallments = nextTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
-    
     // Calcular variações percentuais
     const debitVariation = totalPreviousDebits > 0 ? 
       ((totalCurrentDebits - totalPreviousDebits) / totalPreviousDebits) * 100 : 0;
@@ -87,23 +74,21 @@ export const useTransactionMetrics = () => {
       previousTotalCredits: totalPreviousCredits,
       previousTotalInstallments: totalPreviousInstallments,
       
-      // Próximo ciclo
-      nextTotalInstallments: totalNextInstallments,
-      
       // Variações
       debitVariation,
       creditVariation,
       installmentVariation,
       
-      // Totais de parcelas (todas as transações parceladas)
-      totalAllInstallments: totalCurrentInstallments + totalNextInstallments,
-      
       // Metadados
       currentCycleName: currentCycle?.displayName || 'Mês Atual',
       previousCycleName: previousCycle?.displayName || 'Mês Anterior',
-      nextCycleName: nextCycle?.displayName || 'Próximo Mês',
+      
+      // Simplificado
+      nextTotalInstallments: 0,
+      totalAllInstallments: totalCurrentInstallments,
+      nextCycleName: 'Próximo Mês',
     };
-  }, [currentTransactions, previousTransactions, nextTransactions, currentCycle, previousCycle, nextCycle]);
+  }, [currentTransactions, previousTransactions, currentCycle, previousCycle]);
 
   return metrics;
 };
