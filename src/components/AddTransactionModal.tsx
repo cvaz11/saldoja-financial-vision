@@ -5,6 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface AddTransactionModalProps {
   isOpen: boolean;
@@ -21,12 +26,24 @@ const AddTransactionModal = ({ isOpen, onClose, onSubmit, type }: AddTransaction
     notes: "",
     date: ""
   });
+  const [selectedDate, setSelectedDate] = useState<Date>();
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    const submitData = {
+      ...formData,
+      date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : ""
+    };
+    onSubmit(submitData);
     setFormData({ description: "", value: "", bank: "", notes: "", date: "" });
+    setSelectedDate(undefined);
     onClose();
+  };
+
+  const handleDateSelect = (date: Date | undefined) => {
+    setSelectedDate(date);
+    setIsDatePickerOpen(false);
   };
 
   const title = type === "receita" ? "Adicione uma receita ao sistema:" : "Adicione uma despesa ao sistema:";
@@ -91,14 +108,30 @@ const AddTransactionModal = ({ isOpen, onClose, onSubmit, type }: AddTransaction
 
           <div>
             <Label htmlFor="date">5 - Data</Label>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full mt-1 justify-start text-left font-normal"
-            >
-              <Calendar className="mr-2 h-4 w-4" />
-              Abrir Calendário
-            </Button>
+            <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    "w-full mt-1 justify-start text-left font-normal",
+                    !selectedDate && "text-muted-foreground"
+                  )}
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {selectedDate ? format(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={handleDateSelect}
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           <Button type="submit" className="w-full bg-sage-300 hover:bg-sage-400 text-white mt-6">
