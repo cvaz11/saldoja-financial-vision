@@ -21,6 +21,8 @@ interface Transaction {
   installment_number?: number;
   installment_total?: number;
   category?: string;
+  statement_id?: string;
+  user_id: string;
 }
 
 interface TransactionTableContentProps {

@@ -13,6 +13,20 @@ import TransactionTableContent from "./TransactionTableContent";
 import TransactionTableFooter from "./TransactionTableFooter";
 import TransactionTableModals from "./TransactionTableModals";
 
+// Unified transaction type
+interface UnifiedTransaction {
+  id: string;
+  description: string;
+  amount: number;
+  transaction_date: string;
+  is_credit: boolean;
+  installment_number?: number;
+  installment_total?: number;
+  category?: string;
+  statement_id?: string;
+  user_id: string;
+}
+
 interface TransactionTableProps {
   onAddTransaction?: () => void;
   showCategories?: boolean;
@@ -63,13 +77,27 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   const filteredQuery = useFilteredTransactions(filterConfig, filterConfig.type === 'invoices');
   
   const query = filterConfig.type === 'date-range' ? dateRangeQuery : filteredQuery;
-  const allTransactions = query.data || [];
+  const rawTransactions = query.data || [];
   const isLoading = query.isLoading;
   const error = query.error;
   const refetch = query.refetch;
 
+  // Convert all transactions to unified format
+  const allTransactions: UnifiedTransaction[] = rawTransactions.map(transaction => ({
+    id: transaction.id,
+    description: transaction.description || '',
+    amount: transaction.amount,
+    transaction_date: transaction.transaction_date,
+    is_credit: transaction.is_credit || false,
+    installment_number: transaction.installment_number,
+    installment_total: transaction.installment_total,
+    category: transaction.category,
+    statement_id: transaction.statement_id,
+    user_id: transaction.user_id
+  }));
+
   // Apply quick filters
-  const getFilteredTransactions = () => {
+  const getFilteredTransactions = (): UnifiedTransaction[] => {
     let filtered = allTransactions;
 
     switch (quickFilter) {
