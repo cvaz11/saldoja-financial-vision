@@ -146,23 +146,6 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Action Buttons - Stack on mobile */}
-      <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-        <Button 
-          onClick={() => handleAddTransaction("receita")}
-          className="bg-sage-600 hover:bg-sage-700 text-white shadow-md"
-        >
-          Adicionar Receita
-        </Button>
-        <Button 
-          onClick={() => handleAddTransaction("despesa")}
-          variant="outline"
-          className="border-sage-300 text-sage-700 hover:bg-sage-50"
-        >
-          Adicionar Despesa
-        </Button>
-      </div>
-
       {/* Transaction Table with DateRangePicker integrated */}
       <TransactionTable 
         onAddTransaction={() => handleAddTransaction("receita")}
