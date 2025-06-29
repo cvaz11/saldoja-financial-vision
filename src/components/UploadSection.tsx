@@ -1,485 +1,218 @@
-import React, { useState, useEffect, useRef } from "react";
-import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { FileText, Upload, Trash2, AlertCircle, CheckCircle, RefreshCw } from "lucide-react";
-
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Upload, FileText, Trash2, Plus, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useFileUpload } from "@/hooks/useFileUpload";
-import { useAuth } from "@/hooks/useAuth";
-import { useUserProfile } from "@/hooks/useUserProfile";
-import { useDeleteStatement } from "@/hooks/useDeleteStatement";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { formatCurrency } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { useDeleteStatement } from "@/hooks/useDeleteStatement";
 import { useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
-import DeleteStatementDialog from "./DeleteStatementDialog";
+import AddMissingTransactionModal from "./AddMissingTransactionModal";
 
 interface UploadSectionProps {
   onUpload: () => void;
   onNavigateToMovimentacoes: () => void;
 }
 
-interface Statement {
-  id: string;
-  status: string;
-  total_debit: number;
-  total_credit: number;
-  filename: string;
-  uploaded_at: string;
-  user_id: string;
-}
-
 const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionProps) => {
-  const [file, setFile] = useState<File | null>(null);
-  const [bankName, setBankName] = useState("Nubank");
-  const [statements, setStatements] = useState<Statement[]>([]);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [statementToDelete, setStatementToDelete] = useState<Statement | null>(null);
-  const [transactionCount, setTransactionCount] = useState(0);
-  const [isLoadingStatements, setIsLoadingStatements] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { uploadFile, uploading } = useFileUpload();
   const { user } = useAuth();
-  const { profile, updateProfile } = useUserProfile();
-  const { deleteStatement, getTransactionCount, isDeleting } = useDeleteStatement();
   const { toast } = useToast();
-  const [closingDay, setClosingDay] = useState<string>(profile?.invoice_closing_day?.toString() || "5");
+  const { deleteStatement, isDeleting } = useDeleteStatement();
+  const [addTransactionModal, setAddTransactionModal] = useState<{ isOpen: boolean; statementId?: string }>({
+    isOpen: false,
+    statementId: undefined
+  });
 
-  // Update closingDay when profile loads
-  useEffect(() => {
-    if (profile?.invoice_closing_day) {
-      setClosingDay(profile.invoice_closing_day.toString());
-    }
-  }, [profile]);
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'ready':
-        return (
-          <Badge variant="default" className="bg-green-500 text-white">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Pronto
-          </Badge>
-        );
-      case 'processing':
-        return (
-          <Badge variant="secondary" className="bg-yellow-500 text-white">
-            <div className="animate-spin h-3 w-3 mr-1 border border-white border-t-transparent rounded-full" />
-            Processando
-          </Badge>
-        );
-      case 'no_data':
-        return (
-          <Badge variant="outline" className="border-orange-500 text-orange-600">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Sem dados
-          </Badge>
-        );
-      case 'error':
-        return (
-          <Badge variant="destructive">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Erro
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getStatusMessage = (statement: Statement) => {
-    switch (statement.status) {
-      case 'ready':
-        if (statement.total_debit > 0) {
-          return `${statement.total_debit > 0 ? `Despesas: ${formatCurrency(statement.total_debit)}` : ''} ${statement.total_credit > 0 ? `Receitas: ${formatCurrency(statement.total_credit)}` : ''}`.trim();
-        } else {
-          return 'Processado - Nenhuma despesa identificada';
-        }
-      case 'processing':
-        return 'Analisando extrato Nubank... Aguarde alguns minutos.';
-      case 'no_data':
-        return 'Extrato processado - Nenhuma despesa encontrada no período.';
-      case 'error':
-        return 'Falha no processamento. Tente fazer upload novamente.';
-      default:
-        return '';
-    }
-  };
-
-  // Function to fetch statements with forced refresh
-  const fetchStatements = async (forceRefresh = false) => {
-    if (!user) return;
-    
-    setIsLoadingStatements(true);
-    console.log('[UPLOAD_SECTION] Fetching statements for user:', user.id, forceRefresh ? '(forced refresh)' : '');
-
-    try {
+  const { data: statements, isLoading, refetch } = useQuery({
+    queryKey: ['statements', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
       const { data, error } = await supabase
         .from('statements')
         .select('*')
         .eq('user_id', user.id)
         .order('uploaded_at', { ascending: false });
-
-      if (error) {
-        console.error("[UPLOAD_SECTION] Error fetching statements:", error);
-        toast({
-          title: "Erro",
-          description: `Erro ao carregar extratos: ${error.message}`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      console.log('[UPLOAD_SECTION] Fetched statements:', data?.length || 0);
-      setStatements(data as Statement[] || []);
-    } catch (error: any) {
-      console.error("[UPLOAD_SECTION] Unexpected error fetching statements:", error);
-      toast({
-        title: "Erro",
-        description: `Erro inesperado ao carregar extratos: ${error.message || 'Erro desconhecido'}`,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingStatements(false);
-    }
-  };
-
-  // Fetch statements on component mount and user change
-  useEffect(() => {
-    if (user) {
-      fetchStatements();
-    }
-  }, [user]);
-
-  // Listen to realtime updates for statements
-  useEffect(() => {
-    if (!user) return;
-
-    console.log('[UPLOAD_SECTION] Setting up realtime subscription for statements');
-    
-    const channel = supabase
-      .channel(`statements-realtime-${user.id}-${Date.now()}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'statements',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          console.log('[UPLOAD_SECTION] Statement realtime update:', payload);
-          
-          // Force refresh statements after any change
-          setTimeout(() => {
-            fetchStatements(true);
-          }, 100);
-          
-          // Handle specific events
-          const newRecord = payload.new as Statement;
-          if (payload.eventType === 'UPDATE' && newRecord && newRecord.status === 'ready' && newRecord.total_debit > 0) {
-            toast({
-              title: "🎉 Extrato processado!",
-              description: `${newRecord.total_debit > 0 ? `${formatCurrency(newRecord.total_debit)} em despesas encontradas.` : ''} Clique para ver as movimentações.`,
-              duration: 8000,
-              action: (
-                <ToastAction 
-                  altText="Ver movimentações"
-                  onClick={onNavigateToMovimentacoes}
-                >
-                  Ver movimentações
-                </ToastAction>
-              )
-            });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      console.log('[UPLOAD_SECTION] Cleaning up statements realtime subscription');
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id, toast, onNavigateToMovimentacoes]);
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files.length > 0) {
-      const selectedFile = event.target.files[0];
-      setFile(selectedFile);
       
-      // Auto-detect bank based on filename
-      if (selectedFile.name.toLowerCase().includes('nubank')) {
-        setBankName('Nubank');
-      }
-    }
-  };
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
 
-  const handleSubmit = async () => {
-    if (!file || !bankName) {
-      toast({
-        title: "Erro",
-        description: "Por favor, selecione um arquivo e confirme o banco.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Update closing day if changed
-    const newClosingDay = parseInt(closingDay);
-    if (profile && profile.invoice_closing_day !== newClosingDay) {
-      updateProfile({ invoice_closing_day: newClosingDay });
-    }
-
-    const result = await uploadFile({
-      file: file,
-      bankName: bankName,
-      isInvoicePaid: true,
-    });
-
-    if (result?.success) {
-      onUpload();
-      setFile(null);
-      setBankName("Nubank");
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-      // Force refresh statements after upload
-      setTimeout(() => {
-        fetchStatements(true);
-      }, 1000);
-    }
-  };
-
-  const handleDeleteClick = async (statement: Statement) => {
-    const count = await getTransactionCount(statement.id);
-    setTransactionCount(count);
-    setStatementToDelete(statement);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!statementToDelete) return;
-
-    console.log('[UPLOAD_SECTION] Confirming deletion for statement:', statementToDelete.id);
-    const success = await deleteStatement(statementToDelete.id);
-    
+  const handleDelete = async (statementId: string) => {
+    const success = await deleteStatement(statementId);
     if (success) {
-      console.log('[UPLOAD_SECTION] Deletion successful, updating local state');
-      
-      // Only update local state if deletion was successful
-      setStatements(prevStatements => 
-        prevStatements.filter(stmt => stmt.id !== statementToDelete.id)
-      );
-      
-      setDeleteDialogOpen(false);
-      setStatementToDelete(null);
-      setTransactionCount(0);
-      
-      // Force refresh after a short delay to ensure consistency
-      setTimeout(() => {
-        fetchStatements(true);
-      }, 1000);
-    } else {
-      console.log('[UPLOAD_SECTION] Deletion failed, keeping dialog open');
-      // Don't close dialog or update local state if deletion failed
-      // The error toast will be shown by useDeleteStatement
+      refetch();
     }
   };
 
-  const handleStatementClick = (statement: Statement) => {
-    if (statement.status === 'error') {
-      toast({
-        title: "Erro no processamento",
-        description: "Não foi possível analisar este extrato. Tente fazer o upload novamente.",
-        variant: "destructive",
-      });
-    } else if (statement.status === 'ready' && statement.total_debit > 0) {
-      onNavigateToMovimentacoes();
-    } else if (statement.status === 'processing') {
-      toast({
-        title: "Processamento em andamento",
-        description: "Seu extrato está sendo analisado. Aguarde alguns minutos.",
-      });
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'ready':
+        return <Badge className="bg-green-100 text-green-800 border-green-200">✅ Pronto</Badge>;
+      case 'processing':
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">⏳ Processando</Badge>;
+      case 'error':
+        return <Badge className="bg-red-100 text-red-800 border-red-200">❌ Erro</Badge>;
+      case 'no_data':
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">⚠️ Sem dados</Badge>;
+      default:
+        return <Badge className="bg-gray-100 text-gray-800 border-gray-200">{status}</Badge>;
     }
   };
 
-  const handleRefreshStatements = () => {
-    console.log('[UPLOAD_SECTION] Manual refresh requested');
-    fetchStatements(true);
+  const handleAddMissingTransaction = (statementId: string) => {
+    setAddTransactionModal({ isOpen: true, statementId });
   };
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sage-600 mx-auto"></div>
+        <p className="mt-2 text-gray-600">Carregando extratos...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Upload Section */}
-      <div className="bg-white rounded-lg border p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900">Enviar Extrato</h2>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="bankName">Banco</Label>
-            <Input
-              type="text"
-              id="bankName"
-              placeholder="Ex: Nubank"
-              value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="fileUpload">Extrato (OFX, CSV, XLS, XLSX)</Label>
-            <Input
-              type="file"
-              id="fileUpload"
-              accept=".ofx,.csv,.xls,.xlsx"
-              onChange={handleFileChange}
-              ref={fileInputRef}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Formatos aceitos: OFX, CSV, XLS, XLSX
-            </p>
-          </div>
-        </div>
-
-        <div>
-          <Label htmlFor="closingDay">Dia de Fechamento da Fatura</Label>
-          <Select value={closingDay} onValueChange={setClosingDay}>
-            <SelectTrigger className="mt-1">
-              <SelectValue placeholder="Selecione o dia" />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                <SelectItem key={day} value={day.toString()}>
-                  Dia {day}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-sm text-gray-500 mt-1">
-            Dia do mês em que sua fatura de cartão fecha
-          </p>
-        </div>
-        
-        <Button
-          className="bg-sage-600 hover:bg-sage-700 text-white shadow-md w-full"
-          onClick={handleSubmit}
-          disabled={uploading || !file || !bankName}
-        >
-          {uploading ? (
-            <>
-              <div className="animate-spin h-4 w-4 mr-2 border border-white border-t-transparent rounded-full" />
-              Enviando...
-            </>
-          ) : (
-            <>
-              <Upload className="h-4 w-4 mr-2" />
-              Enviar Extrato
-            </>
-          )}
-        </Button>
-      </div>
-
-      {/* Statements List */}
-      {statements && statements.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Extratos Enviados</h3>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefreshStatements}
-              disabled={isLoadingStatements}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingStatements ? 'animate-spin' : ''}`} />
-              Atualizar
-            </Button>
-          </div>
-          
-          {isLoadingStatements ? (
-            <div className="text-center py-4">
-              <div className="animate-spin h-6 w-6 mx-auto border border-gray-300 border-t-sage-600 rounded-full" />
-              <p className="text-sm text-gray-500 mt-2">Carregando extratos...</p>
+    <>
+      <div className="space-y-6">
+        {/* Upload Card */}
+        <Card className="border-2 border-dashed border-sage-200 bg-sage-50/30">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 bg-sage-100 rounded-full flex items-center justify-center mb-4">
+              <Upload className="h-6 w-6 text-sage-600" />
             </div>
-          ) : (
-            <div className="grid gap-4">
-              {statements.map((statement: Statement) => (
-                <div 
-                  key={statement.id} 
-                  className={`bg-white rounded-lg border p-4 transition-all ${
-                    statement.status === 'ready' && statement.total_debit > 0 ? 'cursor-pointer hover:shadow-md hover:border-sage-300' : ''
-                  } ${statement.status === 'error' ? 'cursor-pointer hover:bg-red-50' : ''}`}
-                  onClick={() => handleStatementClick(statement)}
-                >
-                  <div className="flex items-center justify-between">
+            <CardTitle className="text-xl text-gray-900">Enviar Novo Extrato</CardTitle>
+            <CardDescription className="text-gray-600">
+              Faça upload dos seus extratos em formato OFX, CSV ou Excel para análise automática
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Button 
+              onClick={onUpload}
+              size="lg"
+              className="bg-sage-600 hover:bg-sage-700 text-white px-8 py-3 rounded-lg font-medium"
+            >
+              <Upload className="h-5 w-5 mr-2" />
+              Selecionar Extrato
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Statements List */}
+        {statements && statements.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Extratos Enviados
+              </CardTitle>
+              <CardDescription>
+                Histórico dos seus extratos processados
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {statements.map((statement) => (
+                  <div key={statement.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-3">
-                        <FileText className="h-5 w-5 text-gray-400" />
-                        <div>
-                          <p className="font-medium text-gray-900">{statement.filename}</p>
-                          <p className="text-xs text-gray-500">
-                            Enviado em {format(parseISO(statement.uploaded_at), 'dd/MM/yyyy às HH:mm', { locale: ptBR })}
-                          </p>
-                        </div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="font-medium text-gray-900">{statement.filename}</h3>
+                        {getStatusBadge(statement.status)}
+                      </div>
+                      <div className="text-sm text-gray-500 space-y-1">
+                        <p>Enviado em {new Date(statement.uploaded_at).toLocaleString('pt-BR')}</p>
+                        {statement.status === 'ready' && (
+                          <>
+                            <p>Despesas: R$ {statement.total_debit?.toFixed(2) || '0,00'}</p>
+                            {statement.total_credit && statement.total_credit > 0 && (
+                              <p>Receitas: R$ {statement.total_credit.toFixed(2)}</p>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      {getStatusBadge(statement.status)}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteClick(statement);
-                        }}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                        disabled={isDeleting}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-3 text-sm text-gray-600">
-                    <div className="flex items-center justify-between">
-                      <span>{getStatusMessage(statement)}</span>
-                      {statement.status === 'ready' && statement.total_debit > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onNavigateToMovimentacoes();
-                          }}
-                          className="text-xs ml-2"
-                        >
-                          Ver Movimentações
-                        </Button>
+                    
+                    <div className="flex items-center gap-2">
+                      {statement.status === 'ready' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleAddMissingTransaction(statement.id)}
+                            className="hover:bg-sage-50"
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Adicionar Transação
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={onNavigateToMovimentacoes}
+                            className="hover:bg-sage-50"
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            Ver Movimentações
+                          </Button>
+                        </>
                       )}
+                      
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            disabled={isDeleting}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja excluir este extrato? Esta ação não pode ser desfeita e todas as transações relacionadas também serão excluídas.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(statement.id)}
+                              className="bg-red-600 hover:bg-red-700"
+                              disabled={isDeleting}
+                            >
+                              {isDeleting ? "Excluindo..." : "Excluir"}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
-      <DeleteStatementDialog
-        isOpen={deleteDialogOpen}
-        onClose={() => {
-          setDeleteDialogOpen(false);
-          setStatementToDelete(null);
-          setTransactionCount(0);
+      <AddMissingTransactionModal
+        isOpen={addTransactionModal.isOpen}
+        onClose={() => setAddTransactionModal({ isOpen: false, statementId: undefined })}
+        statementId={addTransactionModal.statementId || ''}
+        onSuccess={() => {
+          refetch();
+          toast({
+            title: "Transação adicionada",
+            description: "A transação foi adicionada com sucesso e já aparece nas movimentações.",
+          });
         }}
-        onConfirm={handleConfirmDelete}
-        statementName={statementToDelete?.filename || ""}
-        transactionCount={transactionCount}
-        isDeleting={isDeleting}
       />
-    </div>
+    </>
   );
 };
 
