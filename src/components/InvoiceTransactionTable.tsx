@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useState } from "react";
 import InvoiceFilter, { type FilterConfig } from "./InvoiceFilter";
@@ -6,6 +5,7 @@ import { useFilteredTransactions } from "@/hooks/useInvoiceTransactions";
 import TransactionTableContent from "./TransactionTableContent";
 import TransactionTableModals from "./TransactionTableModals";
 import { useDeleteTransaction } from "@/hooks/useDeleteTransaction";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Plus } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
@@ -29,6 +29,8 @@ interface InvoiceTransactionTableProps {
 }
 
 const InvoiceTransactionTable = ({ onAddTransaction }: InvoiceTransactionTableProps) => {
+  const { user } = useAuth();
+  
   // Configuração inicial: mês anterior com faturas
   const currentDate = new Date();
   const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1);
@@ -61,7 +63,7 @@ const InvoiceTransactionTable = ({ onAddTransaction }: InvoiceTransactionTablePr
     installment_total: transaction.installment_total,
     category: transaction.category,
     statement_id: transaction.statement_id,
-    user_id: transaction.user_id
+    user_id: user?.id || '' // Get user_id from auth context
   }));
 
   // Log de debug para erro
