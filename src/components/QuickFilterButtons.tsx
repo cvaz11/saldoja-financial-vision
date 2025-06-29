@@ -96,33 +96,37 @@ const QuickFilterButtons = ({
             )}
           </div>
 
-          {/* Lado direito - Botões de ação redesenhados */}
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          {/* Lado direito - Botões de ação responsivos */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             {onAddIncome && (
               <Button 
                 onClick={onAddIncome}
+                size="sm"
                 className={cn(
-                  "flex-1 sm:flex-none h-10 px-4 rounded-lg font-medium text-sm transition-all duration-200",
+                  "h-9 px-3 sm:px-4 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200",
                   "bg-sage-600 hover:bg-sage-700 text-white shadow-sm hover:shadow-md",
-                  "flex items-center justify-center gap-2"
+                  "flex items-center justify-center gap-1.5"
                 )}
               >
-                <Plus className="h-4 w-4" />
-                <span>Adicionar Receita</span>
+                <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Adicionar Receita</span>
+                <span className="sm:hidden">Receita</span>
               </Button>
             )}
             {onAddExpense && (
               <Button 
                 onClick={onAddExpense}
                 variant="outline"
+                size="sm"
                 className={cn(
-                  "flex-1 sm:flex-none h-10 px-4 rounded-lg font-medium text-sm transition-all duration-200",
-                  "border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 hover:text-red-700",
-                  "shadow-sm hover:shadow-md flex items-center justify-center gap-2"
+                  "h-9 px-3 sm:px-4 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200",
+                  "border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 hover:text-red-700",
+                  "shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
                 )}
               >
-                <Plus className="h-4 w-4" />
-                <span>Adicionar Despesa</span>
+                <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Adicionar Despesa</span>
+                <span className="sm:hidden">Despesa</span>
               </Button>
             )}
           </div>

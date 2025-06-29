@@ -7,7 +7,6 @@ import { useDeleteTransaction } from "@/hooks/useDeleteTransaction";
 import { type FilterConfig } from "./FilterButton";
 import { type QuickFilterType } from "./QuickFilterButtons";
 import TransactionTableHeader from "./TransactionTableHeader";
-import TransactionTableInfo from "./TransactionTableInfo";
 import TransactionTableContent from "./TransactionTableContent";
 import TransactionTableFooter from "./TransactionTableFooter";
 import TransactionTableModals from "./TransactionTableModals";
@@ -198,12 +197,6 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
           onRefresh={handleRefresh}
           onAddTransaction={onAddTransaction}
           onProfileOpen={handleProfileOpen}
-        />
-
-        <TransactionTableInfo
-          transactionCount={transactions.length}
-          dateRange={filterConfig.dateRange}
-          invoiceClosingDay={profile?.invoice_closing_day}
         />
 
         <TransactionTableContent
