@@ -10,6 +10,20 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw, Plus } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
+// Unified transaction type to match TransactionTableContent expectations
+interface UnifiedTransaction {
+  id: string;
+  description: string;
+  amount: number;
+  transaction_date: string;
+  is_credit: boolean;
+  installment_number?: number;
+  installment_total?: number;
+  category?: string;
+  statement_id?: string;
+  user_id: string;
+}
+
 interface InvoiceTransactionTableProps {
   onAddTransaction?: () => void;
 }
@@ -33,8 +47,22 @@ const InvoiceTransactionTable = ({ onAddTransaction }: InvoiceTransactionTablePr
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
 
-  const { data: transactions = [], isLoading, refetch, error } = useFilteredTransactions(config, true);
+  const { data: rawTransactions = [], isLoading, refetch, error } = useFilteredTransactions(config, true);
   const { deleteTransaction, isDeleting } = useDeleteTransaction();
+
+  // Convert transactions to unified format
+  const transactions: UnifiedTransaction[] = rawTransactions.map(transaction => ({
+    id: transaction.id,
+    description: transaction.description || '',
+    amount: transaction.amount,
+    transaction_date: transaction.transaction_date,
+    is_credit: transaction.is_credit || false,
+    installment_number: transaction.installment_number,
+    installment_total: transaction.installment_total,
+    category: transaction.category,
+    statement_id: transaction.statement_id,
+    user_id: transaction.user_id
+  }));
 
   // Log de debug para erro
   if (error) {
