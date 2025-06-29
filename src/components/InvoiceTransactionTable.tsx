@@ -1,8 +1,8 @@
 
 import React from "react";
 import { useState } from "react";
-import InvoiceFilter, { type InvoiceFilterConfig } from "./InvoiceFilter";
-import { useInvoiceTransactions } from "@/hooks/useInvoiceTransactions";
+import InvoiceFilter, { type FilterConfig } from "./InvoiceFilter";
+import { useFilteredTransactions } from "@/hooks/useInvoiceTransactions";
 import TransactionTableContent from "./TransactionTableContent";
 import TransactionTableModals from "./TransactionTableModals";
 import { useDeleteTransaction } from "@/hooks/useDeleteTransaction";
@@ -15,15 +15,17 @@ interface InvoiceTransactionTableProps {
 }
 
 const InvoiceTransactionTable = ({ onAddTransaction }: InvoiceTransactionTableProps) => {
-  // Configuração inicial: mês anterior com todos os bancos até dia 10
+  // Configuração inicial: mês anterior com faturas
   const currentDate = new Date();
   const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1);
   
-  const [config, setConfig] = useState<InvoiceFilterConfig>({
-    month: previousMonth.getMonth() + 1,
-    year: previousMonth.getFullYear(),
-    selectedBanks: [],
-    cutoffDay: 10
+  const [config, setConfig] = useState<FilterConfig>({
+    type: 'invoices',
+    invoiceConfig: {
+      month: previousMonth.getMonth() + 1,
+      year: previousMonth.getFullYear(),
+      selectedStatements: []
+    }
   });
 
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
@@ -31,7 +33,7 @@ const InvoiceTransactionTable = ({ onAddTransaction }: InvoiceTransactionTablePr
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
 
-  const { data: transactions = [], isLoading, refetch, error } = useInvoiceTransactions(config, true);
+  const { data: transactions = [], isLoading, refetch, error } = useFilteredTransactions(config, true);
   const { deleteTransaction, isDeleting } = useDeleteTransaction();
 
   // Log de debug para erro
@@ -156,7 +158,7 @@ const InvoiceTransactionTable = ({ onAddTransaction }: InvoiceTransactionTablePr
         <ul className="text-sm text-blue-800 space-y-1">
           <li>• Mostra transações de faturas que vencem no mês selecionado</li>
           <li>• Cada banco pode ter seu próprio dia de fechamento</li>
-          <li>• Apenas faturas que vencem até o dia {config.cutoffDay} são consideradas</li>
+          <li>• Apenas faturas selecionadas são consideradas</li>
           <li>• {transactions.length} transações encontradas para os critérios selecionados</li>
         </ul>
       </div>
