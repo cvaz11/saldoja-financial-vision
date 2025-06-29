@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
-import type { FilterConfig } from "@/components/InvoiceFilter";
+import type { FilterConfig } from "@/components/FilterButton";
 
 interface Transaction {
   id: string;
@@ -26,7 +26,10 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
   return useQuery({
     queryKey: ['filtered-transactions', config, user?.id],
     queryFn: async (): Promise<Transaction[]> => {
-      if (!user) return [];
+      if (!user) {
+        console.log('[FILTERED_QUERY] No user found');
+        return [];
+      }
 
       console.log('[FILTERED_QUERY] Fetching transactions with config:', config);
 
@@ -59,8 +62,11 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
         const { selectedStatements } = config.invoiceConfig;
         
         if (selectedStatements.length === 0) {
+          console.log('[FILTERED_QUERY] No statements selected');
           return [];
         }
+
+        console.log('[FILTERED_QUERY] Fetching transactions for statements:', selectedStatements);
 
         const { data, error } = await supabase
           .from('transactions')
@@ -81,6 +87,7 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
         return data as Transaction[] || [];
       }
 
+      console.log('[FILTERED_QUERY] No valid config provided');
       return [];
     },
     enabled: enabled && !!user,

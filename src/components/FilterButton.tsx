@@ -78,40 +78,44 @@ const FilterButton = ({ config, onConfigChange, className }: FilterButtonProps) 
     const fetchAvailableMonths = async () => {
       if (!user || activeTab !== 'invoices') return;
 
-      const { data, error } = await supabase
-        .from('statements')
-        .select('month, year')
-        .eq('user_id', user.id)
-        .eq('status', 'ready')
-        .not('month', 'is', null)
-        .not('year', 'is', null);
+      try {
+        const { data, error } = await supabase
+          .from('statements')
+          .select('month, year')
+          .eq('user_id', user.id)
+          .eq('status', 'ready')
+          .not('month', 'is', null)
+          .not('year', 'is', null);
 
-      if (error) {
-        console.error('Error fetching available months:', error);
-        return;
-      }
-
-      // Agrupar por mês/ano
-      const monthMap = new Map<string, AvailableMonth>();
-      data.forEach(statement => {
-        const key = `${statement.year}-${statement.month}`;
-        if (monthMap.has(key)) {
-          monthMap.get(key)!.count++;
-        } else {
-          monthMap.set(key, {
-            month: statement.month,
-            year: statement.year,
-            count: 1
-          });
+        if (error) {
+          console.error('Error fetching available months:', error);
+          return;
         }
-      });
 
-      const months = Array.from(monthMap.values()).sort((a, b) => {
-        if (a.year !== b.year) return b.year - a.year;
-        return b.month - a.month;
-      });
+        // Agrupar por mês/ano
+        const monthMap = new Map<string, AvailableMonth>();
+        data?.forEach(statement => {
+          const key = `${statement.year}-${statement.month}`;
+          if (monthMap.has(key)) {
+            monthMap.get(key)!.count++;
+          } else {
+            monthMap.set(key, {
+              month: statement.month,
+              year: statement.year,
+              count: 1
+            });
+          }
+        });
 
-      setAvailableMonths(months);
+        const months = Array.from(monthMap.values()).sort((a, b) => {
+          if (a.year !== b.year) return b.year - a.year;
+          return b.month - a.month;
+        });
+
+        setAvailableMonths(months);
+      } catch (error) {
+        console.error('Error in fetchAvailableMonths:', error);
+      }
     };
 
     fetchAvailableMonths();
@@ -122,20 +126,24 @@ const FilterButton = ({ config, onConfigChange, className }: FilterButtonProps) 
     const fetchStatements = async () => {
       if (!user || activeTab !== 'invoices') return;
 
-      const { data, error } = await supabase
-        .from('statements')
-        .select('id, bank, closing_day, filename')
-        .eq('user_id', user.id)
-        .eq('status', 'ready')
-        .eq('month', localInvoiceConfig.month)
-        .eq('year', localInvoiceConfig.year);
+      try {
+        const { data, error } = await supabase
+          .from('statements')
+          .select('id, bank, closing_day, filename')
+          .eq('user_id', user.id)
+          .eq('status', 'ready')
+          .eq('month', localInvoiceConfig.month)
+          .eq('year', localInvoiceConfig.year);
 
-      if (error) {
-        console.error('Error fetching statements:', error);
-        return;
+        if (error) {
+          console.error('Error fetching statements:', error);
+          return;
+        }
+
+        setAvailableStatements(data || []);
+      } catch (error) {
+        console.error('Error in fetchStatements:', error);
       }
-
-      setAvailableStatements(data || []);
     };
 
     fetchStatements();
@@ -176,12 +184,16 @@ const FilterButton = ({ config, onConfigChange, className }: FilterButtonProps) 
   };
 
   const handleConfirm = () => {
+    console.log('[FILTER] Confirming with tab:', activeTab);
+    
     if (activeTab === 'date-range') {
+      console.log('[FILTER] Date range config:', localDateRange);
       onConfigChange({
         type: 'date-range',
         dateRange: localDateRange
       });
     } else {
+      console.log('[FILTER] Invoice config:', localInvoiceConfig);
       onConfigChange({
         type: 'invoices',
         invoiceConfig: localInvoiceConfig
@@ -237,7 +249,7 @@ const FilterButton = ({ config, onConfigChange, className }: FilterButtonProps) 
                 value="invoices"
                 className="data-[state=active]:bg-white data-[state=active]:shadow-sm"
               >
-                Por Extratos
+                Por Faturas
               </TabsTrigger>
             </TabsList>
           </div>
@@ -257,7 +269,7 @@ const FilterButton = ({ config, onConfigChange, className }: FilterButtonProps) 
             />
           </TabsContent>
 
-          {/* Conteúdo da aba Por Extratos */}
+          {/* Conteúdo da aba Por Faturas */}
           <TabsContent value="invoices" className="p-4 mt-0 space-y-4">
             {/* Navegação do mês */}
             <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
@@ -286,7 +298,7 @@ const FilterButton = ({ config, onConfigChange, className }: FilterButtonProps) 
 
             {/* Campo de pesquisa */}
             <Input
-              placeholder="Pesquisar Extratos..."
+              placeholder="Pesquisar Faturas..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full"
@@ -346,6 +358,12 @@ const FilterButton = ({ config, onConfigChange, className }: FilterButtonProps) 
                   </div>
                 );
               })}
+              
+              {filteredStatements.length === 0 && availableStatements.length === 0 && (
+                <div className="text-center py-4 text-gray-500 text-sm">
+                  Nenhuma fatura encontrada para este mês
+                </div>
+              )}
             </div>
           </TabsContent>
 

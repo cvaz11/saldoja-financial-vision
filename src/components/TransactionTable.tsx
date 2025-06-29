@@ -6,6 +6,7 @@ import { useTransactions } from "@/hooks/useTransactions";
 import { useFilteredTransactions } from "@/hooks/useInvoiceTransactions";
 import { useDeleteTransaction } from "@/hooks/useDeleteTransaction";
 import { type FilterConfig } from "./FilterButton";
+import { type QuickFilterType } from "./QuickFilterButtons";
 import TransactionTableHeader from "./TransactionTableHeader";
 import TransactionTableInfo from "./TransactionTableInfo";
 import TransactionTableContent from "./TransactionTableContent";
@@ -23,6 +24,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
+  const [quickFilter, setQuickFilter] = useState<QuickFilterType>('all');
   
   const { deleteTransaction, isDeleting } = useDeleteTransaction();
   
@@ -61,10 +63,39 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   const filteredQuery = useFilteredTransactions(filterConfig, filterConfig.type === 'invoices');
   
   const query = filterConfig.type === 'date-range' ? dateRangeQuery : filteredQuery;
-  const transactions = query.data || [];
+  const allTransactions = query.data || [];
   const isLoading = query.isLoading;
   const error = query.error;
   const refetch = query.refetch;
+
+  // Apply quick filters
+  const getFilteredTransactions = () => {
+    let filtered = allTransactions;
+
+    switch (quickFilter) {
+      case 'expenses':
+        filtered = allTransactions.filter(t => !t.is_credit);
+        break;
+      case 'income':
+        filtered = allTransactions.filter(t => t.is_credit);
+        break;
+      case 'installments':
+        filtered = allTransactions.filter(t => t.installment_number && t.installment_total);
+        break;
+      case 'categories':
+        // Show transactions that have categories assigned
+        filtered = allTransactions.filter(t => t.category && t.category !== 'Outros');
+        break;
+      case 'all':
+      default:
+        // Show all transactions
+        break;
+    }
+
+    return filtered;
+  };
+
+  const transactions = getFilteredTransactions();
 
   // Log de debug para erro
   if (error) {
@@ -123,6 +154,8 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
         <TransactionTableHeader
           filterConfig={filterConfig}
           onFilterConfigChange={setFilterConfig}
+          quickFilter={quickFilter}
+          onQuickFilterChange={setQuickFilter}
           onRefresh={handleRefresh}
           onAddTransaction={onAddTransaction}
           onProfileOpen={handleProfileOpen}
