@@ -3,10 +3,13 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, RefreshCw, ToggleLeft, ToggleRight } from "lucide-react";
 import DateRangePicker, { type DateRange } from "./DateRangePicker";
+import InvoiceFilter, { type FilterConfig } from "./InvoiceFilter";
 
 interface TransactionTableHeaderProps {
-  dateRange: DateRange;
-  onDateRangeChange: (range: DateRange) => void;
+  dateRange?: DateRange;
+  onDateRangeChange?: (range: DateRange) => void;
+  filterConfig?: FilterConfig;
+  onFilterConfigChange?: (config: FilterConfig) => void;
   onRefresh: () => void;
   onAddTransaction?: () => void;
   onProfileOpen: () => void;
@@ -17,6 +20,8 @@ interface TransactionTableHeaderProps {
 const TransactionTableHeader = ({
   dateRange,
   onDateRangeChange,
+  filterConfig,
+  onFilterConfigChange,
   onRefresh,
   onAddTransaction,
   onProfileOpen,
@@ -26,10 +31,18 @@ const TransactionTableHeader = ({
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div className="flex items-center gap-4">
-        {viewMode === 'date-range' && (
+        {viewMode === 'date-range' && dateRange && onDateRangeChange && (
           <DateRangePicker 
             dateRange={dateRange}
             onDateRangeChange={onDateRangeChange}
+            className="w-full sm:w-auto"
+          />
+        )}
+        
+        {viewMode === 'invoice' && filterConfig && onFilterConfigChange && (
+          <InvoiceFilter
+            config={filterConfig}
+            onConfigChange={onFilterConfigChange}
             className="w-full sm:w-auto"
           />
         )}

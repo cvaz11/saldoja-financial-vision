@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
-import type { InvoiceFilterConfig } from "@/components/InvoiceFilter";
+import type { FilterConfig } from "@/components/InvoiceFilter";
 
 interface Transaction {
   id: string;
@@ -20,76 +20,84 @@ interface Transaction {
   };
 }
 
-export const useInvoiceTransactions = (config: InvoiceFilterConfig, enabled: boolean = true) => {
+export const useFilteredTransactions = (config: FilterConfig, enabled: boolean = true) => {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ['invoice-transactions', config, user?.id],
+    queryKey: ['filtered-transactions', config, user?.id],
     queryFn: async (): Promise<Transaction[]> => {
       if (!user) return [];
 
-      console.log('[INVOICE_QUERY] Fetching transactions with config:', config);
+      console.log('[FILTERED_QUERY] Fetching transactions with config:', config);
 
-      // Calcular range de datas baseado no mês de fatura e dias de fechamento
-      const invoiceMonth = new Date(config.year, config.month - 1);
-      const currentMonth = new Date();
+      if (config.type === 'date-range' && config.dateRange) {
+        // Buscar por período de datas
+        const { from, to } = config.dateRange;
+        
+        const { data, error } = await supabase
+          .from('transactions')
+          .select(`
+            *,
+            statements!inner(bank, closing_day)
+          `)
+          .eq('user_id', user.id)
+          .gte('transaction_date', from.toISOString().split('T')[0])
+          .lte('transaction_date', to.toISOString().split('T')[0])
+          .order('transaction_date', { ascending: false });
+
+        if (error) {
+          console.error('[FILTERED_QUERY] Error fetching date range transactions:', error);
+          throw error;
+        }
+
+        console.log('[FILTERED_QUERY] Found date range transactions:', data?.length || 0);
+        return data as Transaction[] || [];
+      } 
       
-      // Se estamos consultando faturas do mês atual ou futuro, incluir até a data atual
-      // Se é mês passado, incluir o mês completo
-      const endDate = config.year === currentMonth.getFullYear() && config.month === currentMonth.getMonth() + 1
-        ? currentMonth
-        : new Date(config.year, config.month, 0); // Último dia do mês
+      if (config.type === 'invoices' && config.invoiceConfig) {
+        // Buscar por extratos específicos
+        const { selectedStatements } = config.invoiceConfig;
+        
+        if (selectedStatements.length === 0) {
+          return [];
+        }
 
-      const startDate = new Date(config.year, config.month - 2, 1); // Primeiro dia do mês anterior
+        const { data, error } = await supabase
+          .from('transactions')
+          .select(`
+            *,
+            statements!inner(bank, closing_day)
+          `)
+          .eq('user_id', user.id)
+          .in('statement_id', selectedStatements)
+          .order('transaction_date', { ascending: false });
 
-      console.log('[INVOICE_QUERY] Date range:', { startDate, endDate });
+        if (error) {
+          console.error('[FILTERED_QUERY] Error fetching invoice transactions:', error);
+          throw error;
+        }
 
-      // Extrair informações dos bancos selecionados
-      const selectedBankFilters = config.selectedBanks.map(bankKey => {
-        const [bank, closingDay] = bankKey.split('_');
-        return { bank, closing_day: parseInt(closingDay) };
-      });
-
-      if (selectedBankFilters.length === 0) {
-        console.log('[INVOICE_QUERY] No banks selected, returning empty');
-        return [];
+        console.log('[FILTERED_QUERY] Found invoice transactions:', data?.length || 0);
+        return data as Transaction[] || [];
       }
 
-      // Construir query com filtros de banco e dia de fechamento
-      let query = supabase
-        .from('transactions')
-        .select(`
-          *,
-          statements!inner(bank, closing_day)
-        `)
-        .eq('user_id', user.id)
-        .gte('transaction_date', startDate.toISOString().split('T')[0])
-        .lte('transaction_date', endDate.toISOString().split('T')[0]);
-
-      // Aplicar filtro de bancos usando OR
-      const bankFilters = selectedBankFilters.map(filter => 
-        `and(statements.bank.eq.${filter.bank},statements.closing_day.eq.${filter.closing_day})`
-      ).join(',');
-
-      if (bankFilters) {
-        query = query.or(bankFilters);
-      }
-
-      // Filtrar apenas faturas que vencem até o cutoff day no mês atual
-      query = query.lte('statements.closing_day', config.cutoffDay);
-
-      const { data, error } = await query.order('transaction_date', { ascending: false });
-
-      if (error) {
-        console.error('[INVOICE_QUERY] Error fetching transactions:', error);
-        throw error;
-      }
-
-      console.log('[INVOICE_QUERY] Found transactions:', data?.length || 0);
-
-      return data as Transaction[] || [];
+      return [];
     },
-    enabled: enabled && !!user && config.selectedBanks.length > 0,
+    enabled: enabled && !!user,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
+};
+
+// Manter compatibilidade com o hook antigo
+export const useInvoiceTransactions = (config: any, enabled: boolean = true) => {
+  const filterConfig: FilterConfig = {
+    type: 'invoices',
+    invoiceConfig: {
+      month: config.month,
+      year: config.year,
+      selectedStatements: config.selectedBanks || []
+    }
+  };
+  
+  return useFilteredTransactions(filterConfig, enabled);
 };

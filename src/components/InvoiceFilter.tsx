@@ -2,138 +2,218 @@
 import React, { useState, useEffect } from "react";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, CreditCard, ChevronDown } from "lucide-react";
+import { CalendarIcon, CreditCard, ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar } from "@/components/ui/calendar";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
+export interface DateRangeConfig {
+  from: Date;
+  to: Date;
+}
+
 export interface InvoiceFilterConfig {
   month: number;
   year: number;
-  selectedBanks: string[];
-  cutoffDay: number;
+  selectedStatements: string[];
 }
 
-interface BankInfo {
-  bank: string;
-  closing_day: number;
+export interface FilterConfig {
+  type: 'date-range' | 'invoices';
+  dateRange?: DateRangeConfig;
+  invoiceConfig?: InvoiceFilterConfig;
+}
+
+interface AvailableMonth {
+  month: number;
+  year: number;
   count: number;
 }
 
+interface StatementInfo {
+  id: string;
+  bank: string;
+  closing_day: number;
+  filename: string;
+}
+
 interface InvoiceFilterProps {
-  config: InvoiceFilterConfig;
-  onConfigChange: (config: InvoiceFilterConfig) => void;
+  config: FilterConfig;
+  onConfigChange: (config: FilterConfig) => void;
   className?: string;
 }
 
 const InvoiceFilter = ({ config, onConfigChange, className }: InvoiceFilterProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [availableBanks, setAvailableBanks] = useState<BankInfo[]>([]);
+  const [activeTab, setActiveTab] = useState<'date-range' | 'invoices'>(config.type || 'date-range');
+  const [availableMonths, setAvailableMonths] = useState<AvailableMonth[]>([]);
+  const [availableStatements, setAvailableStatements] = useState<StatementInfo[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const { user } = useAuth();
 
-  // Buscar bancos disponíveis com seus dias de fechamento
+  // Estados locais para as abas
+  const [localDateRange, setLocalDateRange] = useState<DateRangeConfig>(
+    config.dateRange || { 
+      from: startOfMonth(new Date()), 
+      to: endOfMonth(new Date()) 
+    }
+  );
+  
+  const [localInvoiceConfig, setLocalInvoiceConfig] = useState<InvoiceFilterConfig>(
+    config.invoiceConfig || {
+      month: new Date().getMonth() + 1,
+      year: new Date().getFullYear(),
+      selectedStatements: []
+    }
+  );
+
+  // Buscar meses disponíveis
   useEffect(() => {
-    const fetchBanks = async () => {
+    const fetchAvailableMonths = async () => {
       if (!user) return;
 
       const { data, error } = await supabase
         .from('statements')
-        .select('bank, closing_day')
+        .select('month, year')
         .eq('user_id', user.id)
         .eq('status', 'ready')
-        .not('bank', 'is', null);
+        .not('month', 'is', null)
+        .not('year', 'is', null);
 
       if (error) {
-        console.error('Error fetching banks:', error);
+        console.error('Error fetching available months:', error);
         return;
       }
 
-      // Agrupar por banco e dia de fechamento
-      const bankMap = new Map<string, BankInfo>();
-      
+      // Agrupar por mês/ano
+      const monthMap = new Map<string, AvailableMonth>();
       data.forEach(statement => {
-        const key = `${statement.bank}_${statement.closing_day}`;
-        if (bankMap.has(key)) {
-          bankMap.get(key)!.count++;
+        const key = `${statement.year}-${statement.month}`;
+        if (monthMap.has(key)) {
+          monthMap.get(key)!.count++;
         } else {
-          bankMap.set(key, {
-            bank: statement.bank,
-            closing_day: statement.closing_day,
+          monthMap.set(key, {
+            month: statement.month,
+            year: statement.year,
             count: 1
           });
         }
       });
 
-      const banks = Array.from(bankMap.values()).sort((a, b) => {
-        if (a.bank !== b.bank) return a.bank.localeCompare(b.bank);
-        return a.closing_day - b.closing_day;
+      const months = Array.from(monthMap.values()).sort((a, b) => {
+        if (a.year !== b.year) return b.year - a.year;
+        return b.month - a.month;
       });
 
-      setAvailableBanks(banks);
+      setAvailableMonths(months);
     };
 
-    fetchBanks();
+    fetchAvailableMonths();
   }, [user]);
 
-  const handleMonthChange = (direction: 'prev' | 'next') => {
-    const currentDate = new Date(config.year, config.month - 1);
-    const newDate = direction === 'prev' ? subMonths(currentDate, 1) : addMonths(currentDate, 1);
+  // Buscar extratos do mês selecionado
+  useEffect(() => {
+    const fetchStatements = async () => {
+      if (!user || activeTab !== 'invoices') return;
+
+      const { data, error } = await supabase
+        .from('statements')
+        .select('id, bank, closing_day, filename')
+        .eq('user_id', user.id)
+        .eq('status', 'ready')
+        .eq('month', localInvoiceConfig.month)
+        .eq('year', localInvoiceConfig.year);
+
+      if (error) {
+        console.error('Error fetching statements:', error);
+        return;
+      }
+
+      setAvailableStatements(data || []);
+    };
+
+    fetchStatements();
+  }, [user, activeTab, localInvoiceConfig.month, localInvoiceConfig.year]);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab as 'date-range' | 'invoices');
+  };
+
+  const handleMonthNavigation = (direction: 'prev' | 'next') => {
+    const currentIndex = availableMonths.findIndex(
+      m => m.month === localInvoiceConfig.month && m.year === localInvoiceConfig.year
+    );
     
-    onConfigChange({
-      ...config,
-      month: newDate.getMonth() + 1,
-      year: newDate.getFullYear()
-    });
-  };
-
-  const handleBankToggle = (bankKey: string, checked: boolean) => {
-    const newSelectedBanks = checked
-      ? [...config.selectedBanks, bankKey]
-      : config.selectedBanks.filter(b => b !== bankKey);
-
-    onConfigChange({
-      ...config,
-      selectedBanks: newSelectedBanks
-    });
-  };
-
-  const handleSelectAllBanks = () => {
-    const allBankKeys = availableBanks.map(bank => `${bank.bank}_${bank.closing_day}`);
-    onConfigChange({
-      ...config,
-      selectedBanks: allBankKeys
-    });
-  };
-
-  const handleDeselectAllBanks = () => {
-    onConfigChange({
-      ...config,
-      selectedBanks: []
-    });
-  };
-
-  const formatMonthYear = () => {
-    const date = new Date(config.year, config.month - 1);
-    return format(date, "MMMM 'de' yyyy", { locale: ptBR });
-  };
-
-  const getSelectedBanksText = () => {
-    if (config.selectedBanks.length === 0) return "Nenhum banco selecionado";
-    if (config.selectedBanks.length === availableBanks.length) return "Todos os bancos";
-    if (config.selectedBanks.length === 1) {
-      const bankKey = config.selectedBanks[0];
-      const bank = availableBanks.find(b => `${b.bank}_${b.closing_day}` === bankKey);
-      return bank ? `${bank.bank} (dia ${bank.closing_day})` : "1 banco";
+    const newIndex = direction === 'prev' ? currentIndex + 1 : currentIndex - 1;
+    
+    if (newIndex >= 0 && newIndex < availableMonths.length) {
+      const newMonth = availableMonths[newIndex];
+      setLocalInvoiceConfig({
+        ...localInvoiceConfig,
+        month: newMonth.month,
+        year: newMonth.year,
+        selectedStatements: []
+      });
     }
-    return `${config.selectedBanks.length} bancos selecionados`;
   };
 
-  const getBankKey = (bank: BankInfo) => `${bank.bank}_${bank.closing_day}`;
+  const handleStatementToggle = (statementId: string) => {
+    const isSelected = localInvoiceConfig.selectedStatements.includes(statementId);
+    const newSelected = isSelected
+      ? localInvoiceConfig.selectedStatements.filter(id => id !== statementId)
+      : [...localInvoiceConfig.selectedStatements, statementId];
+
+    setLocalInvoiceConfig({
+      ...localInvoiceConfig,
+      selectedStatements: newSelected
+    });
+  };
+
+  const handleConfirm = () => {
+    if (activeTab === 'date-range') {
+      onConfigChange({
+        type: 'date-range',
+        dateRange: localDateRange
+      });
+    } else {
+      onConfigChange({
+        type: 'invoices',
+        invoiceConfig: localInvoiceConfig
+      });
+    }
+    setIsOpen(false);
+  };
+
+  const formatCurrentPeriod = () => {
+    if (config.type === 'date-range' && config.dateRange) {
+      const from = format(config.dateRange.from, "dd/MM/yy", { locale: ptBR });
+      const to = format(config.dateRange.to, "dd/MM/yy", { locale: ptBR });
+      return `${from} - ${to}`;
+    } else if (config.type === 'invoices' && config.invoiceConfig) {
+      const monthName = format(new Date(config.invoiceConfig.year, config.invoiceConfig.month - 1), "MMMM yyyy", { locale: ptBR });
+      return `Faturas ${monthName}`;
+    }
+    return "Selecionar período";
+  };
+
+  const filteredStatements = availableStatements.filter(statement =>
+    statement.bank.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    statement.filename.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const canNavigatePrev = availableMonths.findIndex(
+    m => m.month === localInvoiceConfig.month && m.year === localInvoiceConfig.year
+  ) < availableMonths.length - 1;
+
+  const canNavigateNext = availableMonths.findIndex(
+    m => m.month === localInvoiceConfig.month && m.year === localInvoiceConfig.year
+  ) > 0;
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -148,117 +228,146 @@ const InvoiceFilter = ({ config, onConfigChange, className }: InvoiceFilterProps
           <div className="flex items-center">
             <CreditCard className="mr-2 h-4 w-4" />
             <div>
-              <div className="font-medium">Faturas de {formatMonthYear()}</div>
-              <div className="text-xs text-gray-500">{getSelectedBanksText()}</div>
+              <div className="font-medium">{formatCurrentPeriod()}</div>
+              <div className="text-xs text-gray-500">
+                {config.type === 'invoices' && config.invoiceConfig 
+                  ? `${config.invoiceConfig.selectedStatements.length} extratos`
+                  : 'Filtro por período'
+                }
+              </div>
             </div>
           </div>
           <ChevronDown className="h-4 w-4 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="start">
-        <div className="p-4 border-b">
-          <h4 className="font-medium text-sm mb-3">Selecionar Mês da Fatura</h4>
-          <div className="flex items-center justify-between">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleMonthChange('prev')}
-            >
-              ←
-            </Button>
-            <span className="font-medium">{formatMonthYear()}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleMonthChange('next')}
-            >
-              →
-            </Button>
+      <PopoverContent className="w-96 p-0" align="start">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
+          <div className="p-4 border-b">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="date-range">Por Data</TabsTrigger>
+              <TabsTrigger value="invoices">Por Faturas</TabsTrigger>
+            </TabsList>
           </div>
-        </div>
 
-        <div className="p-4 border-b">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="font-medium text-sm">Bancos</h4>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs"
-                onClick={handleSelectAllBanks}
-              >
-                Todos
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs"
-                onClick={handleDeselectAllBanks}
-              >
-                Nenhum
-              </Button>
+          <TabsContent value="date-range" className="p-4 mt-0">
+            <div className="space-y-4">
+              <h4 className="font-medium text-sm">Selecionar Período</h4>
+              <Calendar
+                mode="range"
+                selected={{ from: localDateRange.from, to: localDateRange.to }}
+                onSelect={(range) => {
+                  if (range?.from && range?.to) {
+                    setLocalDateRange({ from: range.from, to: range.to });
+                  }
+                }}
+                className="p-3 pointer-events-auto"
+                showOutsideDays={false}
+              />
+              <div className="text-xs text-gray-600">
+                {format(localDateRange.from, "dd/MM/yyyy", { locale: ptBR })} - {format(localDateRange.to, "dd/MM/yyyy", { locale: ptBR })}
+              </div>
             </div>
-          </div>
-          
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {availableBanks.map((bank) => {
-              const bankKey = getBankKey(bank);
-              const isSelected = config.selectedBanks.includes(bankKey);
-              
-              return (
-                <div key={bankKey} className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50">
-                  <Checkbox
-                    id={bankKey}
-                    checked={isSelected}
-                    onCheckedChange={(checked) => handleBankToggle(bankKey, checked as boolean)}
-                  />
-                  <label htmlFor={bankKey} className="flex-1 cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{bank.bank}</span>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          Fecha dia {bank.closing_day}
-                        </Badge>
-                        <span className="text-xs text-gray-500">
-                          {bank.count} extrato{bank.count > 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    </div>
-                  </label>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+          </TabsContent>
 
-        <div className="p-4">
-          <div className="mb-3">
-            <label className="text-sm font-medium">
-              Considerar faturas com vencimento até dia
-            </label>
-            <Select
-              value={config.cutoffDay.toString()}
-              onValueChange={(value) => onConfigChange({
-                ...config,
-                cutoffDay: parseInt(value)
-              })}
+          <TabsContent value="invoices" className="p-4 mt-0">
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-medium text-sm mb-3">Mês da Fatura</h4>
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleMonthNavigation('prev')}
+                    disabled={!canNavigatePrev}
+                  >
+                    ←
+                  </Button>
+                  <span className="font-medium">
+                    {format(new Date(localInvoiceConfig.year, localInvoiceConfig.month - 1), "MMMM yyyy", { locale: ptBR })}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleMonthNavigation('next')}
+                    disabled={!canNavigateNext}
+                  >
+                    →
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-medium text-sm mb-3">Extratos</h4>
+                <Input
+                  placeholder="Pesquisar extratos..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="mb-3"
+                />
+                
+                {localInvoiceConfig.selectedStatements.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {localInvoiceConfig.selectedStatements.map(statementId => {
+                      const statement = availableStatements.find(s => s.id === statementId);
+                      if (!statement) return null;
+                      
+                      return (
+                        <Badge key={statementId} variant="secondary" className="flex items-center gap-1">
+                          {statement.bank}
+                          <X 
+                            className="h-3 w-3 cursor-pointer" 
+                            onClick={() => handleStatementToggle(statementId)}
+                          />
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {filteredStatements.map((statement) => {
+                    const isSelected = localInvoiceConfig.selectedStatements.includes(statement.id);
+                    
+                    return (
+                      <div 
+                        key={statement.id} 
+                        className={cn(
+                          "p-3 rounded-lg border cursor-pointer transition-colors",
+                          isSelected ? "bg-sage-50 border-sage-200" : "hover:bg-gray-50"
+                        )}
+                        onClick={() => handleStatementToggle(statement.id)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium">{statement.bank}</div>
+                            <div className="text-xs text-gray-500">
+                              Fecha dia {statement.closing_day} • {statement.filename}
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <div className="w-4 h-4 bg-sage-600 rounded-full flex items-center justify-center">
+                              <div className="w-2 h-2 bg-white rounded-full" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <div className="p-4 border-t">
+            <Button 
+              onClick={handleConfirm}
+              className="w-full"
+              disabled={activeTab === 'invoices' && localInvoiceConfig.selectedStatements.length === 0}
             >
-              <SelectTrigger className="mt-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                  <SelectItem key={day} value={day.toString()}>
-                    Dia {day}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              Confirmar
+            </Button>
           </div>
-          <p className="text-xs text-gray-500">
-            Apenas faturas que vencem até este dia do mês atual serão consideradas nos gastos.
-          </p>
-        </div>
+        </Tabs>
       </PopoverContent>
     </Popover>
   );

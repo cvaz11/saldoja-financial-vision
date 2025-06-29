@@ -4,7 +4,9 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
 import { type DateRange } from "./DateRangePicker";
 import { useTransactions } from "@/hooks/useTransactions";
+import { useFilteredTransactions } from "@/hooks/useInvoiceTransactions";
 import { useDeleteTransaction } from "@/hooks/useDeleteTransaction";
+import { type FilterConfig } from "./InvoiceFilter";
 import TransactionTableHeader from "./TransactionTableHeader";
 import TransactionTableInfo from "./TransactionTableInfo";
 import TransactionTableContent from "./TransactionTableContent";
@@ -19,7 +21,7 @@ interface TransactionTableProps {
 
 const TransactionTable = ({ onAddTransaction, showCategories = false }: TransactionTableProps) => {
   const { profile } = useUserProfile();
-  const [viewMode, setViewMode] = useState<'date-range' | 'invoice'>('invoice');
+  const [viewMode, setViewMode] = useState<'date-range' | 'invoice'>('date-range');
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -46,8 +48,20 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   };
 
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
+  const [filterConfig, setFilterConfig] = useState<FilterConfig>({
+    type: 'date-range',
+    dateRange: getDefaultDateRange()
+  });
 
-  const { data: transactions = [], isLoading, refetch, error } = useTransactions(dateRange, viewMode === 'date-range', false);
+  // Use different hooks based on view mode
+  const dateRangeQuery = useTransactions(dateRange, viewMode === 'date-range', false);
+  const filteredQuery = useFilteredTransactions(filterConfig, viewMode === 'invoice');
+  
+  const query = viewMode === 'date-range' ? dateRangeQuery : filteredQuery;
+  const transactions = query.data || [];
+  const isLoading = query.isLoading;
+  const error = query.error;
+  const refetch = query.refetch;
 
   // Log de debug para erro
   if (error) {
@@ -100,24 +114,71 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
     console.log('[TABLE] Profile open requested');
   };
 
-  // Se modo fatura está ativado, usar componente específico
-  if (viewMode === 'invoice') {
+  const handleViewModeChange = (mode: 'date-range' | 'invoice') => {
+    setViewMode(mode);
+    
+    // Update filter config when switching modes
+    if (mode === 'date-range') {
+      setFilterConfig({
+        type: 'date-range',
+        dateRange: dateRange
+      });
+    } else {
+      setFilterConfig({
+        type: 'invoices',
+        invoiceConfig: {
+          month: new Date().getMonth() + 1,
+          year: new Date().getFullYear(),
+          selectedStatements: []
+        }
+      });
+    }
+  };
+
+  // Se modo fatura está ativado, usar componente específico para compatibilidade
+  if (viewMode === 'invoice' && filterConfig.type === 'invoices') {
     return (
       <div className="space-y-4 pb-24">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Visualização por Faturas</h2>
-          <TransactionTableHeader
-            dateRange={dateRange}
-            onDateRangeChange={setDateRange}
-            onRefresh={handleRefresh}
-            onAddTransaction={onAddTransaction}
-            onProfileOpen={handleProfileOpen}
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-          />
-        </div>
-        
-        <InvoiceTransactionTable onAddTransaction={onAddTransaction} />
+        <TransactionTableHeader
+          filterConfig={filterConfig}
+          onFilterConfigChange={setFilterConfig}
+          onRefresh={handleRefresh}
+          onAddTransaction={onAddTransaction}
+          onProfileOpen={handleProfileOpen}
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
+        />
+
+        <TransactionTableInfo
+          transactionCount={transactions.length}
+          dateRange={filterConfig.dateRange}
+          invoiceClosingDay={profile?.invoice_closing_day}
+        />
+
+        <TransactionTableContent
+          transactions={transactions}
+          showCategories={showCategories}
+          isLoading={isLoading}
+          isDeleting={isDeleting}
+          onEditTransaction={handleEditTransaction}
+          onDeleteClick={handleDeleteClick}
+        />
+
+        <TransactionTableModals
+          editingTransaction={editingTransaction}
+          isEditModalOpen={isEditModalOpen}
+          deleteConfirmOpen={deleteConfirmOpen}
+          isDeleting={isDeleting}
+          onEditModalClose={() => {
+            setIsEditModalOpen(false);
+            setEditingTransaction(null);
+          }}
+          onEditSuccess={handleEditSuccess}
+          onDeleteConfirmChange={setDeleteConfirmOpen}
+          onConfirmDelete={handleConfirmDelete}
+        />
+
+        <TransactionTableFooter transactions={transactions} />
       </div>
     );
   }
@@ -132,7 +193,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
           onAddTransaction={onAddTransaction}
           onProfileOpen={handleProfileOpen}
           viewMode={viewMode}
-          onViewModeChange={setViewMode}
+          onViewModeChange={handleViewModeChange}
         />
 
         <TransactionTableInfo
