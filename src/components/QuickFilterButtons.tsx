@@ -96,31 +96,33 @@ const QuickFilterButtons = ({
             )}
           </div>
 
-          {/* Lado direito - Botões de ação */}
-          <div className="flex items-center gap-2">
+          {/* Lado direito - Botões de ação redesenhados */}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             {onAddIncome && (
               <Button 
                 onClick={onAddIncome}
-                size="sm"
-                className="h-9 px-4 bg-sage-600 hover:bg-sage-700 text-white rounded-md font-medium text-sm shadow-sm"
+                className={cn(
+                  "flex-1 sm:flex-none h-10 px-4 rounded-lg font-medium text-sm transition-all duration-200",
+                  "bg-sage-600 hover:bg-sage-700 text-white shadow-sm hover:shadow-md",
+                  "flex items-center justify-center gap-2"
+                )}
               >
-                <Plus className="h-4 w-4 mr-1.5" />
-                <span className="hidden sm:inline">Adicionar</span>
-                <span className="sm:hidden">Receita</span>
-                <span className="hidden md:inline ml-1">Receita</span>
+                <Plus className="h-4 w-4" />
+                <span>Adicionar Receita</span>
               </Button>
             )}
             {onAddExpense && (
               <Button 
                 onClick={onAddExpense}
-                size="sm"
                 variant="outline"
-                className="h-9 px-4 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-md font-medium text-sm"
+                className={cn(
+                  "flex-1 sm:flex-none h-10 px-4 rounded-lg font-medium text-sm transition-all duration-200",
+                  "border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 hover:text-red-700",
+                  "shadow-sm hover:shadow-md flex items-center justify-center gap-2"
+                )}
               >
-                <Plus className="h-4 w-4 mr-1.5" />
-                <span className="hidden sm:inline">Adicionar</span>
-                <span className="sm:hidden">Despesa</span>
-                <span className="hidden md:inline ml-1">Despesa</span>
+                <Plus className="h-4 w-4" />
+                <span>Adicionar Despesa</span>
               </Button>
             )}
           </div>
