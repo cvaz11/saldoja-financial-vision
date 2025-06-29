@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
@@ -39,6 +38,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
   const [quickFilter, setQuickFilter] = useState<QuickFilterType>('all');
+  const [searchTerm, setSearchTerm] = useState('');
   
   const { deleteTransaction, isDeleting } = useDeleteTransaction();
   
@@ -96,10 +96,11 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
     user_id: transaction.user_id
   }));
 
-  // Apply quick filters
+  // Apply quick filters and search
   const getFilteredTransactions = (): UnifiedTransaction[] => {
     let filtered = allTransactions;
 
+    // Apply quick filter
     switch (quickFilter) {
       case 'expenses':
         filtered = allTransactions.filter(t => !t.is_credit);
@@ -111,13 +112,21 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
         filtered = allTransactions.filter(t => t.installment_number && t.installment_total);
         break;
       case 'categories':
-        // Show transactions that have categories assigned
         filtered = allTransactions.filter(t => t.category && t.category !== 'Outros');
         break;
       case 'all':
       default:
-        // Show all transactions
         break;
+    }
+
+    // Apply search filter
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(t => 
+        t.description.toLowerCase().includes(searchLower) ||
+        t.category?.toLowerCase().includes(searchLower) ||
+        t.amount.toString().includes(searchTerm)
+      );
     }
 
     return filtered;
@@ -184,6 +193,8 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
           onFilterConfigChange={setFilterConfig}
           quickFilter={quickFilter}
           onQuickFilterChange={setQuickFilter}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
           onRefresh={handleRefresh}
           onAddTransaction={onAddTransaction}
           onProfileOpen={handleProfileOpen}
