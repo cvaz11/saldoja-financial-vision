@@ -1,62 +1,33 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, RefreshCw, ToggleLeft, ToggleRight } from "lucide-react";
-import DateRangePicker, { type DateRange } from "./DateRangePicker";
-import InvoiceFilter, { type FilterConfig } from "./InvoiceFilter";
+import { Plus, RefreshCw } from "lucide-react";
+import FilterButton, { type FilterConfig } from "./FilterButton";
 
 interface TransactionTableHeaderProps {
-  dateRange?: DateRange;
-  onDateRangeChange?: (range: DateRange) => void;
   filterConfig?: FilterConfig;
   onFilterConfigChange?: (config: FilterConfig) => void;
   onRefresh: () => void;
   onAddTransaction?: () => void;
   onProfileOpen: () => void;
-  viewMode?: 'date-range' | 'invoice';
-  onViewModeChange?: (mode: 'date-range' | 'invoice') => void;
 }
 
 const TransactionTableHeader = ({
-  dateRange,
-  onDateRangeChange,
   filterConfig,
   onFilterConfigChange,
   onRefresh,
   onAddTransaction,
-  onProfileOpen,
-  viewMode = 'date-range',
-  onViewModeChange
+  onProfileOpen
 }: TransactionTableHeaderProps) => {
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div className="flex items-center gap-4">
-        {viewMode === 'date-range' && dateRange && onDateRangeChange && (
-          <DateRangePicker 
-            dateRange={dateRange}
-            onDateRangeChange={onDateRangeChange}
-            className="w-full sm:w-auto"
-          />
-        )}
-        
-        {viewMode === 'invoice' && filterConfig && onFilterConfigChange && (
-          <InvoiceFilter
+        {filterConfig && onFilterConfigChange && (
+          <FilterButton 
             config={filterConfig}
             onConfigChange={onFilterConfigChange}
             className="w-full sm:w-auto"
           />
-        )}
-        
-        {onViewModeChange && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onViewModeChange(viewMode === 'date-range' ? 'invoice' : 'date-range')}
-            className="flex items-center gap-2"
-          >
-            {viewMode === 'date-range' ? <ToggleLeft className="h-4 w-4" /> : <ToggleRight className="h-4 w-4" />}
-            {viewMode === 'date-range' ? 'Ver por Fatura' : 'Ver por Período'}
-          </Button>
         )}
       </div>
       
