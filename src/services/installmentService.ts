@@ -14,6 +14,7 @@ interface InstallmentTransaction {
 }
 
 interface FutureInstallment {
+  id: string; // Added missing id property
   description: string;
   amount: number;
   transaction_date: string;
@@ -41,6 +42,7 @@ export const generateFutureInstallments = (
     futureDate.setMonth(futureDate.getMonth() + (i - transaction.installment_number));
     
     futureInstallments.push({
+      id: `future-${transaction.id}-${i}`, // Generate a unique id for future installments
       description: transaction.description,
       amount: transaction.amount,
       transaction_date: futureDate.toISOString().split('T')[0],
@@ -122,8 +124,7 @@ export const getProjectedInstallments = async (
     .select('*')
     .eq('user_id', userId)
     .not('installment_number', 'is', null)
-    .not('installment_total', 'is', null)
-    .lt('installment_number', supabase.rpc('installment_total'));
+    .not('installment_total', 'is', null);
 
   if (error) {
     console.error('[PROJECTIONS] Error fetching active installments:', error);
@@ -133,17 +134,20 @@ export const getProjectedInstallments = async (
   const allProjections: FutureInstallment[] = [];
   
   (activeInstallments || []).forEach(transaction => {
-    const projections = generateFutureInstallments(transaction);
-    
-    // Filtrar apenas projeções dentro do período desejado
-    const maxDate = new Date();
-    maxDate.setMonth(maxDate.getMonth() + monthsAhead);
-    
-    const filteredProjections = projections.filter(p => 
-      new Date(p.transaction_date) <= maxDate
-    );
-    
-    allProjections.push(...filteredProjections);
+    // Only generate projections for transactions that have future installments
+    if (transaction.installment_number < transaction.installment_total) {
+      const projections = generateFutureInstallments(transaction);
+      
+      // Filtrar apenas projeções dentro do período desejado
+      const maxDate = new Date();
+      maxDate.setMonth(maxDate.getMonth() + monthsAhead);
+      
+      const filteredProjections = projections.filter(p => 
+        new Date(p.transaction_date) <= maxDate
+      );
+      
+      allProjections.push(...filteredProjections);
+    }
   });
 
   return allProjections;
