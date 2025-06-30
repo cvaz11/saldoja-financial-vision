@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useState } from "react";
 import InvoiceFilter, { type FilterConfig } from "./InvoiceFilter";
@@ -65,6 +66,10 @@ const InvoiceTransactionTable = ({
   const { data: rawTransactions = [], isLoading, refetch, error } = useFilteredTransactions(config, true);
   const { deleteTransaction, isDeleting } = useDeleteTransaction();
 
+  // Debug log para verificar dados recebidos
+  console.log('[INVOICE_TABLE] Raw transactions received:', rawTransactions.length);
+  console.log('[INVOICE_TABLE] First transaction sample:', rawTransactions[0]);
+
   // Buscar informações dos statements selecionados para o modal
   const { data: statementOptions = [] } = useQuery({
     queryKey: ['statement-options', config.invoiceConfig?.selectedStatements],
@@ -87,19 +92,26 @@ const InvoiceTransactionTable = ({
     enabled: !!user && !!config.invoiceConfig?.selectedStatements?.length
   });
 
-  // Convert transactions to unified format
-  const transactions: UnifiedTransaction[] = rawTransactions.map(transaction => ({
-    id: transaction.id,
-    description: transaction.description || '',
-    amount: transaction.amount,
-    transaction_date: transaction.transaction_date,
-    is_credit: transaction.is_credit || false,
-    installment_number: transaction.installment_number,
-    installment_total: transaction.installment_total,
-    category: transaction.category,
-    statement_id: transaction.statement_id,
-    user_id: user?.id || '' // Get user_id from auth context
-  }));
+  // Convert transactions to unified format - FIX: Ensure proper user_id handling
+  const transactions: UnifiedTransaction[] = rawTransactions.map(transaction => {
+    const unifiedTransaction = {
+      id: transaction.id,
+      description: transaction.description || '',
+      amount: transaction.amount,
+      transaction_date: transaction.transaction_date,
+      is_credit: transaction.is_credit || false,
+      installment_number: transaction.installment_number,
+      installment_total: transaction.installment_total,
+      category: transaction.category,
+      statement_id: transaction.statement_id,
+      user_id: transaction.user_id || user?.id || ''
+    };
+    
+    console.log('[INVOICE_TABLE] Unified transaction:', unifiedTransaction.id, unifiedTransaction.description);
+    return unifiedTransaction;
+  });
+
+  console.log('[INVOICE_TABLE] Final unified transactions:', transactions.length);
 
   // Log de debug para erro
   if (error) {
@@ -257,6 +269,20 @@ const InvoiceTransactionTable = ({
           <li>• {transactions.length} transações encontradas para os critérios selecionados</li>
         </ul>
       </div>
+
+      {/* Debug info - temporário */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <h4 className="font-medium text-yellow-900 mb-2">Debug Info:</h4>
+          <ul className="text-sm text-yellow-800 space-y-1">
+            <li>• Raw transactions: {rawTransactions.length}</li>
+            <li>• Unified transactions: {transactions.length}</li>
+            <li>• Is loading: {isLoading.toString()}</li>
+            <li>• Has error: {error ? 'Yes' : 'No'}</li>
+            <li>• Selected statements: {config.invoiceConfig?.selectedStatements?.length || 0}</li>
+          </ul>
+        </div>
+      )}
 
       {/* Tabela de transações */}
       <TransactionTableContent

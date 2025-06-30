@@ -14,7 +14,8 @@ interface Transaction {
   installment_total?: number;
   category?: string;
   statement_id: string;
-  statements: {
+  user_id: string;
+  statements?: {
     bank: string;
     closing_day: number;
   };
@@ -68,12 +69,10 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
 
         console.log('[FILTERED_QUERY] Fetching transactions for statements:', selectedStatements);
 
+        // FIX: Simplify query to avoid join issues
         const { data, error } = await supabase
           .from('transactions')
-          .select(`
-            *,
-            statements!inner(bank, closing_day)
-          `)
+          .select('*')
           .eq('user_id', user.id)
           .in('statement_id', selectedStatements)
           .order('transaction_date', { ascending: false });
@@ -84,7 +83,24 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
         }
 
         console.log('[FILTERED_QUERY] Found invoice transactions:', data?.length || 0);
-        return data as Transaction[] || [];
+        console.log('[FILTERED_QUERY] Sample transaction:', data?.[0]);
+        
+        // Transform data to match expected format
+        const transformedData: Transaction[] = (data || []).map(transaction => ({
+          id: transaction.id,
+          description: transaction.description || '',
+          amount: transaction.amount,
+          transaction_date: transaction.transaction_date,
+          is_credit: transaction.is_credit || false,
+          installment_number: transaction.installment_number,
+          installment_total: transaction.installment_total,
+          category: transaction.category,
+          statement_id: transaction.statement_id || '',
+          user_id: transaction.user_id
+        }));
+
+        console.log('[FILTERED_QUERY] Transformed transactions:', transformedData.length);
+        return transformedData;
       }
 
       console.log('[FILTERED_QUERY] No valid config provided');
