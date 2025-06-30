@@ -10,6 +10,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Plus } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 // Unified transaction type to match TransactionTableContent expectations
 interface UnifiedTransaction {
@@ -62,6 +64,28 @@ const InvoiceTransactionTable = ({
 
   const { data: rawTransactions = [], isLoading, refetch, error } = useFilteredTransactions(config, true);
   const { deleteTransaction, isDeleting } = useDeleteTransaction();
+
+  // Buscar informações dos statements selecionados para o modal
+  const { data: statementOptions = [] } = useQuery({
+    queryKey: ['statement-options', config.invoiceConfig?.selectedStatements],
+    queryFn: async () => {
+      if (!config.invoiceConfig?.selectedStatements?.length || !user) return [];
+      
+      const { data, error } = await supabase
+        .from('statements')
+        .select('id, bank, month, year')
+        .in('id', config.invoiceConfig.selectedStatements)
+        .eq('user_id', user.id);
+      
+      if (error) {
+        console.error('[STATEMENT_OPTIONS] Error fetching:', error);
+        return [];
+      }
+      
+      return data || [];
+    },
+    enabled: !!user && !!config.invoiceConfig?.selectedStatements?.length
+  });
 
   // Convert transactions to unified format
   const transactions: UnifiedTransaction[] = rawTransactions.map(transaction => ({
@@ -142,10 +166,8 @@ const InvoiceTransactionTable = ({
   const handleTransactionSubmit = async (data: any) => {
     console.log('[INVOICE_TABLE] Transaction submitted successfully:', data);
     setIsAddModalOpen(false);
-    // Aguardar um pouco para garantir que a transação seja salva
-    setTimeout(async () => {
-      await refetch();
-    }, 500);
+    // Refresh imediato sem delay
+    await refetch();
   };
 
   // Calcular totais
@@ -267,6 +289,7 @@ const InvoiceTransactionTable = ({
         onSubmit={handleTransactionSubmit}
         type={modalType}
         selectedStatements={config.invoiceConfig?.selectedStatements || []}
+        statementOptions={statementOptions}
       />
     </div>
   );

@@ -7,18 +7,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface AddTransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: any) => void;
   type: "receita" | "despesa";
-  selectedStatements?: string[]; // Para associar a transação a um extrato específico
+  selectedStatements?: string[];
+  statementOptions?: Array<{ id: string; bank: string; month: number; year: number }>;
 }
 
 const AddTransactionModal = ({ 
@@ -26,9 +30,11 @@ const AddTransactionModal = ({
   onClose, 
   onSubmit, 
   type, 
-  selectedStatements = [] 
+  selectedStatements = [],
+  statementOptions = []
 }: AddTransactionModalProps) => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     description: "",
     value: "",
@@ -38,14 +44,38 @@ const AddTransactionModal = ({
     category: ""
   });
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedStatementId, setSelectedStatementId] = useState<string>("");
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Auto-selecionar statement se houver apenas um
+  useState(() => {
+    if (selectedStatements.length === 1) {
+      setSelectedStatementId(selectedStatements[0]);
+    } else {
+      setSelectedStatementId("");
+    }
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!user || !formData.description || !formData.value || !selectedDate) {
-      console.error('[ADD_MODAL] Missing required fields');
+      toast({
+        title: "Erro",
+        description: "Preencha todos os campos obrigatórios",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Verificar se precisa de statement_id para modo faturas
+    if (selectedStatements.length > 0 && !selectedStatementId) {
+      toast({
+        title: "Erro",
+        description: "Selecione um extrato para associar a transação",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -57,16 +87,9 @@ const AddTransactionModal = ({
         description: formData.description,
         amount: parseFloat(formData.value),
         date: selectedDate,
+        selectedStatementId,
         selectedStatements
       });
-
-      // Determinar qual statement_id usar (se houver extratos selecionados)
-      let statementId = null;
-      if (selectedStatements.length > 0) {
-        // Usar o primeiro extrato selecionado
-        statementId = selectedStatements[0];
-        console.log('[ADD_MODAL] Associating to statement:', statementId);
-      }
 
       // Criar a transação diretamente no Supabase
       const transactionData = {
@@ -76,8 +99,11 @@ const AddTransactionModal = ({
         transaction_date: format(selectedDate, "yyyy-MM-dd"),
         is_credit: type === "receita",
         category: formData.category || (type === "receita" ? "Receita" : "Despesa"),
-        statement_id: statementId // Associar ao extrato se disponível
+        statement_id: selectedStatementId || null,
+        created_at: new Date().toISOString()
       };
+
+      console.log('[ADD_MODAL] Transaction data to insert:', transactionData);
 
       const { data, error } = await supabase
         .from('transactions')
@@ -87,10 +113,38 @@ const AddTransactionModal = ({
 
       if (error) {
         console.error('[ADD_MODAL] Error creating transaction:', error);
-        throw error;
+        toast({
+          title: "Erro ao criar transação",
+          description: error.message,
+          variant: "destructive"
+        });
+        return;
       }
 
       console.log('[ADD_MODAL] Transaction created successfully:', data);
+
+      // Invalidar queries para refresh automático
+      if (selectedStatementId) {
+        // Invalidar query das transações filtradas
+        queryClient.invalidateQueries({ 
+          queryKey: ['filtered-transactions'] 
+        });
+        
+        // Invalidar query dos statements para recalcular totais
+        queryClient.invalidateQueries({ 
+          queryKey: ['statements', selectedStatementId] 
+        });
+      }
+
+      // Invalidar todas as queries de transações para garantir
+      queryClient.invalidateQueries({ 
+        queryKey: ['transactions'] 
+      });
+
+      toast({
+        title: "Sucesso!",
+        description: `${type === "receita" ? "Receita" : "Despesa"} adicionada com sucesso`,
+      });
 
       // Chamar o callback de sucesso
       onSubmit(data);
@@ -105,9 +159,15 @@ const AddTransactionModal = ({
         category: ""
       });
       setSelectedDate(new Date());
+      setSelectedStatementId(selectedStatements.length === 1 ? selectedStatements[0] : "");
       
     } catch (error) {
       console.error('[ADD_MODAL] Error in handleSubmit:', error);
+      toast({
+        title: "Erro inesperado",
+        description: "Ocorreu um erro ao salvar a transação",
+        variant: "destructive"
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -212,11 +272,35 @@ const AddTransactionModal = ({
             </Popover>
           </div>
 
+          {/* Seletor de Extrato - apenas quando há múltiplos statements */}
+          {selectedStatements.length > 1 && (
+            <div>
+              <Label htmlFor="statement">6 - Associar ao Extrato</Label>
+              <Select value={selectedStatementId} onValueChange={setSelectedStatementId}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecione um extrato" />
+                </SelectTrigger>
+                <SelectContent>
+                  {statementOptions.map((statement) => (
+                    <SelectItem key={statement.id} value={statement.id}>
+                      {statement.bank} - {statement.month}/{statement.year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {selectedStatements.length > 0 && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <p className="text-sm text-blue-800">
-                💡 Esta transação será associada aos extratos selecionados e aparecerá no filtro de faturas.
+                💡 Esta transação será associada ao{selectedStatements.length > 1 ? " extrato selecionado" : " extrato"} e aparecerá no filtro de faturas.
               </p>
+              {selectedStatements.length === 1 && (
+                <p className="text-xs text-blue-600 mt-1">
+                  Extrato selecionado automaticamente
+                </p>
+              )}
             </div>
           )}
 
@@ -225,7 +309,7 @@ const AddTransactionModal = ({
             className="w-full bg-sage-300 hover:bg-sage-400 text-white mt-6"
             disabled={isSubmitting}
           >
-            {isSubmitting ? "Enviando..." : "Enviar"}
+            {isSubmitting ? "Salvando..." : "Enviar"}
           </Button>
         </form>
       </div>
