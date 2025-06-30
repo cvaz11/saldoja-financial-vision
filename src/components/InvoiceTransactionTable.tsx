@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useState } from "react";
 import InvoiceFilter, { type FilterConfig } from "./InvoiceFilter";
@@ -141,9 +140,12 @@ const InvoiceTransactionTable = ({
   };
 
   const handleTransactionSubmit = async (data: any) => {
-    console.log('[INVOICE_TABLE] Transaction submitted:', data);
+    console.log('[INVOICE_TABLE] Transaction submitted successfully:', data);
     setIsAddModalOpen(false);
-    await refetch(); // Refresh data after adding
+    // Aguardar um pouco para garantir que a transação seja salva
+    setTimeout(async () => {
+      await refetch();
+    }, 500);
   };
 
   // Calcular totais

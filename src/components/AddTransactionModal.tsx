@@ -10,6 +10,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface AddTransactionModalProps {
   isOpen: boolean;
@@ -19,30 +21,86 @@ interface AddTransactionModalProps {
 }
 
 const AddTransactionModal = ({ isOpen, onClose, onSubmit, type }: AddTransactionModalProps) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     description: "",
     value: "",
     bank: "",
     notes: "",
-    date: ""
+    date: "",
+    category: ""
   });
-  const [selectedDate, setSelectedDate] = useState<Date>();
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const submitData = {
-      ...formData,
-      date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : ""
-    };
-    onSubmit(submitData);
-    setFormData({ description: "", value: "", bank: "", notes: "", date: "" });
-    setSelectedDate(undefined);
-    onClose();
+    
+    if (!user || !formData.description || !formData.value || !selectedDate) {
+      console.error('[ADD_MODAL] Missing required fields');
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      console.log('[ADD_MODAL] Submitting transaction:', { 
+        type, 
+        description: formData.description,
+        amount: parseFloat(formData.value),
+        date: selectedDate
+      });
+
+      // Criar a transação diretamente no Supabase
+      const transactionData = {
+        user_id: user.id,
+        description: formData.description,
+        amount: parseFloat(formData.value),
+        transaction_date: format(selectedDate, "yyyy-MM-dd"),
+        is_credit: type === "receita",
+        category: formData.category || (type === "receita" ? "Receita" : "Despesa"),
+        statement_id: null // Será null para transações manuais
+      };
+
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert([transactionData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[ADD_MODAL] Error creating transaction:', error);
+        throw error;
+      }
+
+      console.log('[ADD_MODAL] Transaction created successfully:', data);
+
+      // Chamar o callback de sucesso
+      onSubmit(data);
+      
+      // Limpar o formulário
+      setFormData({ 
+        description: "", 
+        value: "", 
+        bank: "", 
+        notes: "", 
+        date: "",
+        category: ""
+      });
+      setSelectedDate(new Date());
+      
+    } catch (error) {
+      console.error('[ADD_MODAL] Error in handleSubmit:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDateSelect = (date: Date | undefined) => {
-    setSelectedDate(date);
+    if (date) {
+      setSelectedDate(date);
+    }
     setIsDatePickerOpen(false);
   };
 
@@ -69,6 +127,7 @@ const AddTransactionModal = ({ isOpen, onClose, onSubmit, type }: AddTransaction
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="mt-1"
+              required
             />
           </div>
 
@@ -76,20 +135,23 @@ const AddTransactionModal = ({ isOpen, onClose, onSubmit, type }: AddTransaction
             <Label htmlFor="value">2 - Valor {type === "receita" ? "Recebido" : "Gasto"}</Label>
             <Input
               id="value"
-              placeholder="8.500"
+              type="number"
+              step="0.01"
+              placeholder="8500.00"
               value={formData.value}
               onChange={(e) => setFormData({ ...formData, value: e.target.value })}
               className="mt-1"
+              required
             />
           </div>
 
           <div>
-            <Label htmlFor="bank">3 - Banco</Label>
+            <Label htmlFor="category">3 - Categoria</Label>
             <Input
-              id="bank"
-              placeholder="Nubank"
-              value={formData.bank}
-              onChange={(e) => setFormData({ ...formData, bank: e.target.value })}
+              id="category"
+              placeholder={type === "receita" ? "Salário" : "Alimentação"}
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
               className="mt-1"
             />
           </div>
@@ -134,8 +196,12 @@ const AddTransactionModal = ({ isOpen, onClose, onSubmit, type }: AddTransaction
             </Popover>
           </div>
 
-          <Button type="submit" className="w-full bg-sage-300 hover:bg-sage-400 text-white mt-6">
-            Enviar
+          <Button 
+            type="submit" 
+            className="w-full bg-sage-300 hover:bg-sage-400 text-white mt-6"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Enviando..." : "Enviar"}
           </Button>
         </form>
       </div>
