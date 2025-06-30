@@ -49,6 +49,15 @@ const AddTransactionModal = ({
     ? ["Receita", "Salário", "Freelance", "Investimentos", "Outros"]
     : ["Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Outros"];
 
+  // Corrigir o handler do valor para evitar que seja apagado
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Permitir números, vírgula e ponto
+    if (value === "" || /^\d*[.,]?\d*$/.test(value)) {
+      setFormData({ ...formData, amount: value });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -71,8 +80,10 @@ const AddTransactionModal = ({
       return;
     }
 
-    const amount = parseFloat(formData.amount);
-    if (!amount || amount <= 0) {
+    // Converter vírgula para ponto e validar valor
+    const amountStr = formData.amount.replace(',', '.');
+    const amount = parseFloat(amountStr);
+    if (!amount || amount <= 0 || isNaN(amount)) {
       toast({
         title: "Erro",
         description: "Valor deve ser maior que zero",
@@ -81,21 +92,26 @@ const AddTransactionModal = ({
       return;
     }
 
-    // Determinar statement_id
+    // Determinar statement_id - sempre obrigatório agora
     let finalStatementId = null;
-    if (selectedStatements.length > 0) {
-      if (selectedStatements.length === 1) {
-        finalStatementId = selectedStatements[0];
-      } else if (formData.statement_id) {
-        finalStatementId = formData.statement_id;
-      } else {
-        toast({
-          title: "Erro",
-          description: "Selecione um extrato para associar a transação",
-          variant: "destructive",
-        });
-        return;
-      }
+    if (selectedStatements.length === 0) {
+      toast({
+        title: "Erro",
+        description: "Nenhum extrato foi selecionado. Selecione pelo menos um extrato primeiro.",
+        variant: "destructive",
+      });
+      return;
+    } else if (selectedStatements.length === 1) {
+      finalStatementId = selectedStatements[0];
+    } else if (formData.statement_id) {
+      finalStatementId = formData.statement_id;
+    } else {
+      toast({
+        title: "Erro",
+        description: "Selecione um extrato para associar a transação",
+        variant: "destructive",
+      });
+      return;
     }
 
     console.log('[ADD_TRANSACTION] Submitting with data:', {
@@ -198,11 +214,9 @@ const AddTransactionModal = ({
             <Label htmlFor="amount">Valor *</Label>
             <Input
               id="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
+              type="text"
               value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+              onChange={handleAmountChange}
               placeholder="0,00"
               required
               disabled={isLoading}
@@ -253,6 +267,15 @@ const AddTransactionModal = ({
             </Popover>
           </div>
 
+          {/* Mostrar aviso se nenhum extrato foi selecionado */}
+          {selectedStatements.length === 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-sm text-yellow-800">
+                ⚠️ <strong>Atenção:</strong> Nenhum extrato foi selecionado. Selecione pelo menos um extrato no filtro acima antes de adicionar transações.
+              </p>
+            </div>
+          )}
+
           {/* Seleção de extrato quando há múltiplos extratos selecionados */}
           {selectedStatements.length > 1 && (
             <div>
@@ -291,7 +314,7 @@ const AddTransactionModal = ({
             </Button>
             <Button 
               type="submit" 
-              disabled={isLoading}
+              disabled={isLoading || selectedStatements.length === 0}
               className={type === "receita" ? "bg-green-600 hover:bg-green-700" : "bg-sage-600 hover:bg-sage-700"}
             >
               {isLoading ? "Salvando..." : "Adicionar"}
