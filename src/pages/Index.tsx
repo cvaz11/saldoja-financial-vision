@@ -44,6 +44,14 @@ const Index = () => {
     setIsAddModalOpen(true);
   };
 
+  const handleAddIncome = () => {
+    handleAddTransaction("receita");
+  };
+
+  const handleAddExpense = () => {
+    handleAddTransaction("despesa");
+  };
+
   const handleTransactionSubmit = (data: any) => {
     console.log("Transaction submitted:", data);
     setIsAddModalOpen(false);
@@ -146,9 +154,9 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Transaction Table with DateRangePicker integrated */}
+      {/* Transaction Table with unified handlers */}
       <TransactionTable 
-        onAddTransaction={() => handleAddTransaction("receita")}
+        onAddTransaction={handleAddIncome}
         showCategories={true}
       />
     </div>

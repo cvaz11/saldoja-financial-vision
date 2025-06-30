@@ -12,7 +12,8 @@ interface TransactionTableHeaderProps {
   searchTerm?: string;
   onSearchChange?: (term: string) => void;
   onRefresh: () => void;
-  onAddTransaction?: () => void;
+  onAddIncome?: () => void;
+  onAddExpense?: () => void;
   onProfileOpen: () => void;
 }
 
@@ -24,7 +25,8 @@ const TransactionTableHeader = ({
   searchTerm = '',
   onSearchChange,
   onRefresh,
-  onAddTransaction,
+  onAddIncome,
+  onAddExpense,
   onProfileOpen
 }: TransactionTableHeaderProps) => {
   return (
@@ -36,8 +38,8 @@ const TransactionTableHeader = ({
       filterConfig={filterConfig}
       onFilterConfigChange={onFilterConfigChange}
       onRefresh={onRefresh}
-      onAddIncome={onAddTransaction}
-      onAddExpense={onAddTransaction}
+      onAddIncome={onAddIncome}
+      onAddExpense={onAddExpense}
       onProfileOpen={onProfileOpen}
     />
   );

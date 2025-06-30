@@ -26,9 +26,15 @@ interface UnifiedTransaction {
 
 interface InvoiceTransactionTableProps {
   onAddTransaction?: () => void;
+  onAddIncome?: () => void;
+  onAddExpense?: () => void;
 }
 
-const InvoiceTransactionTable = ({ onAddTransaction }: InvoiceTransactionTableProps) => {
+const InvoiceTransactionTable = ({ 
+  onAddTransaction, 
+  onAddIncome, 
+  onAddExpense 
+}: InvoiceTransactionTableProps) => {
   const { user } = useAuth();
   
   // Configuração inicial: mês anterior com faturas
@@ -113,6 +119,25 @@ const InvoiceTransactionTable = ({ onAddTransaction }: InvoiceTransactionTablePr
     setEditingTransaction(null);
   };
 
+  // Handlers para ações CRUD
+  const handleAddIncome = () => {
+    console.log('[INVOICE_TABLE] Add income requested');
+    if (onAddIncome) {
+      onAddIncome();
+    } else if (onAddTransaction) {
+      onAddTransaction();
+    }
+  };
+
+  const handleAddExpense = () => {
+    console.log('[INVOICE_TABLE] Add expense requested');
+    if (onAddExpense) {
+      onAddExpense();
+    } else if (onAddTransaction) {
+      onAddTransaction();
+    }
+  };
+
   // Calcular totais
   const totalExpenses = transactions
     .filter(t => !t.is_credit)
@@ -143,15 +168,23 @@ const InvoiceTransactionTable = ({ onAddTransaction }: InvoiceTransactionTablePr
             <RefreshCw className="h-4 w-4 mr-2" />
             Atualizar
           </Button>
-          {onAddTransaction && (
-            <Button 
-              onClick={onAddTransaction}
-              className="bg-sage-600 hover:bg-sage-700"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Transação
-            </Button>
-          )}
+          <Button 
+            onClick={handleAddIncome}
+            variant="outline"
+            size="sm"
+            className="bg-green-50 hover:bg-green-100 text-green-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Receita
+          </Button>
+          <Button 
+            onClick={handleAddExpense}
+            className="bg-sage-600 hover:bg-sage-700"
+            size="sm"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Despesa
+          </Button>
         </div>
       </div>
 

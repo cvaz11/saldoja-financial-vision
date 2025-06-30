@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useFilteredTransactions } from "@/hooks/useInvoiceTransactions";
 import { useDeleteTransaction } from "@/hooks/useDeleteTransaction";
+import { useDefaultInvoiceFilter } from "@/hooks/useDefaultInvoiceFilter";
 import { type FilterConfig } from "./FilterButton";
 import { type QuickFilterType } from "./QuickFilterButtons";
 import TransactionTableHeader from "./TransactionTableHeader";
@@ -32,6 +33,7 @@ interface TransactionTableProps {
 
 const TransactionTable = ({ onAddTransaction, showCategories = false }: TransactionTableProps) => {
   const { profile } = useUserProfile();
+  const { filterConfig: defaultFilterConfig, isLoading: isLoadingDefault } = useDefaultInvoiceFilter();
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -41,31 +43,15 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   
   const { deleteTransaction, isDeleting } = useDeleteTransaction();
   
-  // Define default filter config as previous invoice cycle
-  const getDefaultFilterConfig = (): FilterConfig => {
-    if (profile) {
-      const previousMonthDate = new Date();
-      previousMonthDate.setMonth(previousMonthDate.getMonth() - 1);
-      const cycle = calculateInvoiceCycle(profile.invoice_closing_day, previousMonthDate);
-      return { 
-        type: 'date-range',
-        dateRange: { from: cycle.startDate, to: cycle.endDate }
-      };
-    }
-    
-    // Fallback to previous calendar month if no profile
-    const now = new Date();
-    const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const startOfPrevMonth = new Date(previousMonth.getFullYear(), previousMonth.getMonth(), 1);
-    const endOfPrevMonth = new Date(previousMonth.getFullYear(), previousMonth.getMonth() + 1, 0);
-    
-    return { 
-      type: 'date-range',
-      dateRange: { from: startOfPrevMonth, to: endOfPrevMonth }
-    };
-  };
+  // Use default filter config from hook
+  const [filterConfig, setFilterConfig] = useState<FilterConfig>(defaultFilterConfig);
 
-  const [filterConfig, setFilterConfig] = useState<FilterConfig>(getDefaultFilterConfig());
+  // Update filter config when default loads
+  useEffect(() => {
+    if (!isLoadingDefault && defaultFilterConfig) {
+      setFilterConfig(defaultFilterConfig);
+    }
+  }, [defaultFilterConfig, isLoadingDefault]);
 
   // Use different hooks based on filter type
   const dateRangeQuery = useTransactions(
@@ -77,7 +63,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   
   const query = filterConfig.type === 'date-range' ? dateRangeQuery : filteredQuery;
   const rawTransactions = query.data || [];
-  const isLoading = query.isLoading;
+  const isLoading = query.isLoading || isLoadingDefault;
   const error = query.error;
   const refetch = query.refetch;
 
@@ -184,6 +170,21 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
     console.log('[TABLE] Profile open requested');
   };
 
+  // Unified handlers that work for both filter types
+  const handleAddIncome = () => {
+    console.log('[TABLE] Add income requested');
+    if (onAddTransaction) {
+      onAddTransaction();
+    }
+  };
+
+  const handleAddExpense = () => {
+    console.log('[TABLE] Add expense requested');
+    if (onAddTransaction) {
+      onAddTransaction();
+    }
+  };
+
   return (
     <>
       <div className="space-y-4 pb-24">
@@ -195,7 +196,8 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
           onRefresh={handleRefresh}
-          onAddTransaction={onAddTransaction}
+          onAddIncome={handleAddIncome}
+          onAddExpense={handleAddExpense}
           onProfileOpen={handleProfileOpen}
         />
 
