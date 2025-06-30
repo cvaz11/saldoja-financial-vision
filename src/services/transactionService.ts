@@ -27,13 +27,13 @@ export const saveTransaction = async (data: SaveTransactionData) => {
     throw new Error('Usuário não autenticado');
   }
 
-  // Preparar dados para inserção - incluindo created_at será definido automaticamente
+  // Preparar dados para inserção
   const transactionData = {
     user_id: data.user_id,
     statement_id: data.statement_id,
     transaction_date: data.transaction_date,
     description: data.description.trim(),
-    amount: parseFloat(data.amount.toString()), // Garantir conversão para número
+    amount: parseFloat(data.amount.toString()),
     category: data.category,
     is_credit: data.is_credit
   };
@@ -43,12 +43,12 @@ export const saveTransaction = async (data: SaveTransactionData) => {
   const { data: insertedData, error } = await supabase
     .from('transactions')
     .insert([transactionData])
-    .select()
+    .select('*')
     .single();
 
   if (error) {
     console.error('[TRANSACTION_SERVICE] Insert error:', error);
-    throw new Error(error.message || 'Erro ao salvar transação');
+    throw new Error(`Erro ao salvar transação: ${error.message}`);
   }
 
   console.log('[TRANSACTION_SERVICE] Transaction saved successfully:', insertedData);

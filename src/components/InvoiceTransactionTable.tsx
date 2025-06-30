@@ -72,6 +72,7 @@ const InvoiceTransactionTable = ({
   console.log('[INVOICE_TABLE] Raw transactions received:', rawTransactions.length);
   console.log('[INVOICE_TABLE] Income transactions:', rawTransactions.filter(t => t.is_credit).length);
   console.log('[INVOICE_TABLE] Expense transactions:', rawTransactions.filter(t => !t.is_credit).length);
+  console.log('[INVOICE_TABLE] Selected statements:', config.invoiceConfig?.selectedStatements);
 
   // Buscar informações dos statements selecionados para o modal
   const { data: statementOptions = [] } = useQuery({
@@ -122,9 +123,17 @@ const InvoiceTransactionTable = ({
     console.log('[INVOICE_TABLE] Manually refreshing transactions...');
     try {
       await refetch();
-      console.log('[INVOICE_TABLE] Refresh completed successfully');
+      toast({
+        title: "Atualizado",
+        description: "Dados atualizados com sucesso",
+      });
     } catch (error) {
       console.error('[INVOICE_TABLE] Refresh failed:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar dados",
+        variant: "destructive",
+      });
     }
   };
 
@@ -195,10 +204,13 @@ const InvoiceTransactionTable = ({
     console.log('[INVOICE_TABLE] Transaction submitted successfully:', data);
     setIsAddModalOpen(false);
     
-    // Refetch imediato para mostrar nova transação
+    // Forçar atualização imediata dos dados
     await refetch();
     
-    // Toast já é mostrado no modal, não precisa duplicar aqui
+    toast({
+      title: "Sucesso",
+      description: `${modalType === "receita" ? "Receita" : "Despesa"} adicionada com sucesso!`,
+    });
   };
 
   // Calcular totais
@@ -227,8 +239,9 @@ const InvoiceTransactionTable = ({
             onClick={handleRefresh}
             variant="outline"
             size="sm"
+            disabled={isLoading}
           >
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
           <Button 
@@ -236,6 +249,7 @@ const InvoiceTransactionTable = ({
             variant="outline"
             size="sm"
             className="bg-green-50 hover:bg-green-100 text-green-700"
+            disabled={config.invoiceConfig?.selectedStatements?.length === 0}
           >
             <Plus className="h-4 w-4 mr-2" />
             Receita
@@ -244,6 +258,7 @@ const InvoiceTransactionTable = ({
             onClick={handleAddExpenseClick}
             className="bg-sage-600 hover:bg-sage-700"
             size="sm"
+            disabled={config.invoiceConfig?.selectedStatements?.length === 0}
           >
             <Plus className="h-4 w-4 mr-2" />
             Despesa
@@ -288,20 +303,6 @@ const InvoiceTransactionTable = ({
           <li>• {transactions.length} transações encontradas ({transactions.filter(t => t.is_credit).length} receitas, {transactions.filter(t => !t.is_credit).length} despesas)</li>
         </ul>
       </div>
-
-      {/* Debug info - temporário */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <h4 className="font-medium text-yellow-900 mb-2">Debug Info:</h4>
-          <ul className="text-sm text-yellow-800 space-y-1">
-            <li>• Raw transactions: {rawTransactions.length}</li>
-            <li>• Unified transactions: {transactions.length}</li>
-            <li>• Is loading: {isLoading.toString()}</li>
-            <li>• Has error: {error ? 'Yes' : 'No'}</li>
-            <li>• Selected statements: {config.invoiceConfig?.selectedStatements?.length || 0}</li>
-          </ul>
-        </div>
-      )}
 
       {/* Tabela de transações */}
       <TransactionTableContent

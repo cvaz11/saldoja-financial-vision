@@ -39,7 +39,6 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
       console.log('[FILTERED_QUERY] Fetching transactions with config:', config);
 
       if (config.type === 'date-range' && config.dateRange) {
-        // Buscar por período de datas
         const { from, to } = config.dateRange;
         
         const { data, error } = await supabase
@@ -63,7 +62,6 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
       } 
       
       if (config.type === 'invoices' && config.invoiceConfig) {
-        // Buscar por extratos específicos
         const { selectedStatements } = config.invoiceConfig;
         
         if (selectedStatements.length === 0) {
@@ -128,7 +126,7 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
       channelRef.current = null;
     }
 
-    console.log('[FILTERED_QUERY] Setting up realtime subscription');
+    console.log('[FILTERED_QUERY] Setting up realtime subscription for user:', user.id);
     
     const channel = supabase
       .channel(`filtered-transactions-${user.id}-${Date.now()}`)
@@ -143,14 +141,14 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
         (payload) => {
           console.log('[FILTERED_QUERY] Realtime update received:', payload.eventType, payload);
           
-          // Invalidar queries específicas para atualização imediata
+          // Invalidar queries para atualização imediata
           queryClient.invalidateQueries({ queryKey: ['filtered-transactions'] });
           queryClient.invalidateQueries({ queryKey: ['transactions'] });
           
-          // Refetch com delay para garantir processamento
+          // Refetch imediato
           setTimeout(() => {
             query.refetch();
-          }, 100);
+          }, 200);
         }
       )
       .subscribe((status) => {

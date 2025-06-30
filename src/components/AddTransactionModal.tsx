@@ -81,7 +81,7 @@ const AddTransactionModal = ({
       return;
     }
 
-    // Determinar statement_id - usar o primeiro extrato selecionado se disponível
+    // Determinar statement_id
     let finalStatementId = null;
     if (selectedStatements.length > 0) {
       if (selectedStatements.length === 1) {
@@ -98,6 +98,13 @@ const AddTransactionModal = ({
       }
     }
 
+    console.log('[ADD_TRANSACTION] Submitting with data:', {
+      selectedStatements,
+      finalStatementId,
+      type,
+      amount
+    });
+
     setIsLoading(true);
 
     try {
@@ -105,19 +112,24 @@ const AddTransactionModal = ({
         user_id: user.id,
         statement_id: finalStatementId,
         transaction_date: formData.transaction_date.toISOString().split('T')[0],
-        description: formData.description,
-        amount: amount, // Já convertido para número
+        description: formData.description.trim(),
+        amount: amount,
         category: formData.category,
         is_credit: type === "receita"
       };
 
-      console.log('[ADD_TRANSACTION] Saving:', transactionData);
+      console.log('[ADD_TRANSACTION] Saving transaction:', transactionData);
 
       const savedTransaction = await saveTransaction(transactionData);
 
-      // Invalidar queries para atualizar as listas
-      queryClient.invalidateQueries({ queryKey: ['filtered-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      console.log('[ADD_TRANSACTION] Transaction saved successfully:', savedTransaction);
+
+      // Invalidar todas as queries relacionadas para garantir atualização
+      await queryClient.invalidateQueries({ queryKey: ['filtered-transactions'] });
+      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      
+      // Forçar refetch imediato
+      await queryClient.refetchQueries({ queryKey: ['filtered-transactions'] });
 
       toast({
         title: "Sucesso",
@@ -147,6 +159,19 @@ const AddTransactionModal = ({
     }
   };
 
+  // Reset form when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        description: "",
+        amount: "",
+        category: type === "receita" ? "Receita" : "Outros",
+        transaction_date: new Date(),
+        statement_id: selectedStatements.length === 1 ? selectedStatements[0] : ""
+      });
+    }
+  }, [isOpen, type, selectedStatements]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
@@ -163,7 +188,7 @@ const AddTransactionModal = ({
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Ex: Salário, Almoço, etc."
+              placeholder="Ex: Salário, Freelance, etc."
               required
               disabled={isLoading}
             />
@@ -231,14 +256,14 @@ const AddTransactionModal = ({
           {/* Seleção de extrato quando há múltiplos extratos selecionados */}
           {selectedStatements.length > 1 && (
             <div>
-              <Label htmlFor="statement">Extrato de Destino *</Label>
+              <Label htmlFor="statement">Banco/Extrato *</Label>
               <Select 
                 value={formData.statement_id} 
                 onValueChange={(value) => setFormData({ ...formData, statement_id: value })}
                 disabled={isLoading}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o extrato" />
+                  <SelectValue placeholder="Selecione o banco" />
                 </SelectTrigger>
                 <SelectContent>
                   {statementOptions.map((statement) => (
@@ -251,6 +276,15 @@ const AddTransactionModal = ({
             </div>
           )}
 
+          {/* Mostrar informação do banco selecionado quando há apenas um */}
+          {selectedStatements.length === 1 && statementOptions.length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-800">
+                <strong>Banco:</strong> {statementOptions[0]?.bank} - {statementOptions[0]?.month.toString().padStart(2, '0')}/{statementOptions[0]?.year}
+              </p>
+            </div>
+          )}
+
           <div className="flex justify-end space-x-2">
             <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
               Cancelar
@@ -260,7 +294,7 @@ const AddTransactionModal = ({
               disabled={isLoading}
               className={type === "receita" ? "bg-green-600 hover:bg-green-700" : "bg-sage-600 hover:bg-sage-700"}
             >
-              {isLoading ? "Salvando..." : "Confirmar"}
+              {isLoading ? "Salvando..." : "Adicionar"}
             </Button>
           </div>
         </form>
