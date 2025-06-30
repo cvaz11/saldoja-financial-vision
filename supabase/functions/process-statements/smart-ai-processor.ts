@@ -67,7 +67,6 @@ INSTRUÇÕES CRÍTICAS:
 
 4. 📝 FORMATO DE RESPOSTA:
    Para cada gasto encontrado, retorne exatamente neste formato JSON:
-   ```json
    [
      {
        "date": "2024-06-15",
@@ -78,7 +77,6 @@ INSTRUÇÕES CRÍTICAS:
        "installment_total": 1
      }
    ]
-   ```
 
 5. ⚠️ REGRAS IMPORTANTES:
    - Valores sempre NEGATIVOS para gastos (ex: -150.00)
