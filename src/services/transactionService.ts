@@ -27,13 +27,13 @@ export const saveTransaction = async (data: SaveTransactionData) => {
     throw new Error('Usuário não autenticado');
   }
 
-  // Preparar dados para inserção - NÃO incluir created_at
+  // Preparar dados para inserção - incluindo created_at será definido automaticamente
   const transactionData = {
     user_id: data.user_id,
     statement_id: data.statement_id,
     transaction_date: data.transaction_date,
     description: data.description.trim(),
-    amount: data.amount,
+    amount: parseFloat(data.amount.toString()), // Garantir conversão para número
     category: data.category,
     is_credit: data.is_credit
   };

@@ -13,6 +13,7 @@ import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { saveTransaction } from "@/services/transactionService";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface AddTransactionModalProps {
   isOpen: boolean;
@@ -33,6 +34,7 @@ const AddTransactionModal = ({
 }: AddTransactionModalProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -51,7 +53,6 @@ const AddTransactionModal = ({
     e.preventDefault();
     
     if (!user) {
-      console.error('[ADD_TRANSACTION] No user found');
       toast({
         title: "Erro",
         description: "Usuário não autenticado",
@@ -80,7 +81,7 @@ const AddTransactionModal = ({
       return;
     }
 
-    // Validar statement_id se estivermos em modo faturas
+    // Determinar statement_id - usar o primeiro extrato selecionado se disponível
     let finalStatementId = null;
     if (selectedStatements.length > 0) {
       if (selectedStatements.length === 1) {
@@ -100,23 +101,23 @@ const AddTransactionModal = ({
     setIsLoading(true);
 
     try {
-      console.log('[ADD_TRANSACTION] Preparing to save transaction');
-      
       const transactionData = {
         user_id: user.id,
         statement_id: finalStatementId,
         transaction_date: formData.transaction_date.toISOString().split('T')[0],
         description: formData.description,
-        amount: amount,
+        amount: amount, // Já convertido para número
         category: formData.category,
         is_credit: type === "receita"
       };
 
-      console.log('[ADD_TRANSACTION] Transaction data:', transactionData);
+      console.log('[ADD_TRANSACTION] Saving:', transactionData);
 
       const savedTransaction = await saveTransaction(transactionData);
 
-      console.log('[ADD_TRANSACTION] Transaction saved successfully:', savedTransaction);
+      // Invalidar queries para atualizar as listas
+      queryClient.invalidateQueries({ queryKey: ['filtered-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
 
       toast({
         title: "Sucesso",
@@ -135,7 +136,7 @@ const AddTransactionModal = ({
       onSubmit(savedTransaction);
       onClose();
     } catch (error: any) {
-      console.error('[ADD_TRANSACTION] Complete error:', error);
+      console.error('[ADD_TRANSACTION] Error:', error);
       toast({
         title: "Erro",
         description: error.message || "Erro ao adicionar transação",
@@ -164,6 +165,7 @@ const AddTransactionModal = ({
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Ex: Salário, Almoço, etc."
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -178,6 +180,7 @@ const AddTransactionModal = ({
               onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
               placeholder="0,00"
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -186,6 +189,7 @@ const AddTransactionModal = ({
             <Select 
               value={formData.category} 
               onValueChange={(value) => setFormData({ ...formData, category: value })}
+              disabled={isLoading}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione uma categoria" />
@@ -204,7 +208,11 @@ const AddTransactionModal = ({
             <Label>Data da Transação</Label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left font-normal">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start text-left font-normal"
+                  disabled={isLoading}
+                >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {format(formData.transaction_date, "PPP", { locale: ptBR })}
                 </Button>
@@ -227,6 +235,7 @@ const AddTransactionModal = ({
               <Select 
                 value={formData.statement_id} 
                 onValueChange={(value) => setFormData({ ...formData, statement_id: value })}
+                disabled={isLoading}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o extrato" />
@@ -251,7 +260,7 @@ const AddTransactionModal = ({
               disabled={isLoading}
               className={type === "receita" ? "bg-green-600 hover:bg-green-700" : "bg-sage-600 hover:bg-sage-700"}
             >
-              {isLoading ? (type === "receita" ? "Salvando receita..." : "Salvando despesa...") : "Confirmar"}
+              {isLoading ? "Salvando..." : "Confirmar"}
             </Button>
           </div>
         </form>

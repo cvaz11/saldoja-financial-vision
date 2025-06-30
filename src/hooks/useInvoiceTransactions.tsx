@@ -142,11 +142,12 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
         },
         (payload) => {
           console.log('[FILTERED_QUERY] Realtime update received:', payload.eventType, payload);
-          // Invalidar todas as queries relacionadas
+          
+          // Invalidar queries específicas para atualização imediata
           queryClient.invalidateQueries({ queryKey: ['filtered-transactions'] });
           queryClient.invalidateQueries({ queryKey: ['transactions'] });
           
-          // Refetch imediato
+          // Refetch com delay para garantir processamento
           setTimeout(() => {
             query.refetch();
           }, 100);
