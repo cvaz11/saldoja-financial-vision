@@ -14,23 +14,21 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { saveTransaction } from "@/services/transactionService";
 import { useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AddTransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: any) => void;
   type: "receita" | "despesa";
-  selectedStatements?: string[];
-  statementOptions?: Array<{ id: string; bank: string; month: number; year: number }>;
 }
 
 const AddTransactionModal = ({ 
   isOpen, 
   onClose, 
   onSubmit, 
-  type,
-  selectedStatements = [],
-  statementOptions = []
+  type
 }: AddTransactionModalProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -42,14 +40,38 @@ const AddTransactionModal = ({
     amount: "",
     category: type === "receita" ? "Receita" : "Outros",
     transaction_date: new Date(),
-    statement_id: selectedStatements.length === 1 ? selectedStatements[0] : ""
+    statement_id: ""
+  });
+
+  // Buscar extratos disponíveis do usuário
+  const { data: availableStatements = [] } = useQuery({
+    queryKey: ['available-statements', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from('statements')
+        .select('id, bank, month, year, filename')
+        .eq('user_id', user.id)
+        .eq('status', 'ready')
+        .order('year', { ascending: false })
+        .order('month', { ascending: false });
+      
+      if (error) {
+        console.error('[STATEMENTS] Error fetching:', error);
+        return [];
+      }
+      
+      return data || [];
+    },
+    enabled: !!user && isOpen
   });
 
   const categories = type === "receita" 
     ? ["Receita", "Salário", "Freelance", "Investimentos", "Outros"]
     : ["Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Outros"];
 
-  // Corrigir o handler do valor para evitar que seja apagado
+  // Handler para mudança do valor - permitir números, vírgula e ponto
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     // Permitir números, vírgula e ponto
@@ -92,20 +114,8 @@ const AddTransactionModal = ({
       return;
     }
 
-    // Determinar statement_id - sempre obrigatório agora
-    let finalStatementId = null;
-    if (selectedStatements.length === 0) {
-      toast({
-        title: "Erro",
-        description: "Nenhum extrato foi selecionado. Selecione pelo menos um extrato primeiro.",
-        variant: "destructive",
-      });
-      return;
-    } else if (selectedStatements.length === 1) {
-      finalStatementId = selectedStatements[0];
-    } else if (formData.statement_id) {
-      finalStatementId = formData.statement_id;
-    } else {
+    // Validar seleção do extrato
+    if (!formData.statement_id) {
       toast({
         title: "Erro",
         description: "Selecione um extrato para associar a transação",
@@ -115,8 +125,7 @@ const AddTransactionModal = ({
     }
 
     console.log('[ADD_TRANSACTION] Submitting with data:', {
-      selectedStatements,
-      finalStatementId,
+      statement_id: formData.statement_id,
       type,
       amount
     });
@@ -126,7 +135,7 @@ const AddTransactionModal = ({
     try {
       const transactionData = {
         user_id: user.id,
-        statement_id: finalStatementId,
+        statement_id: formData.statement_id,
         transaction_date: formData.transaction_date.toISOString().split('T')[0],
         description: formData.description.trim(),
         amount: amount,
@@ -158,7 +167,7 @@ const AddTransactionModal = ({
         amount: "",
         category: type === "receita" ? "Receita" : "Outros",
         transaction_date: new Date(),
-        statement_id: selectedStatements.length === 1 ? selectedStatements[0] : ""
+        statement_id: ""
       });
 
       onSubmit(savedTransaction);
@@ -183,10 +192,10 @@ const AddTransactionModal = ({
         amount: "",
         category: type === "receita" ? "Receita" : "Outros",
         transaction_date: new Date(),
-        statement_id: selectedStatements.length === 1 ? selectedStatements[0] : ""
+        statement_id: ""
       });
     }
-  }, [isOpen, type, selectedStatements]);
+  }, [isOpen, type]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -251,62 +260,46 @@ const AddTransactionModal = ({
                   variant="outline" 
                   className="w-full justify-start text-left font-normal"
                   disabled={isLoading}
+                  type="button"
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {format(formData.transaction_date, "PPP", { locale: ptBR })}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
+              <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
                   selected={formData.transaction_date}
-                  onSelect={(date) => date && setFormData({ ...formData, transaction_date: date })}
+                  onSelect={(date) => {
+                    if (date) {
+                      setFormData({ ...formData, transaction_date: date });
+                    }
+                  }}
                   initialFocus
                 />
               </PopoverContent>
             </Popover>
           </div>
 
-          {/* Mostrar aviso se nenhum extrato foi selecionado */}
-          {selectedStatements.length === 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <p className="text-sm text-yellow-800">
-                ⚠️ <strong>Atenção:</strong> Nenhum extrato foi selecionado. Selecione pelo menos um extrato no filtro acima antes de adicionar transações.
-              </p>
-            </div>
-          )}
-
-          {/* Seleção de extrato quando há múltiplos extratos selecionados */}
-          {selectedStatements.length > 1 && (
-            <div>
-              <Label htmlFor="statement">Banco/Extrato *</Label>
-              <Select 
-                value={formData.statement_id} 
-                onValueChange={(value) => setFormData({ ...formData, statement_id: value })}
-                disabled={isLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o banco" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statementOptions.map((statement) => (
-                    <SelectItem key={statement.id} value={statement.id}>
-                      {statement.bank} - {statement.month.toString().padStart(2, '0')}/{statement.year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Mostrar informação do banco selecionado quando há apenas um */}
-          {selectedStatements.length === 1 && statementOptions.length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-800">
-                <strong>Banco:</strong> {statementOptions[0]?.bank} - {statementOptions[0]?.month.toString().padStart(2, '0')}/{statementOptions[0]?.year}
-              </p>
-            </div>
-          )}
+          <div>
+            <Label htmlFor="statement">Extrato *</Label>
+            <Select 
+              value={formData.statement_id} 
+              onValueChange={(value) => setFormData({ ...formData, statement_id: value })}
+              disabled={isLoading}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o extrato" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableStatements.map((statement) => (
+                  <SelectItem key={statement.id} value={statement.id}>
+                    {statement.bank} - {statement.month.toString().padStart(2, '0')}/{statement.year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="flex justify-end space-x-2">
             <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
@@ -314,7 +307,7 @@ const AddTransactionModal = ({
             </Button>
             <Button 
               type="submit" 
-              disabled={isLoading || selectedStatements.length === 0}
+              disabled={isLoading}
               className={type === "receita" ? "bg-green-600 hover:bg-green-700" : "bg-sage-600 hover:bg-sage-700"}
             >
               {isLoading ? "Salvando..." : "Adicionar"}

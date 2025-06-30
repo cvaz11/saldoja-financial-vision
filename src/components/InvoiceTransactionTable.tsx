@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useState } from "react";
 import InvoiceFilter, { type FilterConfig } from "./InvoiceFilter";
@@ -73,28 +72,6 @@ const InvoiceTransactionTable = ({
   console.log('[INVOICE_TABLE] Income transactions:', rawTransactions.filter(t => t.is_credit).length);
   console.log('[INVOICE_TABLE] Expense transactions:', rawTransactions.filter(t => !t.is_credit).length);
   console.log('[INVOICE_TABLE] Selected statements:', config.invoiceConfig?.selectedStatements);
-
-  // Buscar informações dos statements selecionados para o modal
-  const { data: statementOptions = [] } = useQuery({
-    queryKey: ['statement-options', config.invoiceConfig?.selectedStatements],
-    queryFn: async () => {
-      if (!config.invoiceConfig?.selectedStatements?.length || !user) return [];
-      
-      const { data, error } = await supabase
-        .from('statements')
-        .select('id, bank, month, year')
-        .in('id', config.invoiceConfig.selectedStatements)
-        .eq('user_id', user.id);
-      
-      if (error) {
-        console.error('[STATEMENT_OPTIONS] Error fetching:', error);
-        return [];
-      }
-      
-      return data || [];
-    },
-    enabled: !!user && !!config.invoiceConfig?.selectedStatements?.length
-  });
 
   // Convert transactions to unified format
   const transactions: UnifiedTransaction[] = rawTransactions.map(transaction => ({
@@ -171,31 +148,15 @@ const InvoiceTransactionTable = ({
     refetch(); // Refresh data after edit
   };
 
-  // Handlers para ações CRUD - CORRIGIDOS
+  // Handlers para ações CRUD - Simplificados
   const handleAddIncomeClick = () => {
-    console.log('[INVOICE_TABLE] Add income requested with statements:', config.invoiceConfig?.selectedStatements);
-    if (config.invoiceConfig?.selectedStatements?.length === 0) {
-      toast({
-        title: "Aviso",
-        description: "Selecione pelo menos um extrato antes de adicionar receita",
-        variant: "destructive",
-      });
-      return;
-    }
+    console.log('[INVOICE_TABLE] Add income requested');
     setModalType("receita");
     setIsAddModalOpen(true);
   };
 
   const handleAddExpenseClick = () => {
-    console.log('[INVOICE_TABLE] Add expense requested with statements:', config.invoiceConfig?.selectedStatements);
-    if (config.invoiceConfig?.selectedStatements?.length === 0) {
-      toast({
-        title: "Aviso", 
-        description: "Selecione pelo menos um extrato antes de adicionar despesa",
-        variant: "destructive",
-      });
-      return;
-    }
+    console.log('[INVOICE_TABLE] Add expense requested');
     setModalType("despesa");
     setIsAddModalOpen(true);
   };
@@ -249,7 +210,6 @@ const InvoiceTransactionTable = ({
             variant="outline"
             size="sm"
             className="bg-green-50 hover:bg-green-100 text-green-700"
-            disabled={config.invoiceConfig?.selectedStatements?.length === 0}
           >
             <Plus className="h-4 w-4 mr-2" />
             Receita
@@ -258,7 +218,6 @@ const InvoiceTransactionTable = ({
             onClick={handleAddExpenseClick}
             className="bg-sage-600 hover:bg-sage-700"
             size="sm"
-            disabled={config.invoiceConfig?.selectedStatements?.length === 0}
           >
             <Plus className="h-4 w-4 mr-2" />
             Despesa
@@ -334,8 +293,6 @@ const InvoiceTransactionTable = ({
         onClose={() => setIsAddModalOpen(false)}
         onSubmit={handleTransactionSubmit}
         type={modalType}
-        selectedStatements={config.invoiceConfig?.selectedStatements || []}
-        statementOptions={statementOptions}
       />
     </div>
   );
