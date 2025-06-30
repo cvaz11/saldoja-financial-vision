@@ -12,6 +12,7 @@ import { RefreshCw, Plus } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 // Unified transaction type to match TransactionTableContent expectations
 interface UnifiedTransaction {
@@ -39,6 +40,7 @@ const InvoiceTransactionTable = ({
   onAddExpense 
 }: InvoiceTransactionTableProps) => {
   const { user } = useAuth();
+  const { toast } = useToast();
   
   // Configuração inicial: mês anterior com faturas
   const currentDate = new Date();
@@ -159,15 +161,31 @@ const InvoiceTransactionTable = ({
     refetch(); // Refresh data after edit
   };
 
-  // Handlers para ações CRUD
+  // Handlers para ações CRUD - CORRIGIDOS
   const handleAddIncomeClick = () => {
     console.log('[INVOICE_TABLE] Add income requested with statements:', config.invoiceConfig?.selectedStatements);
+    if (config.invoiceConfig?.selectedStatements?.length === 0) {
+      toast({
+        title: "Aviso",
+        description: "Selecione pelo menos um extrato antes de adicionar receita",
+        variant: "destructive",
+      });
+      return;
+    }
     setModalType("receita");
     setIsAddModalOpen(true);
   };
 
   const handleAddExpenseClick = () => {
     console.log('[INVOICE_TABLE] Add expense requested with statements:', config.invoiceConfig?.selectedStatements);
+    if (config.invoiceConfig?.selectedStatements?.length === 0) {
+      toast({
+        title: "Aviso", 
+        description: "Selecione pelo menos um extrato antes de adicionar despesa",
+        variant: "destructive",
+      });
+      return;
+    }
     setModalType("despesa");
     setIsAddModalOpen(true);
   };
@@ -175,8 +193,11 @@ const InvoiceTransactionTable = ({
   const handleTransactionSubmit = async (data: any) => {
     console.log('[INVOICE_TABLE] Transaction submitted successfully:', data);
     setIsAddModalOpen(false);
-    // FIX: Refresh imediato sem delay
+    
+    // Refetch imediato para mostrar nova transação
     await refetch();
+    
+    // Toast já é mostrado no modal, não precisa duplicar aqui
   };
 
   // Calcular totais

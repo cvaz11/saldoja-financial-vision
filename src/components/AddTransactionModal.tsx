@@ -10,9 +10,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { saveTransaction } from "@/services/transactionService";
 
 interface AddTransactionModalProps {
   isOpen: boolean;
@@ -60,52 +60,63 @@ const AddTransactionModal = ({
       return;
     }
 
-    if (!formData.description.trim() || !formData.amount) {
+    // Validações do formulário
+    if (!formData.description.trim()) {
       toast({
         title: "Erro",
-        description: "Preencha todos os campos obrigatórios",
+        description: "Descrição é obrigatória",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const amount = parseFloat(formData.amount);
+    if (!amount || amount <= 0) {
+      toast({
+        title: "Erro",
+        description: "Valor deve ser maior que zero",
         variant: "destructive",
       });
       return;
     }
 
     // Validar statement_id se estivermos em modo faturas
-    if (selectedStatements.length > 0 && !formData.statement_id) {
-      toast({
-        title: "Erro",
-        description: "Selecione um extrato para associar a transação",
-        variant: "destructive",
-      });
-      return;
+    let finalStatementId = null;
+    if (selectedStatements.length > 0) {
+      if (selectedStatements.length === 1) {
+        finalStatementId = selectedStatements[0];
+      } else if (formData.statement_id) {
+        finalStatementId = formData.statement_id;
+      } else {
+        toast({
+          title: "Erro",
+          description: "Selecione um extrato para associar a transação",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     setIsLoading(true);
 
     try {
-      // FIX: Remover created_at e deixar o banco usar o valor padrão
+      console.log('[ADD_TRANSACTION] Preparing to save transaction');
+      
       const transactionData = {
         user_id: user.id,
-        description: formData.description.trim(),
-        amount: parseFloat(formData.amount),
-        category: formData.category,
+        statement_id: finalStatementId,
         transaction_date: formData.transaction_date.toISOString().split('T')[0],
-        is_credit: type === "receita",
-        statement_id: formData.statement_id || null
+        description: formData.description,
+        amount: amount,
+        category: formData.category,
+        is_credit: type === "receita"
       };
 
-      console.log('[ADD_TRANSACTION] Inserting transaction:', transactionData);
+      console.log('[ADD_TRANSACTION] Transaction data:', transactionData);
 
-      const { data, error } = await supabase
-        .from('transactions')
-        .insert([transactionData])
-        .select();
+      const savedTransaction = await saveTransaction(transactionData);
 
-      if (error) {
-        console.error('[ADD_TRANSACTION] Error inserting transaction:', error);
-        throw error;
-      }
-
-      console.log('[ADD_TRANSACTION] Transaction inserted successfully:', data);
+      console.log('[ADD_TRANSACTION] Transaction saved successfully:', savedTransaction);
 
       toast({
         title: "Sucesso",
@@ -121,7 +132,7 @@ const AddTransactionModal = ({
         statement_id: selectedStatements.length === 1 ? selectedStatements[0] : ""
       });
 
-      onSubmit(data[0]);
+      onSubmit(savedTransaction);
       onClose();
     } catch (error: any) {
       console.error('[ADD_TRANSACTION] Complete error:', error);
@@ -162,7 +173,7 @@ const AddTransactionModal = ({
               id="amount"
               type="number"
               step="0.01"
-              min="0"
+              min="0.01"
               value={formData.amount}
               onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
               placeholder="0,00"
@@ -240,7 +251,7 @@ const AddTransactionModal = ({
               disabled={isLoading}
               className={type === "receita" ? "bg-green-600 hover:bg-green-700" : "bg-sage-600 hover:bg-sage-700"}
             >
-              {isLoading ? "Salvando..." : "Confirmar"}
+              {isLoading ? (type === "receita" ? "Salvando receita..." : "Salvando despesa...") : "Confirmar"}
             </Button>
           </div>
         </form>
