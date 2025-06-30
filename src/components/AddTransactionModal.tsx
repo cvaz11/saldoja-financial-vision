@@ -51,6 +51,7 @@ const AddTransactionModal = ({
     e.preventDefault();
     
     if (!user) {
+      console.error('[ADD_TRANSACTION] No user found');
       toast({
         title: "Erro",
         description: "Usuário não autenticado",
@@ -81,6 +82,7 @@ const AddTransactionModal = ({
     setIsLoading(true);
 
     try {
+      // FIX: Remover created_at e deixar o banco usar o valor padrão
       const transactionData = {
         user_id: user.id,
         description: formData.description.trim(),

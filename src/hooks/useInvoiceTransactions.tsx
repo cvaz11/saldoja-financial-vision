@@ -15,6 +15,7 @@ interface Transaction {
   category?: string;
   statement_id: string;
   user_id: string;
+  created_at: string;
   statements?: {
     bank: string;
     closing_day: number;
@@ -69,37 +70,41 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
 
         console.log('[FILTERED_QUERY] Fetching transactions for statements:', selectedStatements);
 
-        // FIX: Simplify query to avoid join issues
+        // FIX: Query simplificada para evitar problemas com join
         const { data, error } = await supabase
           .from('transactions')
           .select('*')
           .eq('user_id', user.id)
           .in('statement_id', selectedStatements)
-          .order('transaction_date', { ascending: false });
+          .order('created_at', { ascending: false }); // FIX: Usar created_at para ordem mais confiável
 
         if (error) {
           console.error('[FILTERED_QUERY] Error fetching invoice transactions:', error);
           throw error;
         }
 
-        console.log('[FILTERED_QUERY] Found invoice transactions:', data?.length || 0);
-        console.log('[FILTERED_QUERY] Sample transaction:', data?.[0]);
+        console.log('[FILTERED_QUERY] Raw query result:', data?.length || 0);
+        console.log('[FILTERED_QUERY] Sample transactions:', data?.slice(0, 2));
         
-        // Transform data to match expected format
+        // FIX: Transformar dados para garantir formato correto
         const transformedData: Transaction[] = (data || []).map(transaction => ({
           id: transaction.id,
           description: transaction.description || '',
-          amount: transaction.amount,
+          amount: Number(transaction.amount),
           transaction_date: transaction.transaction_date,
-          is_credit: transaction.is_credit || false,
+          is_credit: Boolean(transaction.is_credit),
           installment_number: transaction.installment_number,
           installment_total: transaction.installment_total,
-          category: transaction.category,
+          category: transaction.category || 'Outros',
           statement_id: transaction.statement_id || '',
-          user_id: transaction.user_id
+          user_id: transaction.user_id,
+          created_at: transaction.created_at
         }));
 
         console.log('[FILTERED_QUERY] Transformed transactions:', transformedData.length);
+        console.log('[FILTERED_QUERY] Income transactions:', transformedData.filter(t => t.is_credit).length);
+        console.log('[FILTERED_QUERY] Expense transactions:', transformedData.filter(t => !t.is_credit).length);
+        
         return transformedData;
       }
 
@@ -107,7 +112,10 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
       return [];
     },
     enabled: enabled && !!user,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 0, // FIX: Sempre buscar dados atualizados
+    gcTime: 0, // FIX: Não manter cache
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 };
 

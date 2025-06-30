@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useState } from "react";
 import InvoiceFilter, { type FilterConfig } from "./InvoiceFilter";
@@ -68,7 +67,8 @@ const InvoiceTransactionTable = ({
 
   // Debug log para verificar dados recebidos
   console.log('[INVOICE_TABLE] Raw transactions received:', rawTransactions.length);
-  console.log('[INVOICE_TABLE] First transaction sample:', rawTransactions[0]);
+  console.log('[INVOICE_TABLE] Income transactions:', rawTransactions.filter(t => t.is_credit).length);
+  console.log('[INVOICE_TABLE] Expense transactions:', rawTransactions.filter(t => !t.is_credit).length);
 
   // Buscar informações dos statements selecionados para o modal
   const { data: statementOptions = [] } = useQuery({
@@ -92,26 +92,23 @@ const InvoiceTransactionTable = ({
     enabled: !!user && !!config.invoiceConfig?.selectedStatements?.length
   });
 
-  // Convert transactions to unified format - FIX: Ensure proper user_id handling
-  const transactions: UnifiedTransaction[] = rawTransactions.map(transaction => {
-    const unifiedTransaction = {
-      id: transaction.id,
-      description: transaction.description || '',
-      amount: transaction.amount,
-      transaction_date: transaction.transaction_date,
-      is_credit: transaction.is_credit || false,
-      installment_number: transaction.installment_number,
-      installment_total: transaction.installment_total,
-      category: transaction.category,
-      statement_id: transaction.statement_id,
-      user_id: transaction.user_id || user?.id || ''
-    };
-    
-    console.log('[INVOICE_TABLE] Unified transaction:', unifiedTransaction.id, unifiedTransaction.description);
-    return unifiedTransaction;
-  });
+  // Convert transactions to unified format
+  const transactions: UnifiedTransaction[] = rawTransactions.map(transaction => ({
+    id: transaction.id,
+    description: transaction.description || '',
+    amount: transaction.amount,
+    transaction_date: transaction.transaction_date,
+    is_credit: transaction.is_credit || false,
+    installment_number: transaction.installment_number,
+    installment_total: transaction.installment_total,
+    category: transaction.category,
+    statement_id: transaction.statement_id,
+    user_id: transaction.user_id || user?.id || ''
+  }));
 
   console.log('[INVOICE_TABLE] Final unified transactions:', transactions.length);
+  console.log('[INVOICE_TABLE] Final income count:', transactions.filter(t => t.is_credit).length);
+  console.log('[INVOICE_TABLE] Final expense count:', transactions.filter(t => !t.is_credit).length);
 
   // Log de debug para erro
   if (error) {
@@ -178,7 +175,7 @@ const InvoiceTransactionTable = ({
   const handleTransactionSubmit = async (data: any) => {
     console.log('[INVOICE_TABLE] Transaction submitted successfully:', data);
     setIsAddModalOpen(false);
-    // Refresh imediato sem delay
+    // FIX: Refresh imediato sem delay
     await refetch();
   };
 
@@ -266,7 +263,7 @@ const InvoiceTransactionTable = ({
           <li>• Mostra transações de faturas que vencem no mês selecionado</li>
           <li>• Cada banco pode ter seu próprio dia de fechamento</li>
           <li>• Apenas faturas selecionadas são consideradas</li>
-          <li>• {transactions.length} transações encontradas para os critérios selecionados</li>
+          <li>• {transactions.length} transações encontradas ({transactions.filter(t => t.is_credit).length} receitas, {transactions.filter(t => !t.is_credit).length} despesas)</li>
         </ul>
       </div>
 
