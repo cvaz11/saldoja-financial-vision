@@ -29,17 +29,23 @@ const TransactionTableHeader = ({
   onAddExpense,
   onProfileOpen
 }: TransactionTableHeaderProps) => {
+  // Ensure handlers are always defined
+  const handleQuickFilterChange = onQuickFilterChange || (() => {});
+  const handleSearchChange = onSearchChange || (() => {});
+  const handleAddIncome = onAddIncome || (() => {});
+  const handleAddExpense = onAddExpense || (() => {});
+
   return (
     <QuickFilterButtons 
       activeFilter={quickFilter}
-      onFilterChange={onQuickFilterChange || (() => {})}
+      onFilterChange={handleQuickFilterChange}
       searchTerm={searchTerm}
-      onSearchChange={onSearchChange || (() => {})}
+      onSearchChange={handleSearchChange}
       filterConfig={filterConfig}
       onFilterConfigChange={onFilterConfigChange}
       onRefresh={onRefresh}
-      onAddIncome={onAddIncome}
-      onAddExpense={onAddExpense}
+      onAddIncome={handleAddIncome}
+      onAddExpense={handleAddExpense}
       onProfileOpen={onProfileOpen}
     />
   );

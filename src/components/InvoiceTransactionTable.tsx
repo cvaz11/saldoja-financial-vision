@@ -1,9 +1,11 @@
+
 import React from "react";
 import { useState } from "react";
 import InvoiceFilter, { type FilterConfig } from "./InvoiceFilter";
 import { useFilteredTransactions } from "@/hooks/useInvoiceTransactions";
 import TransactionTableContent from "./TransactionTableContent";
 import TransactionTableModals from "./TransactionTableModals";
+import AddTransactionModal from "./AddTransactionModal";
 import { useDeleteTransaction } from "@/hooks/useDeleteTransaction";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -54,6 +56,10 @@ const InvoiceTransactionTable = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
+  
+  // Local state for add transaction modal
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<"receita" | "despesa">("receita");
 
   const { data: rawTransactions = [], isLoading, refetch, error } = useFilteredTransactions(config, true);
   const { deleteTransaction, isDeleting } = useDeleteTransaction();
@@ -106,6 +112,7 @@ const InvoiceTransactionTable = ({
       
       if (success) {
         console.log('[INVOICE_TABLE] Deletion successful');
+        await refetch(); // Refresh data after deletion
       }
     }
     
@@ -117,25 +124,26 @@ const InvoiceTransactionTable = ({
     console.log('[INVOICE_TABLE] Transaction edited successfully');
     setIsEditModalOpen(false);
     setEditingTransaction(null);
+    refetch(); // Refresh data after edit
   };
 
   // Handlers para ações CRUD
-  const handleAddIncome = () => {
+  const handleAddIncomeClick = () => {
     console.log('[INVOICE_TABLE] Add income requested');
-    if (onAddIncome) {
-      onAddIncome();
-    } else if (onAddTransaction) {
-      onAddTransaction();
-    }
+    setModalType("receita");
+    setIsAddModalOpen(true);
   };
 
-  const handleAddExpense = () => {
+  const handleAddExpenseClick = () => {
     console.log('[INVOICE_TABLE] Add expense requested');
-    if (onAddExpense) {
-      onAddExpense();
-    } else if (onAddTransaction) {
-      onAddTransaction();
-    }
+    setModalType("despesa");
+    setIsAddModalOpen(true);
+  };
+
+  const handleTransactionSubmit = async (data: any) => {
+    console.log('[INVOICE_TABLE] Transaction submitted:', data);
+    setIsAddModalOpen(false);
+    await refetch(); // Refresh data after adding
   };
 
   // Calcular totais
@@ -169,7 +177,7 @@ const InvoiceTransactionTable = ({
             Atualizar
           </Button>
           <Button 
-            onClick={handleAddIncome}
+            onClick={handleAddIncomeClick}
             variant="outline"
             size="sm"
             className="bg-green-50 hover:bg-green-100 text-green-700"
@@ -178,7 +186,7 @@ const InvoiceTransactionTable = ({
             Receita
           </Button>
           <Button 
-            onClick={handleAddExpense}
+            onClick={handleAddExpenseClick}
             className="bg-sage-600 hover:bg-sage-700"
             size="sm"
           >
@@ -249,6 +257,13 @@ const InvoiceTransactionTable = ({
         onEditSuccess={handleEditSuccess}
         onDeleteConfirmChange={setDeleteConfirmOpen}
         onConfirmDelete={handleConfirmDelete}
+      />
+
+      <AddTransactionModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSubmit={handleTransactionSubmit}
+        type={modalType}
       />
     </div>
   );

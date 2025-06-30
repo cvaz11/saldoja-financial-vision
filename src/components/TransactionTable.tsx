@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
@@ -11,6 +12,7 @@ import TransactionTableHeader from "./TransactionTableHeader";
 import TransactionTableContent from "./TransactionTableContent";
 import TransactionTableFooter from "./TransactionTableFooter";
 import TransactionTableModals from "./TransactionTableModals";
+import AddTransactionModal from "./AddTransactionModal";
 
 // Unified transaction type
 interface UnifiedTransaction {
@@ -40,6 +42,10 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
   const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
   const [quickFilter, setQuickFilter] = useState<QuickFilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Local state for add transaction modal
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<"receita" | "despesa">("receita");
   
   const { deleteTransaction, isDeleting } = useDeleteTransaction();
   
@@ -153,6 +159,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
       
       if (success) {
         console.log('[TABLE] Deletion successful');
+        await refetch(); // Refresh data after deletion
       }
     }
     
@@ -164,25 +171,30 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
     console.log('[TABLE] Transaction edited successfully');
     setIsEditModalOpen(false);
     setEditingTransaction(null);
+    refetch(); // Refresh data after edit
   };
 
   const handleProfileOpen = () => {
     console.log('[TABLE] Profile open requested');
   };
 
-  // Unified handlers that work for both filter types
+  // Handlers for adding transactions
   const handleAddIncome = () => {
     console.log('[TABLE] Add income requested');
-    if (onAddTransaction) {
-      onAddTransaction();
-    }
+    setModalType("receita");
+    setIsAddModalOpen(true);
   };
 
   const handleAddExpense = () => {
     console.log('[TABLE] Add expense requested');
-    if (onAddTransaction) {
-      onAddTransaction();
-    }
+    setModalType("despesa");
+    setIsAddModalOpen(true);
+  };
+
+  const handleTransactionSubmit = async (data: any) => {
+    console.log('[TABLE] Transaction submitted:', data);
+    setIsAddModalOpen(false);
+    await refetch(); // Refresh data after adding
   };
 
   return (
@@ -222,6 +234,13 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
           onEditSuccess={handleEditSuccess}
           onDeleteConfirmChange={setDeleteConfirmOpen}
           onConfirmDelete={handleConfirmDelete}
+        />
+
+        <AddTransactionModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onSubmit={handleTransactionSubmit}
+          type={modalType}
         />
       </div>
 
