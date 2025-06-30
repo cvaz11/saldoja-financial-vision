@@ -18,9 +18,16 @@ interface AddTransactionModalProps {
   onClose: () => void;
   onSubmit: (data: any) => void;
   type: "receita" | "despesa";
+  selectedStatements?: string[]; // Para associar a transação a um extrato específico
 }
 
-const AddTransactionModal = ({ isOpen, onClose, onSubmit, type }: AddTransactionModalProps) => {
+const AddTransactionModal = ({ 
+  isOpen, 
+  onClose, 
+  onSubmit, 
+  type, 
+  selectedStatements = [] 
+}: AddTransactionModalProps) => {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     description: "",
@@ -49,8 +56,17 @@ const AddTransactionModal = ({ isOpen, onClose, onSubmit, type }: AddTransaction
         type, 
         description: formData.description,
         amount: parseFloat(formData.value),
-        date: selectedDate
+        date: selectedDate,
+        selectedStatements
       });
+
+      // Determinar qual statement_id usar (se houver extratos selecionados)
+      let statementId = null;
+      if (selectedStatements.length > 0) {
+        // Usar o primeiro extrato selecionado
+        statementId = selectedStatements[0];
+        console.log('[ADD_MODAL] Associating to statement:', statementId);
+      }
 
       // Criar a transação diretamente no Supabase
       const transactionData = {
@@ -60,7 +76,7 @@ const AddTransactionModal = ({ isOpen, onClose, onSubmit, type }: AddTransaction
         transaction_date: format(selectedDate, "yyyy-MM-dd"),
         is_credit: type === "receita",
         category: formData.category || (type === "receita" ? "Receita" : "Despesa"),
-        statement_id: null // Será null para transações manuais
+        statement_id: statementId // Associar ao extrato se disponível
       };
 
       const { data, error } = await supabase
@@ -195,6 +211,14 @@ const AddTransactionModal = ({ isOpen, onClose, onSubmit, type }: AddTransaction
               </PopoverContent>
             </Popover>
           </div>
+
+          {selectedStatements.length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-800">
+                💡 Esta transação será associada aos extratos selecionados e aparecerá no filtro de faturas.
+              </p>
+            </div>
+          )}
 
           <Button 
             type="submit" 

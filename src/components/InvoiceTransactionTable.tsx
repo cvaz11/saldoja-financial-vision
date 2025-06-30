@@ -128,13 +128,13 @@ const InvoiceTransactionTable = ({
 
   // Handlers para ações CRUD
   const handleAddIncomeClick = () => {
-    console.log('[INVOICE_TABLE] Add income requested');
+    console.log('[INVOICE_TABLE] Add income requested with statements:', config.invoiceConfig?.selectedStatements);
     setModalType("receita");
     setIsAddModalOpen(true);
   };
 
   const handleAddExpenseClick = () => {
-    console.log('[INVOICE_TABLE] Add expense requested');
+    console.log('[INVOICE_TABLE] Add expense requested with statements:', config.invoiceConfig?.selectedStatements);
     setModalType("despesa");
     setIsAddModalOpen(true);
   };
@@ -266,6 +266,7 @@ const InvoiceTransactionTable = ({
         onClose={() => setIsAddModalOpen(false)}
         onSubmit={handleTransactionSubmit}
         type={modalType}
+        selectedStatements={config.invoiceConfig?.selectedStatements || []}
       />
     </div>
   );
