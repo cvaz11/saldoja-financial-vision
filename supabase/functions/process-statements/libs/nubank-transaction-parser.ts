@@ -175,6 +175,8 @@ export class NubankTransactionParser {
       
       // Detectar parcelas antes de determinar categoria
       const installmentInfo = this.detectInstallment(description);
+      console.log(`[NUBANK-PARSER] Testando detecção de parcela para: "${description}"`);
+      console.log(`[NUBANK-PARSER] Resultado da detecção:`, installmentInfo);
       
       // Determinar categoria
       const category = this.determineCategory(description);
@@ -183,16 +185,20 @@ export class NubankTransactionParser {
         date,
         description,
         amount: -Math.abs(amount), // Garantir que é negativo (débito)
-        category
+        category,
+        // Incluir campos de parcela diretamente na criação
+        installment_number: installmentInfo?.current || null,
+        installment_total: installmentInfo?.total || null,
+        installment_id: installmentInfo?.id || null,
+        is_installment: !!installmentInfo
       };
 
-      // Adicionar informações de parcelamento se detectadas
-      if (installmentInfo) {
-        transaction.installment_number = installmentInfo.current;
-        transaction.installment_total = installmentInfo.total;
-        transaction.installment_id = installmentInfo.id;
-        transaction.is_installment = true;
-      }
+      console.log(`[NUBANK-PARSER] Transação criada:`, {
+        description: transaction.description,
+        installment_number: transaction.installment_number,
+        installment_total: transaction.installment_total,
+        is_installment: transaction.is_installment
+      });
       
       return transaction;
       
