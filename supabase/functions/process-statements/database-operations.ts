@@ -42,17 +42,27 @@ export const insertTransactions = async (
   }
 
   // Converter transações para formato do banco
-  const dbTransactions = transactions.map((transaction, index) => ({
-    statement_id: statementId,
-    user_id: userId,
-    transaction_date: transaction.date,
-    description: transaction.description.slice(0, 255), // Limitar tamanho
-    amount: Math.abs(transaction.amount), // Armazenar como positivo
-    category: transaction.category || 'Outros',
-    installment_number: transaction.installment_number || null,
-    installment_total: transaction.installment_total || null,
-    is_credit: false, // Todas são débitos
-  }));
+  const dbTransactions = transactions.map((transaction, index) => {
+    console.log(`[DB] Processando transação ${index + 1}: "${transaction.description}"`);
+    console.log(`[DB] Dados de parcela:`, {
+      installment_number: transaction.installment_number,
+      installment_total: transaction.installment_total,
+      installment_id: transaction.installment_id,
+      is_installment: transaction.is_installment
+    });
+    
+    return {
+      statement_id: statementId,
+      user_id: userId,
+      transaction_date: transaction.date,
+      description: transaction.description.slice(0, 255), // Limitar tamanho
+      amount: Math.abs(transaction.amount), // Armazenar como positivo
+      category: transaction.category || 'Outros',
+      installment_number: transaction.installment_number || null,
+      installment_total: transaction.installment_total || null,
+      is_credit: false, // Todas são débitos
+    };
+  });
 
   console.log('[DB] Exemplo de transação a inserir:', dbTransactions[0]);
 
