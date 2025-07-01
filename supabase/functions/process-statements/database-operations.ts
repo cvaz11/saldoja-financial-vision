@@ -7,6 +7,10 @@ interface Transaction {
   description: string;
   amount: number;
   category: string;
+  installment_number?: number;
+  installment_total?: number;
+  installment_id?: string;
+  is_installment?: boolean;
 }
 
 export const insertTransactions = async (
@@ -45,14 +49,14 @@ export const insertTransactions = async (
     description: transaction.description.slice(0, 255), // Limitar tamanho
     amount: Math.abs(transaction.amount), // Armazenar como positivo
     category: transaction.category || 'Outros',
-    installment_number: null,
-    installment_total: null,
+    installment_number: transaction.installment_number || null,
+    installment_total: transaction.installment_total || null,
     is_credit: false, // Todas são débitos
   }));
 
   console.log('[DB] Exemplo de transação a inserir:', dbTransactions[0]);
 
-  // Inserir transações uma por vez para evitar conflitos
+  // Inserir transações uma por vez com upsert para parcelas
   let insertedCount = 0;
   let errors = [];
 
@@ -60,6 +64,24 @@ export const insertTransactions = async (
     const transaction = dbTransactions[i];
     
     try {
+      // Para parcelas, usar upsert baseado em installment_id + number
+      if (transaction.installment_number && transaction.installment_total) {
+        // Verificar se já existe essa parcela
+        const { data: existing } = await supabase
+          .from('transactions')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('description', transaction.description)
+          .eq('installment_number', transaction.installment_number)
+          .eq('installment_total', transaction.installment_total)
+          .single();
+
+        if (existing) {
+          console.log(`[DB] Parcela ${transaction.installment_number}/${transaction.installment_total} já existe, pulando...`);
+          continue;
+        }
+      }
+
       const { error: insertError } = await supabase
         .from('transactions')
         .insert([transaction]);
@@ -69,6 +91,12 @@ export const insertTransactions = async (
         errors.push(`Transação ${i + 1}: ${insertError.message}`);
       } else {
         insertedCount++;
+        
+        // Se é uma parcela, gerar as parcelas futuras
+        if (transaction.installment_number && transaction.installment_total) {
+          await generateFutureInstallments(supabase, transaction, userId, statementId);
+        }
+        
         if (i % 10 === 0) {
           console.log(`[DB] Progresso: ${i + 1}/${dbTransactions.length} transações processadas`);
         }
@@ -136,4 +164,65 @@ export const updateStatementStatus = async (
   }
 
   console.log(`[DB] ✅ Extrato ${statementId} atualizado com sucesso`);
+};
+
+// Função para gerar parcelas futuras
+const generateFutureInstallments = async (
+  supabase: any,
+  baseTransaction: any,
+  userId: string,
+  statementId: string
+) => {
+  const currentInstallment = baseTransaction.installment_number;
+  const totalInstallments = baseTransaction.installment_total;
+  
+  if (currentInstallment >= totalInstallments) {
+    return; // Já é a última parcela
+  }
+
+  console.log(`[DB] Gerando ${totalInstallments - currentInstallment} parcelas futuras...`);
+
+  const baseDate = new Date(baseTransaction.transaction_date);
+  const futureInstallments = [];
+
+  // Gerar parcelas futuras
+  for (let i = currentInstallment + 1; i <= totalInstallments; i++) {
+    const futureDate = new Date(baseDate);
+    futureDate.setMonth(futureDate.getMonth() + (i - currentInstallment));
+    
+    // Atualizar descrição com o número da parcela
+    const baseDescription = baseTransaction.description
+      .replace(/parcela\s+\d{1,2}\/\d{1,2}/i, '')
+      .replace(/\d{1,2}\s*de\s*\d{1,2}/i, '')
+      .replace(/\d{1,2}\/\d{1,2}\s*parcela/i, '')
+      .replace(/\d{1,2}\s*\/\s*\d{1,2}/i, '')
+      .trim();
+    
+    const futureDescription = `${baseDescription} - Parcela ${i}/${totalInstallments}`;
+
+    futureInstallments.push({
+      statement_id: null, // Parcelas futuras não têm extrato ainda
+      user_id: userId,
+      transaction_date: futureDate.toISOString().split('T')[0],
+      description: futureDescription.slice(0, 255),
+      amount: baseTransaction.amount,
+      category: baseTransaction.category,
+      installment_number: i,
+      installment_total: totalInstallments,
+      is_credit: false,
+    });
+  }
+
+  // Inserir parcelas futuras
+  if (futureInstallments.length > 0) {
+    const { error } = await supabase
+      .from('transactions')
+      .insert(futureInstallments);
+      
+    if (error) {
+      console.error('[DB] Erro ao inserir parcelas futuras:', error);
+    } else {
+      console.log(`[DB] ✅ ${futureInstallments.length} parcelas futuras geradas`);
+    }
+  }
 };

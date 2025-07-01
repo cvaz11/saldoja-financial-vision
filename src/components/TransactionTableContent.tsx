@@ -104,15 +104,17 @@ const TransactionTableContent = ({
                 transaction={{
                   id: transaction.id,
                   description: transaction.description || '',
-                  value: transaction.amount,
-                  installment: transaction.installment_number && transaction.installment_total 
-                    ? `${transaction.installment_number}/${transaction.installment_total}`
-                    : 'À vista',
-                  category: transaction.category || 'Outros',
-                  bank: 'Banco',
-                  date: formatDate(transaction.transaction_date),
-                  status: transaction.is_credit ? 'Receita' as const : 'Pago' as const,
+                  amount: transaction.amount,
+                  transaction_date: transaction.transaction_date,
+                  is_credit: transaction.is_credit,
+                  category: transaction.category,
+                  installment_number: transaction.installment_number,
+                  installment_total: transaction.installment_total,
+                  statement_id: transaction.statement_id,
                 }}
+                showCategories={showCategories}
+                onEdit={onEditTransaction}
+                onDelete={onDeleteClick}
               />
             </ContextMenuTrigger>
             <ContextMenuContent>
