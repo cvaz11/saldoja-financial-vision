@@ -83,9 +83,10 @@ INSTRUÇÕES CRÍTICAS:
    - Datas no formato YYYY-MM-DD
    - Descrições claras e informativas
     - Se não encontrar parcelas, use installment_number: 1, installment_total: 1
-    - Se encontrar "Parcela X/Y" ou "X/Y" ou "X de Y", extraia X para installment_number e Y para installment_total
-    - Procure por padrões como: "9/12", "9 de 12", "Parcela 9/12", "9ª parcela de 12"
-    - Para parcelamentos, o installment_number deve ser > 1 quando detectado
+     - Se encontrar "Parcela X/Y" ou "X/Y" ou "X de Y", extraia X para installment_number e Y para installment_total
+     - Procure especialmente por: "- Parcela 9/12", "Parcela 9/12", "9/12", "9 de 12", "9ª parcela de 12"
+     - IMPORTANTE: Para "Agi*Tute Tech - Parcela 9/12" detecte installment_number: 9, installment_total: 12
+     - Para parcelamentos detectados, installment_total DEVE ser maior que 1
 
 🎯 OBJETIVO: Garantir que NENHUM gasto seja perdido na análise. Seja meticuloso e detalhado.
 

@@ -263,8 +263,11 @@ export class NubankTransactionParser {
   }
   
   private detectInstallment(description: string): { current: number; total: number; id: string } | null {
-    // Padrões para detectar parcelas
+    console.log(`[NUBANK-PARSER] 🔍 Analisando descrição para parcelas: "${description}"`);
+    
+    // Padrões para detectar parcelas - mais específicos
     const patterns = [
+      /-\s*parcela\s+(\d{1,2})\/(\d{1,2})/i,    // "- Parcela 9/12"
       /parcela\s+(\d{1,2})\/(\d{1,2})/i,        // "Parcela 9/12"
       /(\d{1,2})\s*de\s*(\d{1,2})/i,            // "9 de 12"
       /(\d{1,2})\/(\d{1,2})\s*parcela/i,        // "9/12 parcela"
