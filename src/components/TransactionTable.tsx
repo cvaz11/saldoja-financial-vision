@@ -13,6 +13,7 @@ import TransactionTableContent from "./TransactionTableContent";
 import TransactionTableFooter from "./TransactionTableFooter";
 import TransactionTableModals from "./TransactionTableModals";
 import AddTransactionModal from "./AddTransactionModal";
+import CategoryView from "./CategoryView";
 
 // Unified transaction type
 interface UnifiedTransaction {
@@ -213,14 +214,23 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
           onProfileOpen={handleProfileOpen}
         />
 
-        <TransactionTableContent
-          transactions={transactions}
-          showCategories={showCategories}
-          isLoading={isLoading}
-          isDeleting={isDeleting}
-          onEditTransaction={handleEditTransaction}
-          onDeleteClick={handleDeleteClick}
-        />
+        {quickFilter === 'categories' ? (
+          <CategoryView
+            transactions={allTransactions}
+            isLoading={isLoading}
+            onEditTransaction={handleEditTransaction}
+            onDeleteClick={handleDeleteClick}
+          />
+        ) : (
+          <TransactionTableContent
+            transactions={transactions}
+            showCategories={showCategories}
+            isLoading={isLoading}
+            isDeleting={isDeleting}
+            onEditTransaction={handleEditTransaction}
+            onDeleteClick={handleDeleteClick}
+          />
+        )}
 
         <TransactionTableModals
           editingTransaction={editingTransaction}
@@ -244,7 +254,9 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
         />
       </div>
 
-      <TransactionTableFooter transactions={transactions} />
+      {quickFilter !== 'categories' && (
+        <TransactionTableFooter transactions={transactions} />
+      )}
     </>
   );
 };
