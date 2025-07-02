@@ -61,8 +61,6 @@ export const insertTransactions = async (
       installment_number: transaction.installment_number || null,
       installment_total: transaction.installment_total || null,
       is_credit: false, // Todas são débitos
-      is_installment: transaction.is_installment || false,
-      installment_id: transaction.installment_id || null,
     };
   });
 
