@@ -51,7 +51,8 @@ export const insertTransactions = async (
       is_installment: transaction.is_installment
     });
     
-    const isInstallment = transaction.installment_number && transaction.installment_total && transaction.installment_number > 1;
+    // Detectar se é parcela baseado na presença de installment_total > 1
+    const isInstallment = transaction.installment_total && transaction.installment_total > 1;
     
     return {
       statement_id: statementId,
