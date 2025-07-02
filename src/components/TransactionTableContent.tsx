@@ -160,10 +160,19 @@ const TransactionTableContent = ({
                   </span>
                 </TableCell>
                 <TableCell>
-                  {transaction.installment_number && transaction.installment_total 
-                    ? `${transaction.installment_number}/${transaction.installment_total}`
-                    : 'À vista'
-                  }
+                  {(() => {
+                    console.log('Transaction debug:', {
+                      id: transaction.id,
+                      description: transaction.description,
+                      installment_number: transaction.installment_number,
+                      installment_total: transaction.installment_total,
+                      hasNumber: !!transaction.installment_number,
+                      hasTotal: !!transaction.installment_total
+                    });
+                    return transaction.installment_number && transaction.installment_total 
+                      ? `${transaction.installment_number}/${transaction.installment_total}`
+                      : 'À vista';
+                  })()}
                 </TableCell>
                 {showCategories && (
                   <TableCell>
