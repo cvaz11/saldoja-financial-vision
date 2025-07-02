@@ -78,15 +78,9 @@ export const processStatement = async (statement: any, supabase: any) => {
 
   } catch (error) {
     console.error(`❌ Erro ao processar extrato ${statement.id}:`, error.message);
-    console.error(`❌ Stack trace completo:`, error.stack);
-    console.error(`❌ Tipo do erro:`, error.name);
     
-    // Update statement with error status and detailed error message
-    const errorMessage = error.message || 'Erro desconhecido no processamento';
+    // Update statement with error status
     await updateStatementStatus(supabase, statement.id, 'error');
-    
-    // Log detalhado para debug
-    console.error(`❌ FALHA NO PROCESSAMENTO DE ${statement.filename}: ${errorMessage}`);
     
     throw error;
   }

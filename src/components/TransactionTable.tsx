@@ -100,7 +100,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
         filtered = allTransactions.filter(t => t.is_credit);
         break;
       case 'installments':
-        filtered = allTransactions.filter(t => t.installment_total && t.installment_total > 1);
+        filtered = allTransactions.filter(t => t.installment_number && t.installment_total);
         break;
       case 'categories':
         filtered = allTransactions.filter(t => t.category && t.category !== 'Outros');

@@ -31,7 +31,6 @@ export const useInstallmentTransactions = () => {
         .eq('user_id', user.id)
         .not('installment_number', 'is', null)
         .not('installment_total', 'is', null)
-        .gt('installment_total', 1)
         .order('transaction_date', { ascending: true });
 
       if (error) {
