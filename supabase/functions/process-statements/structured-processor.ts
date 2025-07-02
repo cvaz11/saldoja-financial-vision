@@ -28,6 +28,7 @@ export const processStructuredFile = async (fileData: Blob, filename: string): P
   
   try {
     const fileExtension = filename.toLowerCase().split('.').pop();
+    console.log(`[STRUCTURED] 🔍 Processando extensão: ${fileExtension}`);
     
     switch (fileExtension) {
       case 'csv':
@@ -38,12 +39,11 @@ export const processStructuredFile = async (fileData: Blob, filename: string): P
       case 'xlsx':
         return await processExcel(fileData);
       default:
-        console.log(`[STRUCTURED] ❌ Formato não suportado: ${fileExtension}`);
-        return [];
+        throw new Error(`Formato de arquivo não suportado: ${fileExtension}. Aceito apenas CSV, OFX, XLS, XLSX`);
     }
   } catch (error) {
-    console.error('[STRUCTURED] Erro no processamento:', error);
-    return [];
+    console.error('[STRUCTURED] ❌ Erro no processamento estruturado:', error.message);
+    throw error; // Re-lançar para que o caller receba o erro específico
   }
 };
 
@@ -51,34 +51,55 @@ async function processCSV(fileData: Blob): Promise<Transaction[]> {
   console.log('[STRUCTURED] 📄 Processando arquivo CSV...');
   
   try {
+    console.log('[STRUCTURED] 🔍 Convertendo arquivo para texto...');
     const text = await fileData.text();
+    console.log(`[STRUCTURED] 📝 Texto obtido: ${text.length} caracteres`);
+    console.log(`[STRUCTURED] 🎯 Primeiros 200 chars: ${text.substring(0, 200)}`);
+    
     const lines = text.split('\n').map(line => line.trim()).filter(line => line);
+    console.log(`[STRUCTURED] 📋 Total de linhas: ${lines.length}`);
     
     if (lines.length < 2) {
       console.log('[STRUCTURED] ❌ CSV muito pequeno ou vazio');
-      return [];
+      throw new Error('CSV deve ter pelo menos 2 linhas (cabeçalho + dados)');
     }
     
     const transactions: Transaction[] = [];
     const header = lines[0].toLowerCase();
+    console.log(`[STRUCTURED] 📊 Cabeçalho original: ${header}`);
     
     // Detectar colunas baseado no cabeçalho
     const columns = header.split(',').map(col => col.trim().replace(/"/g, ''));
     
-    console.log(`[STRUCTURED] 📋 Colunas detectadas: ${columns.join(', ')}`);
+    console.log(`[STRUCTURED] 📋 Colunas detectadas (${columns.length}): ${columns.join(', ')}`);
+    
+    // Verificar se encontramos colunas essenciais
+    const hasDate = columns.some(col => col.includes('data') || col.includes('date'));
+    const hasDescription = columns.some(col => col.includes('descr') || col.includes('memo') || col.includes('estabelecimento') || col.includes('title'));
+    const hasAmount = columns.some(col => col.includes('valor') || col.includes('amount') || col.includes('quantia'));
+    
+    console.log(`[STRUCTURED] 🔍 Validação de colunas: data=${hasDate}, descrição=${hasDescription}, valor=${hasAmount}`);
+    
+    if (!hasDate || !hasDescription || !hasAmount) {
+      throw new Error(`CSV inválido - faltam colunas essenciais. Encontradas: ${columns.join(', ')}`);
+    }
     
     for (let i = 1; i < lines.length; i++) {
       try {
+        console.log(`[STRUCTURED] 📝 Processando linha ${i}: ${lines[i].substring(0, 100)}...`);
         const values = parseCSVLine(lines[i]);
         
         if (values.length !== columns.length) {
-          console.log(`[STRUCTURED] ⚠️ Linha ${i} com número incorreto de colunas`);
+          console.log(`[STRUCTURED] ⚠️ Linha ${i} com número incorreto de colunas: esperado ${columns.length}, encontrado ${values.length}`);
           continue;
         }
         
         const transaction = parseTransactionFromCSV(columns, values);
         if (transaction && validateTransaction(transaction)) {
           transactions.push(transaction);
+          console.log(`[STRUCTURED] ✅ Transação ${transactions.length} adicionada: ${transaction.description}`);
+        } else {
+          console.log(`[STRUCTURED] ⚠️ Transação linha ${i} não passou na validação`);
         }
       } catch (lineError) {
         console.log(`[STRUCTURED] ⚠️ Erro na linha ${i}: ${lineError.message}`);
@@ -86,12 +107,13 @@ async function processCSV(fileData: Blob): Promise<Transaction[]> {
       }
     }
     
-    console.log(`[STRUCTURED] ✅ CSV processado: ${transactions.length} transações`);
+    console.log(`[STRUCTURED] ✅ CSV processado: ${transactions.length} transações válidas de ${lines.length - 1} linhas`);
     return transactions;
     
   } catch (error) {
-    console.error('[STRUCTURED] Erro no processamento CSV:', error);
-    return [];
+    console.error('[STRUCTURED] ❌ Erro crítico no processamento CSV:', error.message);
+    console.error('[STRUCTURED] ❌ Stack trace:', error.stack);
+    throw error; // Re-lançar o erro para ser capturado pelo caller
   }
 }
 
@@ -240,6 +262,8 @@ function parseCSVLine(line: string): string[] {
 function parseTransactionFromCSV(columns: string[], values: string[]): Transaction | null {
   try {
     let date = '', description = '', amount = 0;
+    let installment_number = 1;
+    let installment_total = 1;
     
     for (let i = 0; i < columns.length; i++) {
       const column = columns[i];
@@ -250,6 +274,18 @@ function parseTransactionFromCSV(columns: string[], values: string[]): Transacti
         date = normalizeDate(value);
       } else if (column.includes('descr') || column.includes('memo') || column.includes('estabelecimento') || column === 'title') {
         description = value;
+        
+        // Detectar parcelas na descrição
+        const installmentPattern = /(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})/i;
+        const parcelaPattern = /parcela\s+(\d{1,2})\s*\/\s*(\d{1,2})/i;
+        
+        let match = description.match(parcelaPattern) || description.match(installmentPattern);
+        
+        if (match) {
+          installment_number = parseInt(match[1]);
+          installment_total = parseInt(match[2]);
+          console.log(`[STRUCTURED] Parcela detectada: ${installment_number}/${installment_total} na descrição: ${description}`);
+        }
       } else if (column.includes('valor') || column.includes('amount') || column.includes('quantia') || column === 'amount') {
         // Melhor parsing de valores
         const cleanValue = value.replace(/[^\d.,-]/g, '').replace(',', '.');
@@ -267,12 +303,15 @@ function parseTransactionFromCSV(columns: string[], values: string[]): Transacti
         date,
         description: description.slice(0, 255),
         amount,
-        category: determineCategory(description)
+        category: determineCategory(description),
+        installment_number,
+        installment_total
       };
     }
     
     return null;
   } catch (error) {
+    console.error('[STRUCTURED] Erro ao parsear transação CSV:', error);
     return null;
   }
 }
