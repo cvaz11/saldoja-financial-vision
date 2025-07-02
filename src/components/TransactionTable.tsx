@@ -14,6 +14,7 @@ import TransactionTableFooter from "./TransactionTableFooter";
 import TransactionTableModals from "./TransactionTableModals";
 import AddTransactionModal from "./AddTransactionModal";
 import CategoryView from "./CategoryView";
+import InstallmentFilter from "./InstallmentFilter";
 
 // Unified transaction type
 interface UnifiedTransaction {
@@ -221,6 +222,8 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
             onEditTransaction={handleEditTransaction}
             onDeleteClick={handleDeleteClick}
           />
+        ) : quickFilter === 'installments' ? (
+          <InstallmentFilter />
         ) : (
           <TransactionTableContent
             transactions={transactions}
