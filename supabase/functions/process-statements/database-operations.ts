@@ -51,6 +51,8 @@ export const insertTransactions = async (
       is_installment: transaction.is_installment
     });
     
+    const isInstallment = transaction.installment_number && transaction.installment_total && transaction.installment_number > 1;
+    
     return {
       statement_id: statementId,
       user_id: userId,

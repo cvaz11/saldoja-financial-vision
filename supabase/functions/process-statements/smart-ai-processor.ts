@@ -82,8 +82,10 @@ INSTRUÇÕES CRÍTICAS:
    - Valores sempre NEGATIVOS para gastos (ex: -150.00)
    - Datas no formato YYYY-MM-DD
    - Descrições claras e informativas
-   - Se não encontrar parcelas, use installment_number: 1, installment_total: 1
-   - Se encontrar "Parcela X/Y", extraia X para installment_number e Y para installment_total
+    - Se não encontrar parcelas, use installment_number: 1, installment_total: 1
+    - Se encontrar "Parcela X/Y" ou "X/Y" ou "X de Y", extraia X para installment_number e Y para installment_total
+    - Procure por padrões como: "9/12", "9 de 12", "Parcela 9/12", "9ª parcela de 12"
+    - Para parcelamentos, o installment_number deve ser > 1 quando detectado
 
 🎯 OBJETIVO: Garantir que NENHUM gasto seja perdido na análise. Seja meticuloso e detalhado.
 
