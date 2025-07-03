@@ -265,6 +265,27 @@ export class NubankTransactionParser {
   private detectInstallment(description: string): { current: number; total: number; id: string } | null {
     console.log(`[NUBANK-PARSER] 🔍 Analisando descrição para parcelas: "${description}"`);
     
+    // DEBUG: Adicionar informações detalhadas sobre a string
+    console.log(`[NUBANK-PARSER] 📊 Debug info:`);
+    console.log(`[NUBANK-PARSER]   - Original: ${JSON.stringify(description)}`);
+    console.log(`[NUBANK-PARSER]   - Chars: ${[...description].map(c => c.charCodeAt(0))}`);
+    console.log(`[NUBANK-PARSER]   - Contém *: ${description.includes('*')}`);
+    
+    // NOVO: Pré-processamento para limpar caracteres problemáticos
+    const cleanDescription = description
+        .replace(/\*/g, '') // Remove asteriscos
+        .replace(/\s+/g, ' ') // Normaliza espaços
+        .trim();
+    
+    console.log(`[NUBANK-PARSER] 🧹 String limpa: "${cleanDescription}"`);
+    
+    // Testar com string original primeiro, depois com string limpa
+    const testStrings = [description];
+    if (description !== cleanDescription) {
+        testStrings.push(cleanDescription);
+        console.log(`[NUBANK-PARSER] 🔄 Testando também com string limpa`);
+    }
+    
     // DEBUG: Testar cada padrão individualmente
     this.debugParcelaDetection(description);
     
@@ -277,37 +298,47 @@ export class NubankTransactionParser {
       /(\d{1,2})\s*\/\s*(\d{1,2})/i             // "9/12" (genérico)
     ];
 
-    for (const pattern of patterns) {
-      const match = description.match(pattern);
-      if (match) {
-        const current = parseInt(match[1]);
-        const total = parseInt(match[2]);
-        
-        // Validar se os números fazem sentido
-        if (current > 0 && total > 0 && current <= total && total <= 99) {
-          // Gerar ID único baseado na descrição base (sem a parte da parcela)
-          const baseDescription = description
-            .replace(/parcela\s+\d{1,2}\/\d{1,2}/i, '')
-            .replace(/\d{1,2}\s*de\s*\d{1,2}/i, '')
-            .replace(/\d{1,2}\/\d{1,2}\s*parcela/i, '')
-            .replace(/\d{1,2}\s*\/\s*\d{1,2}/i, '')
-            .trim()
-            .replace(/\s+/g, ' ');
+    // Testar com cada string (original e limpa)
+    for (const testString of testStrings) {
+      console.log(`[NUBANK-PARSER] 🧪 Testando string: "${testString}"`);
+      
+      for (const pattern of patterns) {
+        const match = testString.match(pattern);
+        if (match) {
+          const current = parseInt(match[1]);
+          const total = parseInt(match[2]);
           
-          // Criar ID único baseado na descrição base + total de parcelas
-          const installmentId = this.generateInstallmentId(baseDescription, total);
-          
-          console.log(`[NUBANK-PARSER] Parcela detectada: ${current}/${total} - ID: ${installmentId}`);
-          
-          return {
-            current,
-            total,
-            id: installmentId
-          };
+          // Validar se os números fazem sentido
+          if (current > 0 && total > 0 && current <= total && total <= 99) {
+            console.log(`[NUBANK-PARSER] ✅ Sucesso com string: "${testString}"`);
+            console.log(`[NUBANK-PARSER] 🎯 Padrão detectado: ${match[0]} -> ${current}/${total}`);
+            
+            // Gerar ID único baseado na descrição limpa (sem asterisco e sem parcela)
+            const baseDescription = cleanDescription
+              .replace(/parcela\s+\d{1,2}\/\d{1,2}/i, '')
+              .replace(/\d{1,2}\s*de\s*\d{1,2}/i, '')
+              .replace(/\d{1,2}\/\d{1,2}\s*parcela/i, '')
+              .replace(/\d{1,2}\s*\/\s*\d{1,2}/i, '')
+              .trim()
+              .replace(/\s+/g, ' ');
+            
+            // Criar ID único baseado na descrição base + total de parcelas
+            const installmentId = this.generateInstallmentId(baseDescription, total);
+            
+            console.log(`[NUBANK-PARSER] Parcela detectada: ${current}/${total} - ID: ${installmentId}`);
+            console.log(`[NUBANK-PARSER] Base description para ID: "${baseDescription}"`);
+            
+            return {
+              current,
+              total,
+              id: installmentId
+            };
+          }
         }
       }
     }
     
+    console.log(`[NUBANK-PARSER] ❌ Nenhuma parcela detectada em nenhuma das strings testadas`);
     return null;
   }
 
