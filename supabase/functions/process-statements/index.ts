@@ -18,6 +18,15 @@ serve(async (req) => {
 
   const functionStartTime = Date.now();
 
+  // Forçar execução do teste de parcelas
+  console.log("🔥 FORÇANDO EXECUÇÃO DO TESTE...");
+  try {
+    await import('./test-manual.ts');
+    console.log("✅ Teste manual executado");
+  } catch (e) {
+    console.log("❌ Erro ao executar teste:", e.message);
+  }
+
   try {
     console.log('\n🚀 PROCESS STATEMENTS FUNCTION STARTED');
     console.log(`Timestamp: ${new Date().toISOString()}`);

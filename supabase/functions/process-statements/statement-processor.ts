@@ -5,6 +5,72 @@ import { processWithSmartAI } from './smart-ai-processor.ts';
 import { extractTextFromPDFBytes } from './advanced-pdf-parser.ts';
 import { insertTransactions, updateStatementStatus } from './database-operations.ts';
 
+// === TESTE DE PARCELAS AUTOMÁTICO ===
+console.log("🔥 === INICIANDO TESTE DE PARCELAS AUTOMÁTICO ===");
+
+// Teste isolado dos regex patterns
+function testParcelaPatterns() {
+    console.log("🔍 === TESTE DO CASO PROBLEMÁTICO ===");
+    
+    const problematicString = "Agi*Tute Tech - Parcela 9/12";
+    console.log("Input:", problematicString);
+    console.log("Caracteres especiais:", [...problematicString].filter(c => /[^a-zA-Z0-9\s]/.test(c)));
+    
+    // Definir padrões
+    const patterns = [
+        { name: "Padrão 1: '- Parcela X/Y'", regex: /-\s*parcela\s+(\d{1,2})\/(\d{1,2})/i },
+        { name: "Padrão 2: 'Parcela X/Y'", regex: /parcela\s+(\d{1,2})\/(\d{1,2})/i },
+        { name: "Padrão 3: 'X de Y'", regex: /(\d{1,2})\s*de\s*(\d{1,2})/i },
+        { name: "Padrão 4: 'X/Y parcela'", regex: /(\d{1,2})\/(\d{1,2})\s*parcela/i },
+        { name: "Padrão 5: 'X/Y' (genérico)", regex: /(\d{1,2})\s*\/\s*(\d{1,2})/i }
+    ];
+    
+    // Verificar se contém os elementos necessários
+    const hasHyphen = problematicString.includes('-');
+    const hasParcela = problematicString.toLowerCase().includes('parcela');
+    const hasNumbers = problematicString.match(/\d+\/\d+/);
+    
+    console.log("Contém hífen:", hasHyphen);
+    console.log("Contém 'parcela':", hasParcela);
+    console.log("Contém números X/Y:", hasNumbers);
+    
+    // Testar cada padrão
+    patterns.forEach((pattern, index) => {
+        console.log(`\n--- Testando ${pattern.name} ---`);
+        console.log(`Regex: ${pattern.regex.source}`);
+        
+        const match = problematicString.match(pattern.regex);
+        
+        if (match) {
+            console.log(`✅ MATCH ENCONTRADO!`);
+            console.log(`Match completo:`, match[0]);
+            console.log(`Grupos capturados:`, match.slice(1));
+            
+            if (match[1] && match[2]) {
+                const current = parseInt(match[1]);
+                const total = parseInt(match[2]);
+                console.log(`Parcela atual: ${current}, Total: ${total}`);
+                console.log(`Validação: ${current > 0 && total > 0 && current <= total && total <= 99 ? 'VÁLIDA' : 'INVÁLIDA'}`);
+                
+                if (current > 0 && total > 0 && current <= total && total <= 99) {
+                    console.log(`🎯 SUCESSO! Padrão ${index + 1} detectou corretamente: ${current}/${total}`);
+                    return true;
+                }
+            }
+        } else {
+            console.log(`❌ SEM MATCH`);
+        }
+    });
+    
+    console.log("🔥 === FIM DO TESTE DE PARCELAS ===\n");
+    return false;
+}
+
+// Executar o teste imediatamente
+testParcelaPatterns();
+
+// === FIM DO TESTE ===
+
 export const processStatement = async (statement: any, supabase: any) => {
   console.log(`\n🔄 Processing statement: ${statement.filename}`);
   
