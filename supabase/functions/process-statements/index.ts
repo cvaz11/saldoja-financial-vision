@@ -17,23 +17,13 @@ serve(async (req) => {
 
   const functionStartTime = Date.now();
 
-  // Forçar execução do teste de parcelas
-  console.log("🔥 FORÇANDO EXECUÇÃO DO TESTE...");
+  // Executar todos os testes de parcelas
+  console.log("🔥 === EXECUTANDO TODOS OS TESTES DE PARCELAS ===");
   try {
-    await import('./test-manual.ts');
-    console.log("✅ Teste manual executado");
+    await import('./trigger-test.ts');
+    console.log("✅ Todos os testes executados");
   } catch (e) {
-    console.log("❌ Erro ao executar teste:", e.message);
-  }
-
-  // Executar teste adicional de correção
-  console.log("=== FORÇANDO TESTE DE CORREÇÃO ===");
-  try {
-    const { testCorrecaoParcelas } = await import('./libs/nubank-transaction-parser.ts');
-    const testResult = testCorrecaoParcelas();
-    console.log("Resultado do teste forçado:", testResult);
-  } catch (error) {
-    console.log("Erro no teste:", error.message);
+    console.log("❌ Erro geral nos testes:", e.message);
   }
 
   try {
