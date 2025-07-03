@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2.50.0';
+import { createClient } from 'https://deno.land/x/supabase@1.0.0/mod.ts';
 import { processStatement } from './statement-processor.ts';
 
 const corsHeaders = {
@@ -16,42 +16,31 @@ serve(async (req) => {
 
   const functionStartTime = Date.now();
 
-  // Executar teste de parcelas com logs detalhados
-  console.log("🔥 === EXECUTANDO TESTE DE PARCELAS ===");
-  try {
-    console.log("🧪 Importando classes do parser...");
-    const { NubankTransactionParser, testCorrecaoParcelas } = await import('./libs/nubank-transaction-parser.ts');
-    
-    // Criar instância do parser
-    const parser = new NubankTransactionParser();
-    const testString = "Agi*Tute Tech - Parcela 9/12";
-    
-    console.log("🔍 String de teste:", testString);
-    console.log("📊 Caracteres especiais:", [...testString].filter(c => /[^a-zA-Z0-9\s]/.test(c)));
-    
-    console.log("\n🧪 Executando detecção direta...");
-    const resultadoDireto = parser.detectInstallmentPublic(testString);
-    
-    console.log("🧪 Executando teste de correção...");
-    const testResult = testCorrecaoParcelas();
-    
-    console.log("\n🎯 Resultado da detecção direta:", resultadoDireto);
-    console.log("🎯 Resultado do teste de correção:", testResult);
-    
-    if (resultadoDireto || testResult) {
-      console.log("🎉 SUCESSO! Parcela detectada:");
-      const result = resultadoDireto || testResult;
-      console.log(`   ✓ Parcela atual: ${result.current}`);
-      console.log(`   ✓ Total parcelas: ${result.total}`);
-      console.log(`   ✓ ID da parcela: ${result.id}`);
-    } else {
-      console.log("❌ FALHA: Parcela não detectada em nenhum teste");
-    }
-    
-  } catch (e) {
-    console.log("❌ Erro no teste:", e.message);
-    console.log("❌ Stack trace:", e.stack);
+  // Teste simples de regex sem dependências externas
+  console.log("🔥 === TESTE SIMPLES DE REGEX ===");
+  
+  const testString = "Agi*Tute Tech - Parcela 9/12";
+  console.log("Input:", testString);
+  
+  // Limpar string
+  const cleanString = testString.replace(/\*/g, '').replace(/\s+/g, ' ').trim();
+  console.log("String limpa:", cleanString);
+  
+  // Testar regex diretamente
+  const pattern = /parcela\s+(\d{1,2})\/(\d{1,2})/i;
+  const match = cleanString.match(pattern);
+  
+  console.log("Padrão regex:", pattern.source);
+  console.log("Match resultado:", match);
+  
+  if (match) {
+    console.log("✅ SUCESSO! Detectado:", match[0]);
+    console.log("Parcela:", match[1], "de", match[2]);
+  } else {
+    console.log("❌ Falha na detecção");
   }
+  
+  console.log("🔥 === FIM DO TESTE ===");
 
   try {
     console.log('\n🚀 PROCESS STATEMENTS FUNCTION STARTED');
