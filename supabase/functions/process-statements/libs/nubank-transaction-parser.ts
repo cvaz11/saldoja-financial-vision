@@ -468,3 +468,32 @@ export class NubankTransactionParser {
     console.log(`[DEBUG-PARCELA] ===== FIM DEBUG =====\n`);
   }
 }
+
+// Função de teste para verificar se a correção funcionou
+export function testCorrecaoParcelas() {
+  console.log("🧪 === TESTE DA CORREÇÃO DE PARCELAS ===");
+  
+  const parser = new NubankTransactionParser();
+  const testString = "Agi*Tute Tech - Parcela 9/12";
+  
+  console.log("🔍 Testando string problemática:", testString);
+  
+  const result = parser.detectInstallmentPublic(testString);
+  
+  console.log("🎯 Resultado final:", result);
+  
+  if (result) {
+    console.log("✅ SUCESSO! Parcela detectada:");
+    console.log(`   - Parcela atual: ${result.current}`);
+    console.log(`   - Total parcelas: ${result.total}`);
+    console.log(`   - ID da parcela: ${result.id}`);
+  } else {
+    console.log("❌ FALHA: Parcela ainda não foi detectada");
+  }
+  
+  return result;
+}
+
+// Executar teste automaticamente
+console.log("🚀 Executando teste da correção...");
+testCorrecaoParcelas();
