@@ -1,8 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
+import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2.50.0';
 import { processStatement } from './statement-processor.ts';
-import './debug-parcela-test.ts'; // Executa os testes de debug automaticamente
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,13 +16,28 @@ serve(async (req) => {
 
   const functionStartTime = Date.now();
 
-  // Executar todos os testes de parcelas
-  console.log("🔥 === EXECUTANDO TODOS OS TESTES DE PARCELAS ===");
+  // Executar teste de parcelas diretamente
+  console.log("🔥 === EXECUTANDO TESTE DE PARCELAS ===");
   try {
-    await import('./trigger-test.ts');
-    console.log("✅ Todos os testes executados");
+    console.log("🧪 Importando testCorrecaoParcelas...");
+    const { testCorrecaoParcelas } = await import('./libs/nubank-transaction-parser.ts');
+    
+    console.log("🧪 Executando teste...");
+    const testResult = testCorrecaoParcelas();
+    
+    console.log("🎯 Resultado final do teste:", testResult);
+    
+    if (testResult) {
+      console.log("🎉 SUCESSO! Parcela detectada:");
+      console.log(`   ✓ Parcela atual: ${testResult.current}`);
+      console.log(`   ✓ Total parcelas: ${testResult.total}`);
+      console.log(`   ✓ ID da parcela: ${testResult.id}`);
+    } else {
+      console.log("❌ FALHA: Parcela não detectada");
+    }
+    
   } catch (e) {
-    console.log("❌ Erro geral nos testes:", e.message);
+    console.log("❌ Erro no teste:", e.message);
   }
 
   try {
