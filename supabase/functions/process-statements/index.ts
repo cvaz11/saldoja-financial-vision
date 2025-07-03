@@ -169,3 +169,12 @@ serve(async (req) => {
     );
   }
 });
+
+// Executar teste imediatamente
+console.log("🚀 EXECUTANDO TESTE DIRETAMENTE...");
+try {
+    await import('./test-manual.ts');
+    console.log("✅ Teste executado com sucesso");
+} catch (error) {
+    console.log("❌ Erro no teste:", error.message);
+}
