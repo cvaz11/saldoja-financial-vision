@@ -117,25 +117,34 @@ export const processStatement = async (statement: any, supabase: any) => {
         if (transactions.length > 0) {
           console.log(`🎯 IA identificou ${transactions.length} gastos automaticamente`);
           
-          // DEBUG: Verificar se alguma transação tem dados de parcela
+          // LOGS ESPECÍFICOS PARA RASTREAMENTO DE PARCELAS
           const installmentTransactions = transactions.filter(t => 
-            t.installment_number && t.installment_total
+            t.installment_number && t.installment_total && t.installment_total > 1
           );
-          console.log(`🔍 [DEBUG] Transações com parcelas detectadas: ${installmentTransactions.length}`);
           
-          installmentTransactions.forEach((t, index) => {
-            console.log(`🔍 [DEBUG] Parcela ${index + 1}: ${t.description} - ${t.installment_number}/${t.installment_total}`);
-          });
+          console.log(`[UPLOAD] 💳 Transações com parcelas detectadas: ${installmentTransactions.length}`);
+          
+          if (installmentTransactions.length > 0) {
+            console.log('[UPLOAD] 🎯 DETALHES DAS PARCELAS DETECTADAS:');
+            installmentTransactions.forEach((t, index) => {
+              console.log(`[PARCELA] ${index + 1}. ${t.description} - ${t.installment_number}/${t.installment_total} - R$ ${Math.abs(t.amount).toFixed(2)}`);
+            });
+          }
           
           // DEBUG: Procurar especificamente por "Agi*Tute Tech"
           const agiTransaction = transactions.find(t => 
-            t.description && t.description.includes('Agi') && t.description.includes('Tute')
+            t.description && (t.description.includes('Agi') || t.description.includes('Tute'))
           );
           
           if (agiTransaction) {
-            console.log(`🔍 [DEBUG] Transação Agi encontrada:`, agiTransaction);
+            console.log(`[UPLOAD] 🎯 Transação Agi*Tute Tech encontrada:`, {
+              description: agiTransaction.description,
+              installment_number: agiTransaction.installment_number,
+              installment_total: agiTransaction.installment_total,
+              amount: agiTransaction.amount
+            });
           } else {
-            console.log(`🔍 [DEBUG] Transação Agi*Tute Tech NÃO encontrada nas transações processadas`);
+            console.log(`[UPLOAD] ⚠️ Transação Agi*Tute Tech NÃO encontrada nas transações processadas`);
           }
           
         } else {

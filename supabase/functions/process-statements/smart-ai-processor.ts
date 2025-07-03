@@ -172,6 +172,20 @@ Analise o extrato e retorne APENAS o array JSON com TODOS os gastos encontrados:
     
     console.log(`[SMART-AI] ✅ IA identificou ${validTransactions.length} gastos com categorização inteligente`);
     
+    // Log específico de parcelas detectadas
+    const installmentTransactions = validTransactions.filter(tx => 
+      tx.installment_total && tx.installment_total > 1
+    );
+    
+    console.log(`[SMART-AI] 🎯 Transações parceladas detectadas: ${installmentTransactions.length}`);
+    
+    if (installmentTransactions.length > 0) {
+      console.log('[SMART-AI] 💳 PARCELAS DETECTADAS:');
+      installmentTransactions.forEach((tx, i) => {
+        console.log(`[SMART-AI]   ${i + 1}. ${tx.description} - Parcela ${tx.installment_number}/${tx.installment_total} - R$ ${Math.abs(tx.amount).toFixed(2)}`);
+      });
+    }
+    
     // Log das categorias encontradas
     const categoryCounts = validTransactions.reduce((acc, tx) => {
       acc[tx.category] = (acc[tx.category] || 0) + 1;
