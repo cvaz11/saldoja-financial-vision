@@ -88,5 +88,54 @@ export function debugSpecificCase(description: string) {
     });
 }
 
+// Função de teste executável para o caso problemático
+export function testProblematicCase() {
+    console.log("🔍 === TESTE DO CASO PROBLEMÁTICO ===");
+    
+    const parser = new NubankTransactionParser();
+    const problematicString = "Agi*Tute Tech - Parcela 9/12";
+    
+    console.log("Input:", problematicString);
+    console.log("Caracteres especiais:", [...problematicString].filter(c => /[^a-zA-Z0-9\s]/.test(c)));
+    
+    // Testar a detecção diretamente
+    const result = parser.detectInstallmentPublic(problematicString);
+    console.log("Resultado final:", result);
+    
+    if (!result) {
+        console.log("❌ FALHA: Parcela não foi detectada!");
+        console.log("Vamos analisar cada componente...");
+        
+        // Verificar se contém os elementos necessários
+        const hasHyphen = problematicString.includes('-');
+        const hasParcela = problematicString.toLowerCase().includes('parcela');
+        const hasNumbers = problematicString.match(/\d+\/\d+/);
+        
+        console.log("Contém hífen:", hasHyphen);
+        console.log("Contém 'parcela':", hasParcela);
+        console.log("Contém números X/Y:", hasNumbers);
+        
+        // Testar manualmente o primeiro padrão
+        const pattern1 = /-\s*parcela\s+(\d{1,2})\/(\d{1,2})/i;
+        const match1 = problematicString.match(pattern1);
+        console.log("Match padrão 1 (- Parcela X/Y):", match1);
+        
+        // Testar padrão mais simples
+        const simplePattern = /parcela\s+(\d+)\/(\d+)/i;
+        const simpleMatch = problematicString.match(simplePattern);
+        console.log("Match padrão simples (Parcela X/Y):", simpleMatch);
+    } else {
+        console.log("✅ SUCESSO: Parcela detectada corretamente!");
+    }
+    
+    return result;
+}
+
 // Executar teste automaticamente quando importado
-console.log('🔧 Debug tools carregadas. Use testParcelaDetection() ou debugSpecificCase(string)');
+console.log('🔧 Debug tools carregadas. Use testParcelaDetection(), debugSpecificCase(string) ou testProblematicCase()');
+
+// Tornar disponível globalmente para teste no console
+if (typeof globalThis !== 'undefined') {
+    (globalThis as any).testProblematicCase = testProblematicCase;
+    console.log("🔧 Função testProblematicCase() disponível globalmente");
+}

@@ -342,6 +342,11 @@ export class NubankTransactionParser {
     return unique;
   }
 
+  // Método público para debugging (acessar detectInstallment)
+  public detectInstallmentPublic(description: string) {
+    return this.detectInstallment(description);
+  }
+
   // Função de debug para testar padrões de parcela individualmente
   private debugParcelaDetection(description: string): void {
     console.log(`[DEBUG-PARCELA] ===== DEBUGGING DETECTION FOR: "${description}" =====`);
