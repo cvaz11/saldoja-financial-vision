@@ -13,7 +13,7 @@ interface InstallmentFilterProps {
 
 const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps = {}) => {
   const { data: transactions = [], isLoading } = useInstallmentTransactions(currentMonth, currentYear);
-  const stats = useInstallmentStats();
+  const stats = useInstallmentStats(currentMonth, currentYear);
 
   // Agrupar transações por descrição base
   const groupedTransactions = React.useMemo(() => {
@@ -79,8 +79,8 @@ const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps
             <div className="flex items-center gap-3">
               <CreditCard className="h-8 w-8 text-blue-600" />
               <div>
-                <p className="text-sm text-gray-600">Total de Séries</p>
-                <p className="text-2xl font-bold">{stats.totalGroups}</p>
+                <p className="text-sm text-gray-600">Total de Parcelas</p>
+                <p className="text-2xl font-bold">{stats.totalInstallments}</p>
               </div>
             </div>
           </CardContent>
@@ -91,9 +91,8 @@ const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps
             <div className="flex items-center gap-3">
               <Calendar className="h-8 w-8 text-green-600" />
               <div>
-                <p className="text-sm text-gray-600">Parcelas Pagas</p>
-                <p className="text-2xl font-bold text-green-600">{stats.paidInstallments}</p>
-                <p className="text-sm text-gray-500">{formatCurrency(stats.paidAmount)}</p>
+                <p className="text-sm text-gray-600">Valor das Parcelas do Mês</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(stats.monthlyAmount)}</p>
               </div>
             </div>
           </CardContent>

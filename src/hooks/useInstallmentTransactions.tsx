@@ -113,44 +113,25 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
   });
 };
 
-export const useInstallmentStats = () => {
-  const { data: transactions = [] } = useInstallmentTransactions();
+export const useInstallmentStats = (filterMonth?: number, filterYear?: number) => {
+  const { data: transactions = [] } = useInstallmentTransactions(filterMonth, filterYear);
 
   const stats = {
-    totalGroups: 0,
-    totalAmount: 0,
+    totalInstallments: 0,
+    monthlyAmount: 0,
     pendingAmount: 0,
-    paidAmount: 0,
     pendingInstallments: 0,
-    paidInstallments: 0,
   };
 
-  const groups = new Map<string, InstallmentTransaction[]>();
-  
+  // Calcular estatísticas baseadas apenas nas parcelas do mês atual
   transactions.forEach(transaction => {
-    const key = `${transaction.description.replace(/- Parcela \d+\/\d+/, '').trim()}_${transaction.installment_total}`;
+    stats.totalInstallments++;
+    stats.monthlyAmount += transaction.amount;
     
-    if (!groups.has(key)) {
-      groups.set(key, []);
+    if (transaction.is_projected) {
+      stats.pendingAmount += transaction.amount;
+      stats.pendingInstallments++;
     }
-    
-    groups.get(key)!.push(transaction);
-  });
-
-  stats.totalGroups = groups.size;
-
-  groups.forEach(groupTransactions => {
-    groupTransactions.forEach(transaction => {
-      stats.totalAmount += transaction.amount;
-      
-      if (transaction.is_projected) {
-        stats.pendingAmount += transaction.amount;
-        stats.pendingInstallments++;
-      } else {
-        stats.paidAmount += transaction.amount;
-        stats.paidInstallments++;
-      }
-    });
   });
 
   return stats;

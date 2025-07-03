@@ -154,21 +154,20 @@ const FilterButton = ({ config, onConfigChange, className }: FilterButtonProps) 
   };
 
   const handleMonthNavigation = (direction: 'prev' | 'next') => {
-    const currentIndex = availableMonths.findIndex(
-      m => m.month === localInvoiceConfig.month && m.year === localInvoiceConfig.year
-    );
+    const currentDate = new Date(localInvoiceConfig.year, localInvoiceConfig.month - 1);
     
-    const newIndex = direction === 'prev' ? currentIndex + 1 : currentIndex - 1;
-    
-    if (newIndex >= 0 && newIndex < availableMonths.length) {
-      const newMonth = availableMonths[newIndex];
-      setLocalInvoiceConfig({
-        ...localInvoiceConfig,
-        month: newMonth.month,
-        year: newMonth.year,
-        selectedStatements: []
-      });
+    if (direction === 'prev') {
+      currentDate.setMonth(currentDate.getMonth() - 1);
+    } else {
+      currentDate.setMonth(currentDate.getMonth() + 1);
     }
+    
+    setLocalInvoiceConfig({
+      ...localInvoiceConfig,
+      month: currentDate.getMonth() + 1,
+      year: currentDate.getFullYear(),
+      selectedStatements: []
+    });
   };
 
   const handleStatementToggle = (statementId: string) => {
@@ -206,13 +205,9 @@ const FilterButton = ({ config, onConfigChange, className }: FilterButtonProps) 
     return format(new Date(year, month - 1), "MMMM yyyy", { locale: ptBR });
   };
 
-  const canNavigatePrev = availableMonths.findIndex(
-    m => m.month === localInvoiceConfig.month && m.year === localInvoiceConfig.year
-  ) < availableMonths.length - 1;
-
-  const canNavigateNext = availableMonths.findIndex(
-    m => m.month === localInvoiceConfig.month && m.year === localInvoiceConfig.year
-  ) > 0;
+  // Permitir navegação livre para parcelas (não limitado aos meses com statements)
+  const canNavigatePrev = true;
+  const canNavigateNext = true;
 
   const filteredStatements = availableStatements.filter(statement =>
     statement.bank.toLowerCase().includes(searchTerm.toLowerCase()) ||
