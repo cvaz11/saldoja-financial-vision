@@ -1,5 +1,5 @@
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.50.0';
 import { processStructuredFile } from './structured-processor.ts';
 import { processWithSmartAI } from './smart-ai-processor.ts';
 import { extractTextFromPDFBytes } from './advanced-pdf-parser.ts';
