@@ -16,13 +16,15 @@ export interface InstallmentTransaction {
   is_projected?: boolean;
 }
 
-export const useInstallmentTransactions = () => {
+export const useInstallmentTransactions = (filterMonth?: number, filterYear?: number) => {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ['installment-transactions', user?.id],
+    queryKey: ['installment-transactions', user?.id, filterMonth, filterYear],
     queryFn: async () => {
       if (!user) return [];
+
+      console.log('[INSTALLMENTS] Fetching for month/year:', filterMonth, filterYear);
 
       // Buscar todas as transações com parcelas (installment_total > 1)
       const { data, error } = await supabase
@@ -39,37 +41,72 @@ export const useInstallmentTransactions = () => {
         throw error;
       }
 
-      // Agrupar por série de parcelas e calcular estatísticas
-      const installmentGroups = new Map<string, InstallmentTransaction[]>();
-      
+      console.log('[INSTALLMENTS] Raw transactions found:', data?.length || 0);
+
+      // Gerar todas as parcelas (reais + projetadas) e filtrar pelo mês
+      const allInstallments: InstallmentTransaction[] = [];
+      const processedSeries = new Set<string>();
+
       (data || []).forEach(transaction => {
-        const key = `${transaction.description.replace(/- Parcela \d+\/\d+/, '').trim()}_${transaction.installment_total}`;
+        const baseDescription = transaction.description?.replace(/- Parcela \d+\/\d+/, '').trim() || '';
+        const seriesKey = `${baseDescription}_${transaction.installment_total}_${transaction.amount}`;
         
-        if (!installmentGroups.has(key)) {
-          installmentGroups.set(key, []);
+        // Evitar processar a mesma série múltiplas vezes
+        if (processedSeries.has(seriesKey)) return;
+        processedSeries.add(seriesKey);
+
+        // Gerar todas as parcelas da série
+        for (let i = 1; i <= transaction.installment_total; i++) {
+          const installmentDate = new Date(transaction.transaction_date);
+          // Ajustar o mês baseado no número da parcela
+          installmentDate.setMonth(installmentDate.getMonth() + (i - transaction.installment_number));
+          
+          const month = installmentDate.getMonth() + 1;
+          const year = installmentDate.getFullYear();
+          
+          // Se temos filtro de mês/ano, aplicar
+          if (filterMonth && filterYear && (month !== filterMonth || year !== filterYear)) {
+            continue;
+          }
+          
+          // Verificar se já existe uma transação real para esta parcela
+          const existingTransaction = data.find(t => 
+            t.description?.replace(/- Parcela \d+\/\d+/, '').trim() === baseDescription &&
+            t.installment_number === i &&
+            t.installment_total === transaction.installment_total &&
+            t.amount === transaction.amount
+          );
+
+          if (existingTransaction) {
+            // Usar a transação real
+            allInstallments.push({
+              ...existingTransaction,
+              is_projected: false
+            });
+          } else {
+            // Criar projeção
+            allInstallments.push({
+              id: `projected-${transaction.id}-${i}`,
+              description: `${baseDescription} - Parcela ${i}/${transaction.installment_total}`,
+              amount: transaction.amount,
+              transaction_date: installmentDate.toISOString().split('T')[0],
+              is_credit: transaction.is_credit,
+              installment_number: i,
+              installment_total: transaction.installment_total,
+              category: transaction.category,
+              user_id: transaction.user_id,
+              statement_id: undefined,
+              is_projected: true
+            });
+          }
         }
-        
-        installmentGroups.get(key)!.push({
-          ...transaction,
-          is_projected: !transaction.statement_id
-        });
       });
 
-      // Converter para array plano com informações de grupo
-      const result: (InstallmentTransaction & { groupKey?: string })[] = [];
+      console.log(`[INSTALLMENTS] Generated ${allInstallments.length} installments for month ${filterMonth}/${filterYear}`);
       
-      installmentGroups.forEach((transactions, groupKey) => {
-        transactions.forEach(transaction => {
-          result.push({
-            ...transaction,
-            groupKey
-          });
-        });
-      });
-
-      console.log(`[INSTALLMENTS] Found ${result.length} installment transactions in ${installmentGroups.size} groups`);
-      
-      return result;
+      return allInstallments.sort((a, b) => 
+        new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
+      );
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000, // 5 minutos

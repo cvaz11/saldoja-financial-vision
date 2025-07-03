@@ -6,8 +6,13 @@ import TransactionRowCard from "./TransactionRowCard";
 import { Badge } from "@/components/ui/badge";
 import { CreditCard, Calendar, TrendingUp } from "lucide-react";
 
-const InstallmentFilter = () => {
-  const { data: transactions = [], isLoading } = useInstallmentTransactions();
+interface InstallmentFilterProps {
+  currentMonth?: number;
+  currentYear?: number;
+}
+
+const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps = {}) => {
+  const { data: transactions = [], isLoading } = useInstallmentTransactions(currentMonth, currentYear);
   const stats = useInstallmentStats();
 
   // Agrupar transações por descrição base
