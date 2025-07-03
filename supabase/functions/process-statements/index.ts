@@ -16,28 +16,41 @@ serve(async (req) => {
 
   const functionStartTime = Date.now();
 
-  // Executar teste de parcelas diretamente
+  // Executar teste de parcelas com logs detalhados
   console.log("🔥 === EXECUTANDO TESTE DE PARCELAS ===");
   try {
-    console.log("🧪 Importando testCorrecaoParcelas...");
-    const { testCorrecaoParcelas } = await import('./libs/nubank-transaction-parser.ts');
+    console.log("🧪 Importando classes do parser...");
+    const { NubankTransactionParser, testCorrecaoParcelas } = await import('./libs/nubank-transaction-parser.ts');
     
-    console.log("🧪 Executando teste...");
+    // Criar instância do parser
+    const parser = new NubankTransactionParser();
+    const testString = "Agi*Tute Tech - Parcela 9/12";
+    
+    console.log("🔍 String de teste:", testString);
+    console.log("📊 Caracteres especiais:", [...testString].filter(c => /[^a-zA-Z0-9\s]/.test(c)));
+    
+    console.log("\n🧪 Executando detecção direta...");
+    const resultadoDireto = parser.detectInstallmentPublic(testString);
+    
+    console.log("🧪 Executando teste de correção...");
     const testResult = testCorrecaoParcelas();
     
-    console.log("🎯 Resultado final do teste:", testResult);
+    console.log("\n🎯 Resultado da detecção direta:", resultadoDireto);
+    console.log("🎯 Resultado do teste de correção:", testResult);
     
-    if (testResult) {
+    if (resultadoDireto || testResult) {
       console.log("🎉 SUCESSO! Parcela detectada:");
-      console.log(`   ✓ Parcela atual: ${testResult.current}`);
-      console.log(`   ✓ Total parcelas: ${testResult.total}`);
-      console.log(`   ✓ ID da parcela: ${testResult.id}`);
+      const result = resultadoDireto || testResult;
+      console.log(`   ✓ Parcela atual: ${result.current}`);
+      console.log(`   ✓ Total parcelas: ${result.total}`);
+      console.log(`   ✓ ID da parcela: ${result.id}`);
     } else {
-      console.log("❌ FALHA: Parcela não detectada");
+      console.log("❌ FALHA: Parcela não detectada em nenhum teste");
     }
     
   } catch (e) {
     console.log("❌ Erro no teste:", e.message);
+    console.log("❌ Stack trace:", e.stack);
   }
 
   try {
