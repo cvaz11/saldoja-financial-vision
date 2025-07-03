@@ -139,3 +139,7 @@ if (typeof globalThis !== 'undefined') {
     (globalThis as any).testProblematicCase = testProblematicCase;
     console.log("🔧 Função testProblematicCase() disponível globalmente");
 }
+
+// Executar teste automaticamente
+console.log("=== EXECUTANDO TESTE AUTOMÁTICO ===");
+testProblematicCase();
