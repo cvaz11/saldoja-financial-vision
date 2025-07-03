@@ -265,6 +265,9 @@ export class NubankTransactionParser {
   private detectInstallment(description: string): { current: number; total: number; id: string } | null {
     console.log(`[NUBANK-PARSER] 🔍 Analisando descrição para parcelas: "${description}"`);
     
+    // DEBUG: Testar cada padrão individualmente
+    this.debugParcelaDetection(description);
+    
     // Padrões para detectar parcelas - mais específicos
     const patterns = [
       /-\s*parcela\s+(\d{1,2})\/(\d{1,2})/i,    // "- Parcela 9/12"
@@ -337,5 +340,95 @@ export class NubankTransactionParser {
     }
     
     return unique;
+  }
+
+  // Função de debug para testar padrões de parcela individualmente
+  private debugParcelaDetection(description: string): void {
+    console.log(`[DEBUG-PARCELA] ===== DEBUGGING DETECTION FOR: "${description}" =====`);
+    
+    // Informações sobre a string
+    console.log(`[DEBUG-PARCELA] Tamanho: ${description.length} caracteres`);
+    console.log(`[DEBUG-PARCELA] Caracteres especiais encontrados:`, description.match(/[^a-zA-Z0-9\s]/g) || 'nenhum');
+    console.log(`[DEBUG-PARCELA] Contém asterisco (*):`, description.includes('*'));
+    console.log(`[DEBUG-PARCELA] Contém "parcela":`, description.toLowerCase().includes('parcela'));
+    console.log(`[DEBUG-PARCELA] Contém padrão x/y:`, description.match(/\d+\/\d+/) ? 'SIM' : 'NÃO');
+    
+    // Definir padrões com nomes descritivos
+    const debugPatterns = [
+      { 
+        name: "Padrão 1: '- Parcela X/Y'", 
+        regex: /-\s*parcela\s+(\d{1,2})\/(\d{1,2})/i,
+        flags: "Case insensitive, hífen obrigatório"
+      },
+      { 
+        name: "Padrão 2: 'Parcela X/Y'", 
+        regex: /parcela\s+(\d{1,2})\/(\d{1,2})/i,
+        flags: "Case insensitive, sem hífen"
+      },
+      { 
+        name: "Padrão 3: 'X de Y'", 
+        regex: /(\d{1,2})\s*de\s*(\d{1,2})/i,
+        flags: "Case insensitive, formato 'de'"
+      },
+      { 
+        name: "Padrão 4: 'X/Y parcela'", 
+        regex: /(\d{1,2})\/(\d{1,2})\s*parcela/i,
+        flags: "Case insensitive, números primeiro"
+      },
+      { 
+        name: "Padrão 5: 'X/Y' (genérico)", 
+        regex: /(\d{1,2})\s*\/\s*(\d{1,2})/i,
+        flags: "Case insensitive, apenas números"
+      }
+    ];
+    
+    // Testar cada padrão individualmente
+    debugPatterns.forEach((pattern, index) => {
+      console.log(`\n[DEBUG-PARCELA] --- Testando ${pattern.name} ---`);
+      console.log(`[DEBUG-PARCELA] Regex: ${pattern.regex.source}`);
+      console.log(`[DEBUG-PARCELA] Flags: ${pattern.flags}`);
+      
+      const match = description.match(pattern.regex);
+      
+      if (match) {
+        console.log(`[DEBUG-PARCELA] ✅ MATCH ENCONTRADO!`);
+        console.log(`[DEBUG-PARCELA] Match completo:`, match[0]);
+        console.log(`[DEBUG-PARCELA] Grupos capturados:`, match.slice(1));
+        
+        if (match[1] && match[2]) {
+          const current = parseInt(match[1]);
+          const total = parseInt(match[2]);
+          console.log(`[DEBUG-PARCELA] Parcela atual: ${current}, Total: ${total}`);
+          console.log(`[DEBUG-PARCELA] Validação: ${current > 0 && total > 0 && current <= total && total <= 99 ? 'VÁLIDA' : 'INVÁLIDA'}`);
+        }
+      } else {
+        console.log(`[DEBUG-PARCELA] ❌ SEM MATCH`);
+        
+        // Análise adicional para entender por que não funcionou
+        const descLower = description.toLowerCase();
+        
+        if (pattern.regex.source.includes('parcela')) {
+          console.log(`[DEBUG-PARCELA] Motivo possível: palavra 'parcela' ${descLower.includes('parcela') ? 'encontrada' : 'NÃO encontrada'}`);
+        }
+        
+        if (pattern.regex.source.includes('-')) {
+          console.log(`[DEBUG-PARCELA] Motivo possível: hífen ${description.includes('-') ? 'encontrado' : 'NÃO encontrado'}`);
+        }
+        
+        const numberPattern = description.match(/\d+/g);
+        console.log(`[DEBUG-PARCELA] Números encontrados na string:`, numberPattern || 'nenhum');
+      }
+    });
+    
+    // Teste específico para o asterisco
+    if (description.includes('*')) {
+      console.log(`\n[DEBUG-PARCELA] ⚠️  CARACTERE ESPECIAL DETECTADO: asterisco (*)`);
+      console.log(`[DEBUG-PARCELA] Testando com asterisco escapado...`);
+      
+      const escapedDescription = description.replace(/\*/g, '\\*');
+      console.log(`[DEBUG-PARCELA] String com escape: "${escapedDescription}"`);
+    }
+    
+    console.log(`[DEBUG-PARCELA] ===== FIM DEBUG =====\n`);
   }
 }

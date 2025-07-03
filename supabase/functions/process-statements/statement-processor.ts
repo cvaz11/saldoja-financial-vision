@@ -42,12 +42,36 @@ export const processStatement = async (statement: any, supabase: any) => {
       
       if (extractedText && extractedText.length > 100) {
         console.log(`📝 Texto extraído: ${extractedText.length} caracteres`);
+        console.log(`🔍 [DEBUG] Texto contém "Agi*Tute Tech": ${extractedText.includes('Agi*Tute Tech')}`);
+        console.log(`🔍 [DEBUG] Texto contém "Parcela 9/12": ${extractedText.includes('Parcela 9/12')}`);
         
         // Usar IA inteligente para identificar TODOS os gastos
         transactions = await processWithSmartAI(extractedText);
         
         if (transactions.length > 0) {
           console.log(`🎯 IA identificou ${transactions.length} gastos automaticamente`);
+          
+          // DEBUG: Verificar se alguma transação tem dados de parcela
+          const installmentTransactions = transactions.filter(t => 
+            t.installment_number && t.installment_total
+          );
+          console.log(`🔍 [DEBUG] Transações com parcelas detectadas: ${installmentTransactions.length}`);
+          
+          installmentTransactions.forEach((t, index) => {
+            console.log(`🔍 [DEBUG] Parcela ${index + 1}: ${t.description} - ${t.installment_number}/${t.installment_total}`);
+          });
+          
+          // DEBUG: Procurar especificamente por "Agi*Tute Tech"
+          const agiTransaction = transactions.find(t => 
+            t.description && t.description.includes('Agi') && t.description.includes('Tute')
+          );
+          
+          if (agiTransaction) {
+            console.log(`🔍 [DEBUG] Transação Agi encontrada:`, agiTransaction);
+          } else {
+            console.log(`🔍 [DEBUG] Transação Agi*Tute Tech NÃO encontrada nas transações processadas`);
+          }
+          
         } else {
           console.log(`⚠️ IA não encontrou gastos no texto extraído`);
         }
