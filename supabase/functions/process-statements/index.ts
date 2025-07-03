@@ -77,7 +77,18 @@ serve(async (req) => {
         { 
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
+  }
+});
+
+// Forçar execução do teste de parcelas
+console.log("=== FORÇANDO TESTE DE CORREÇÃO ===");
+try {
+  const { testCorrecaoParcelas } = await import('./libs/nubank-transaction-parser.ts');
+  const testResult = testCorrecaoParcelas();
+  console.log("Resultado do teste forçado:", testResult);
+} catch (error) {
+  console.log("Erro no teste:", error.message);
+}
       );
     }
 
