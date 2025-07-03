@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
@@ -25,6 +24,16 @@ serve(async (req) => {
     console.log("✅ Teste manual executado");
   } catch (e) {
     console.log("❌ Erro ao executar teste:", e.message);
+  }
+
+  // Executar teste adicional de correção
+  console.log("=== FORÇANDO TESTE DE CORREÇÃO ===");
+  try {
+    const { testCorrecaoParcelas } = await import('./libs/nubank-transaction-parser.ts');
+    const testResult = testCorrecaoParcelas();
+    console.log("Resultado do teste forçado:", testResult);
+  } catch (error) {
+    console.log("Erro no teste:", error.message);
   }
 
   try {
@@ -77,18 +86,7 @@ serve(async (req) => {
         { 
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-  }
-});
-
-// Forçar execução do teste de parcelas
-console.log("=== FORÇANDO TESTE DE CORREÇÃO ===");
-try {
-  const { testCorrecaoParcelas } = await import('./libs/nubank-transaction-parser.ts');
-  const testResult = testCorrecaoParcelas();
-  console.log("Resultado do teste forçado:", testResult);
-} catch (error) {
-  console.log("Erro no teste:", error.message);
-}
+        }
       );
     }
 
@@ -180,12 +178,3 @@ try {
     );
   }
 });
-
-// Executar teste imediatamente
-console.log("🚀 EXECUTANDO TESTE DIRETAMENTE...");
-try {
-    await import('./test-manual.ts');
-    console.log("✅ Teste executado com sucesso");
-} catch (error) {
-    console.log("❌ Erro no teste:", error.message);
-}
