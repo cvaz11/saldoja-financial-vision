@@ -12,7 +12,7 @@ const InstallmentBadge = ({
   installmentTotal, 
   isProjected = false 
 }: InstallmentBadgeProps) => {
-  if (!installmentNumber || !installmentTotal) {
+  if (!installmentNumber || !installmentTotal || installmentTotal <= 1) {
     return null;
   }
 
