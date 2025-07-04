@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInstallmentTransactions, useInstallmentStats } from "@/hooks/useInstallmentTransactions";
-import { useLatestStatementMonth } from "@/hooks/useLatestStatementMonth";
+import { useLatestTransactionMonth } from "@/hooks/useLatestTransactionMonth";
 import { formatCurrency } from "@/lib/utils";
 import TransactionRowCard from "./TransactionRowCard";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Calendar, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { CreditCard, Calendar, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface InstallmentFilterProps {
@@ -14,18 +14,18 @@ interface InstallmentFilterProps {
 }
 
 const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps = {}) => {
-  const { data: latestStatement } = useLatestStatementMonth();
+  const { data: latestTransaction } = useLatestTransactionMonth();
   
   // Usar mês do último extrato como padrão se não especificado
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [selectedYear, setSelectedYear] = useState(currentYear);
 
   useEffect(() => {
-    if (!currentMonth && !currentYear && latestStatement) {
-      setSelectedMonth(latestStatement.month);
-      setSelectedYear(latestStatement.year);
+    if (!currentMonth && !currentYear && latestTransaction) {
+      setSelectedMonth(latestTransaction.month);
+      setSelectedYear(latestTransaction.year);
     }
-  }, [latestStatement, currentMonth, currentYear]);
+  }, [latestTransaction, currentMonth, currentYear]);
 
   const effectiveMonth = selectedMonth || currentMonth;
   const effectiveYear = selectedYear || currentYear;
@@ -33,19 +33,6 @@ const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps
   const { data: transactions = [], isLoading } = useInstallmentTransactions(effectiveMonth, effectiveYear);
   const stats = useInstallmentStats(effectiveMonth, effectiveYear);
 
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    if (!effectiveMonth || !effectiveYear) return;
-    
-    const currentDate = new Date(effectiveYear, effectiveMonth - 1);
-    if (direction === 'prev') {
-      currentDate.setMonth(currentDate.getMonth() - 1);
-    } else {
-      currentDate.setMonth(currentDate.getMonth() + 1);
-    }
-    
-    setSelectedMonth(currentDate.getMonth() + 1);
-    setSelectedYear(currentDate.getFullYear());
-  };
 
   const formatMonthYear = (month?: number, year?: number) => {
     if (!month || !year) return "Carregando...";
@@ -53,13 +40,15 @@ const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps
     return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   };
 
-  // Agrupar transações por installment_id
+  // Agrupar transações por installment_id preciso
   const groupedTransactions = React.useMemo(() => {
     const groups = new Map<string, typeof transactions>();
     
     transactions.forEach(transaction => {
-      const installmentId = transaction.installment_id || 
-        `inst_${transaction.description.replace(/- Parcela \d+\/\d+/, '').trim()}_${transaction.installment_total}`;
+      // Usar installment_id já definido no banco, mais confiável
+      const installmentId = transaction.installment_id;
+      
+      if (!installmentId) return; // Pular se não tem installment_id
       
       if (!groups.has(installmentId)) {
         groups.set(installmentId, []);
@@ -108,37 +97,15 @@ const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps
 
   return (
     <div className="space-y-6">
-      {/* Navegação de mês */}
+      {/* Título do período */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigateMonth('prev')}
-            disabled={!effectiveMonth || !effectiveYear}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Anterior
-          </Button>
-          
-          <h2 className="text-xl font-semibold">
-            {formatMonthYear(effectiveMonth, effectiveYear)}
-          </h2>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigateMonth('next')}
-            disabled={!effectiveMonth || !effectiveYear}
-          >
-            Próximo
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
+        <h2 className="text-xl font-semibold">
+          Parcelas - {formatMonthYear(effectiveMonth, effectiveYear)}
+        </h2>
         
-        {latestStatement && (
+        {latestTransaction && (
           <Badge variant="secondary" className="text-sm">
-            Último extrato: {formatMonthYear(latestStatement.month, latestStatement.year)}
+            Última transação: {formatMonthYear(latestTransaction.month, latestTransaction.year)}
           </Badge>
         )}
       </div>

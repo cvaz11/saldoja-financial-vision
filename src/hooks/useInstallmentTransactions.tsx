@@ -48,8 +48,10 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
       const processedSeries = new Set<string>();
 
       (data || []).forEach(transaction => {
-        const installmentId = transaction.installment_id || 
-          `inst_${transaction.description?.replace(/- Parcela \d+\/\d+/, '').trim()}_${transaction.installment_total}`;
+        // Verificar se já tem installment_id válido
+        if (!transaction.installment_id) return;
+        
+        const installmentId = transaction.installment_id;
         
         // Evitar processar a mesma série múltiplas vezes
         if (processedSeries.has(installmentId)) return;
@@ -69,10 +71,9 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
             continue;
           }
           
-          // Verificar se já existe uma transação real para esta parcela usando installment_id
+          // Verificar se já existe uma transação real para esta parcela
           const existingTransaction = data.find(t => 
-            (t.installment_id === installmentId || 
-             t.description?.replace(/- Parcela \d+\/\d+/, '').trim() === transaction.description?.replace(/- Parcela \d+\/\d+/, '').trim()) &&
+            t.installment_id === installmentId &&
             t.installment_number === i &&
             t.installment_total === transaction.installment_total
           );
