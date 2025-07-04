@@ -1,0 +1,2 @@
+DELETE FROM transactions WHERE statement_id IN (SELECT id FROM statements WHERE filename = 'Nubank_2025-06-12.csv');
+UPDATE statements SET status = 'processing' WHERE filename = 'Nubank_2025-06-12.csv';
