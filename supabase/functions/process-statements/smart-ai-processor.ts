@@ -166,11 +166,9 @@ Analise o extrato e retorne APENAS o array JSON com TODOS os gastos encontrados:
           category: tx.category.trim()
         };
         
-        // Só adicionar campos de parcela se realmente for um parcelamento
-        if (tx.installment_number && tx.installment_total && tx.installment_total > 1) {
-          transaction.installment_number = tx.installment_number;
-          transaction.installment_total = tx.installment_total;
-        }
+        // SEMPRE incluir campos de parcela - se não detectado usar 1,1
+        transaction.installment_number = tx.installment_number || 1;
+        transaction.installment_total = tx.installment_total || 1;
         
         validTransactions.push(transaction);
       }
