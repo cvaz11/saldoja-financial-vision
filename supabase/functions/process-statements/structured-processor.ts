@@ -263,12 +263,23 @@ function parseTransactionFromCSV(columns: string[], values: string[]): Transacti
     }
     
     if (date && description && !isNaN(amount) && amount !== 0) {
-      return {
+      // Detectar parcelas na descrição
+      const installmentInfo = detectInstallment(description);
+      
+      const transaction: Transaction = {
         date,
         description: description.slice(0, 255),
         amount,
         category: determineCategory(description)
       };
+      
+      // Adicionar informações de parcela se detectadas
+      if (installmentInfo) {
+        transaction.installment_number = installmentInfo.current;
+        transaction.installment_total = installmentInfo.total;
+      }
+      
+      return transaction;
     }
     
     return null;
@@ -330,4 +341,47 @@ function determineCategory(description: string): string {
   }
   
   return 'Outros';
+}
+
+function detectInstallment(description: string): { current: number; total: number } | null {
+  console.log(`[STRUCTURED] 🔍 Analisando descrição para parcelas: "${description}"`);
+  
+  // Limpar string de caracteres problemáticos
+  const cleanDescription = description
+    .replace(/\*/g, '') // Remove asteriscos
+    .replace(/\s+/g, ' ') // Normaliza espaços
+    .trim();
+  
+  console.log(`[STRUCTURED] 🧹 String limpa: "${cleanDescription}"`);
+  
+  // Padrões para detectar parcelas
+  const patterns = [
+    /-\s*parcela\s+(\d{1,2})\/(\d{1,2})/i,    // "- Parcela 9/12"
+    /parcela\s+(\d{1,2})\/(\d{1,2})/i,        // "Parcela 9/12"
+    /(\d{1,2})\s*de\s*(\d{1,2})/i,            // "9 de 12"
+    /(\d{1,2})\/(\d{1,2})\s*parcela/i,        // "9/12 parcela"
+    /(\d{1,2})\s*\/\s*(\d{1,2})/i             // "9/12" (genérico)
+  ];
+
+  // Testar strings (original e limpa)
+  const testStrings = [description, cleanDescription];
+  
+  for (const testString of testStrings) {
+    for (const pattern of patterns) {
+      const match = testString.match(pattern);
+      if (match) {
+        const current = parseInt(match[1]);
+        const total = parseInt(match[2]);
+        
+        // Validar se os números fazem sentido
+        if (current > 0 && total > 0 && current <= total && total <= 99) {
+          console.log(`[STRUCTURED] ✅ Parcela detectada: ${current}/${total}`);
+          return { current, total };
+        }
+      }
+    }
+  }
+  
+  console.log(`[STRUCTURED] ❌ Nenhuma parcela detectada`);
+  return null;
 }
