@@ -160,7 +160,7 @@ const TransactionTableContent = ({
                   </span>
                 </TableCell>
                 <TableCell>
-                  {transaction.installment_number && transaction.installment_total 
+                  {transaction.installment_number && transaction.installment_total && transaction.installment_total > 1
                     ? `${transaction.installment_number}/${transaction.installment_total}`
                     : 'À vista'
                   }
