@@ -82,11 +82,11 @@ INSTRUÇÕES CRÍTICAS:
    - Valores sempre NEGATIVOS para gastos (ex: -150.00)
    - Datas no formato YYYY-MM-DD
    - Descrições claras e informativas
-    - Se não encontrar parcelas, use installment_number: 1, installment_total: 1
      - Se encontrar "Parcela X/Y" ou "X/Y" ou "X de Y", extraia X para installment_number e Y para installment_total
-     - Procure especialmente por: "- Parcela 9/12", "Parcela 9/12", "9/12", "9 de 12", "9ª parcela de 12"
-     - IMPORTANTE: Para "Agi*Tute Tech - Parcela 9/12" detecte installment_number: 9, installment_total: 12
-     - Para parcelamentos detectados, installment_total DEVE ser maior que 1
+      - Procure especialmente por: "- Parcela 9/12", "Parcela 9/12", "9/12", "9 de 12", "9ª parcela de 12"
+      - IMPORTANTE: Para "Agi*Tute Tech - Parcela 9/12" detecte installment_number: 9, installment_total: 12
+      - Para parcelamentos detectados, installment_total DEVE ser maior que 1
+      - Se NÃO for parcelamento, NÃO inclua installment_number e installment_total no JSON
 
 🎯 OBJETIVO: Garantir que NENHUM gasto seja perdido na análise. Seja meticuloso e detalhado.
 
@@ -159,14 +159,20 @@ Analise o extrato e retorne APENAS o array JSON com TODOS os gastos encontrados:
     
     for (const tx of smartTransactions) {
       if (tx.date && tx.description && typeof tx.amount === 'number' && tx.amount < 0 && tx.category) {
-        validTransactions.push({
+        const transaction: Transaction = {
           date: tx.date,
           description: tx.description.trim(),
           amount: tx.amount,
-          category: tx.category.trim(),
-          installment_number: tx.installment_number || 1,
-          installment_total: tx.installment_total || 1
-        });
+          category: tx.category.trim()
+        };
+        
+        // Só adicionar campos de parcela se realmente for um parcelamento
+        if (tx.installment_number && tx.installment_total && tx.installment_total > 1) {
+          transaction.installment_number = tx.installment_number;
+          transaction.installment_total = tx.installment_total;
+        }
+        
+        validTransactions.push(transaction);
       }
     }
     
