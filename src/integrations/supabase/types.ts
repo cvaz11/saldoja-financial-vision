@@ -88,6 +88,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          installment_id: string | null
           installment_number: number | null
           installment_total: number | null
           is_credit: boolean | null
@@ -102,6 +103,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          installment_id?: string | null
           installment_number?: number | null
           installment_total?: number | null
           is_credit?: boolean | null
@@ -116,6 +118,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          installment_id?: string | null
           installment_number?: number | null
           installment_total?: number | null
           is_credit?: boolean | null

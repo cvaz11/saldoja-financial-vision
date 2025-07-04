@@ -16,6 +16,7 @@ interface TransactionRowCardProps {
     installment_number?: number;
     installment_total?: number;
     statement_id?: string;
+    is_projected?: boolean;
   };
   showCategories?: boolean;
   onEdit?: (transaction: any) => void;
@@ -44,7 +45,7 @@ const TransactionRowCard = ({
               <InstallmentBadge 
                 installmentNumber={transaction.installment_number}
                 installmentTotal={transaction.installment_total}
-                isProjected={!transaction.statement_id}
+                isProjected={transaction.is_projected || false}
               />
               {showCategories && transaction.category && (
                 <Badge variant="outline" className="text-xs">

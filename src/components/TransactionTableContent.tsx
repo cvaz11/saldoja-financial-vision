@@ -23,6 +23,7 @@ interface Transaction {
   category?: string;
   statement_id?: string;
   user_id: string;
+  is_projected?: boolean;
 }
 
 interface TransactionTableContentProps {
@@ -111,6 +112,7 @@ const TransactionTableContent = ({
                   installment_number: transaction.installment_number,
                   installment_total: transaction.installment_total,
                   statement_id: transaction.statement_id,
+                  is_projected: transaction.is_projected,
                 }}
                 showCategories={showCategories}
                 onEdit={onEditTransaction}
@@ -174,8 +176,11 @@ const TransactionTableContent = ({
                 )}
                 <TableCell>{formatDate(transaction.transaction_date)}</TableCell>
                 <TableCell>
-                  <Badge variant={transaction.is_credit ? "default" : "secondary"}>
-                    {transaction.is_credit ? "Receita" : "Pago"}
+                  <Badge variant={transaction.is_projected ? "outline" : (transaction.is_credit ? "default" : "secondary")}>
+                    {transaction.is_projected 
+                      ? "Projetada" 
+                      : (transaction.is_credit ? "Receita" : "Pago")
+                    }
                   </Badge>
                 </TableCell>
                 <TableCell>

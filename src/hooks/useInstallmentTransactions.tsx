@@ -14,6 +14,7 @@ export interface InstallmentTransaction {
   user_id: string;
   statement_id?: string;
   is_projected?: boolean;
+  installment_id?: string;
 }
 
 export const useInstallmentTransactions = (filterMonth?: number, filterYear?: number) => {
@@ -42,17 +43,17 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
 
       console.log('[INSTALLMENTS] Raw transactions found:', data?.length || 0);
 
-      // Gerar todas as parcelas (reais + projetadas) e filtrar pelo mês
+      // Gerar todas as parcelas (reais + projetadas) usando installment_id
       const allInstallments: InstallmentTransaction[] = [];
       const processedSeries = new Set<string>();
 
       (data || []).forEach(transaction => {
-        const baseDescription = transaction.description?.replace(/- Parcela \d+\/\d+/, '').trim() || '';
-        const seriesKey = `${baseDescription}_${transaction.installment_total}_${transaction.amount}`;
+        const installmentId = transaction.installment_id || 
+          `inst_${transaction.description?.replace(/- Parcela \d+\/\d+/, '').trim()}_${transaction.installment_total}`;
         
         // Evitar processar a mesma série múltiplas vezes
-        if (processedSeries.has(seriesKey)) return;
-        processedSeries.add(seriesKey);
+        if (processedSeries.has(installmentId)) return;
+        processedSeries.add(installmentId);
 
         // Gerar todas as parcelas da série
         for (let i = 1; i <= transaction.installment_total; i++) {
@@ -68,24 +69,26 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
             continue;
           }
           
-          // Verificar se já existe uma transação real para esta parcela
+          // Verificar se já existe uma transação real para esta parcela usando installment_id
           const existingTransaction = data.find(t => 
-            t.description?.replace(/- Parcela \d+\/\d+/, '').trim() === baseDescription &&
+            (t.installment_id === installmentId || 
+             t.description?.replace(/- Parcela \d+\/\d+/, '').trim() === transaction.description?.replace(/- Parcela \d+\/\d+/, '').trim()) &&
             t.installment_number === i &&
-            t.installment_total === transaction.installment_total &&
-            t.amount === transaction.amount
+            t.installment_total === transaction.installment_total
           );
 
           if (existingTransaction) {
             // Usar a transação real
             allInstallments.push({
               ...existingTransaction,
+              installment_id: installmentId,
               is_projected: false
             });
           } else {
-            // Criar projeção
+            // Criar projeção apenas se não existe no banco
+            const baseDescription = transaction.description?.replace(/- Parcela \d+\/\d+/, '').trim() || '';
             allInstallments.push({
-              id: `projected-${transaction.id}-${i}`,
+              id: `projected-${installmentId}-${i}`,
               description: `${baseDescription} - Parcela ${i}/${transaction.installment_total}`,
               amount: transaction.amount,
               transaction_date: installmentDate.toISOString().split('T')[0],
@@ -95,6 +98,7 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
               category: transaction.category,
               user_id: transaction.user_id,
               statement_id: undefined,
+              installment_id: installmentId,
               is_projected: true
             });
           }

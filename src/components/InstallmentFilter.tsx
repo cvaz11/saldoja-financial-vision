@@ -1,10 +1,12 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInstallmentTransactions, useInstallmentStats } from "@/hooks/useInstallmentTransactions";
+import { useLatestStatementMonth } from "@/hooks/useLatestStatementMonth";
 import { formatCurrency } from "@/lib/utils";
 import TransactionRowCard from "./TransactionRowCard";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Calendar, TrendingUp } from "lucide-react";
+import { CreditCard, Calendar, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface InstallmentFilterProps {
   currentMonth?: number;
@@ -12,37 +14,71 @@ interface InstallmentFilterProps {
 }
 
 const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps = {}) => {
-  const { data: transactions = [], isLoading } = useInstallmentTransactions(currentMonth, currentYear);
-  const stats = useInstallmentStats(currentMonth, currentYear);
+  const { data: latestStatement } = useLatestStatementMonth();
+  
+  // Usar mês do último extrato como padrão se não especificado
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [selectedYear, setSelectedYear] = useState(currentYear);
 
-  // Agrupar transações por descrição base
+  useEffect(() => {
+    if (!currentMonth && !currentYear && latestStatement) {
+      setSelectedMonth(latestStatement.month);
+      setSelectedYear(latestStatement.year);
+    }
+  }, [latestStatement, currentMonth, currentYear]);
+
+  const effectiveMonth = selectedMonth || currentMonth;
+  const effectiveYear = selectedYear || currentYear;
+
+  const { data: transactions = [], isLoading } = useInstallmentTransactions(effectiveMonth, effectiveYear);
+  const stats = useInstallmentStats(effectiveMonth, effectiveYear);
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    if (!effectiveMonth || !effectiveYear) return;
+    
+    const currentDate = new Date(effectiveYear, effectiveMonth - 1);
+    if (direction === 'prev') {
+      currentDate.setMonth(currentDate.getMonth() - 1);
+    } else {
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+    
+    setSelectedMonth(currentDate.getMonth() + 1);
+    setSelectedYear(currentDate.getFullYear());
+  };
+
+  const formatMonthYear = (month?: number, year?: number) => {
+    if (!month || !year) return "Carregando...";
+    const date = new Date(year, month - 1);
+    return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  };
+
+  // Agrupar transações por installment_id
   const groupedTransactions = React.useMemo(() => {
     const groups = new Map<string, typeof transactions>();
     
     transactions.forEach(transaction => {
-      const baseDescription = transaction.description
-        .replace(/- Parcela \d+\/\d+/, '')
-        .trim();
-      const key = `${baseDescription}_${transaction.installment_total}`;
+      const installmentId = transaction.installment_id || 
+        `inst_${transaction.description.replace(/- Parcela \d+\/\d+/, '').trim()}_${transaction.installment_total}`;
       
-      if (!groups.has(key)) {
-        groups.set(key, []);
+      if (!groups.has(installmentId)) {
+        groups.set(installmentId, []);
       }
       
-      groups.get(key)!.push(transaction);
+      groups.get(installmentId)!.push(transaction);
     });
 
     // Converter para array e ordenar cada grupo
-    return Array.from(groups.entries()).map(([key, groupTransactions]) => {
+    return Array.from(groups.entries()).map(([installmentId, groupTransactions]) => {
       const sortedTransactions = groupTransactions.sort(
         (a, b) => a.installment_number - b.installment_number
       );
       
-      const paidCount = sortedTransactions.filter(t => t.statement_id).length;
+      const paidCount = sortedTransactions.filter(t => !t.is_projected).length;
       const pendingCount = sortedTransactions.length - paidCount;
       
       return {
-        key,
+        installmentId,
         baseDescription: sortedTransactions[0].description.replace(/- Parcela \d+\/\d+/, '').trim(),
         total: sortedTransactions[0].installment_total,
         amount: sortedTransactions[0].amount,
@@ -50,7 +86,7 @@ const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps
         paidCount,
         pendingCount,
         totalAmount: sortedTransactions.reduce((sum, t) => sum + t.amount, 0),
-        paidAmount: sortedTransactions.filter(t => t.statement_id).reduce((sum, t) => sum + t.amount, 0)
+        paidAmount: sortedTransactions.filter(t => !t.is_projected).reduce((sum, t) => sum + t.amount, 0)
       };
     }).sort((a, b) => a.baseDescription.localeCompare(b.baseDescription));
   }, [transactions]);
@@ -72,6 +108,41 @@ const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps
 
   return (
     <div className="space-y-6">
+      {/* Navegação de mês */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigateMonth('prev')}
+            disabled={!effectiveMonth || !effectiveYear}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Anterior
+          </Button>
+          
+          <h2 className="text-xl font-semibold">
+            {formatMonthYear(effectiveMonth, effectiveYear)}
+          </h2>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigateMonth('next')}
+            disabled={!effectiveMonth || !effectiveYear}
+          >
+            Próximo
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+        
+        {latestStatement && (
+          <Badge variant="secondary" className="text-sm">
+            Último extrato: {formatMonthYear(latestStatement.month, latestStatement.year)}
+          </Badge>
+        )}
+      </div>
+
       {/* Estatísticas gerais */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
@@ -128,7 +199,7 @@ const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps
           </Card>
         ) : (
           groupedTransactions.map((group) => (
-            <Card key={group.key}>
+            <Card key={group.installmentId}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">{group.baseDescription}</CardTitle>
