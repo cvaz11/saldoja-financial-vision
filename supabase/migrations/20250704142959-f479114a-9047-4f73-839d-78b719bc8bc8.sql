@@ -1,0 +1,1 @@
+UPDATE statements SET status = 'processing' WHERE filename = 'Nubank_2025-06-12.csv';
