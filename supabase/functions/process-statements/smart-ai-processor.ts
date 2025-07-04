@@ -71,12 +71,12 @@ INSTRUÇÕES CRÍTICAS:
      {
        "date": "2024-06-15",
        "description": "Uber Viagem",
-       "amount": -25.50,
-       "category": "Transporte",
-       "installment_number": 1,
-       "installment_total": 1
-     }
-   ]
+        "amount": -25.50,
+        "category": "Transporte",
+        "installment_number": 1,
+        "installment_total": 1
+      }
+    ]
 
 5. ⚠️ REGRAS IMPORTANTES:
    - Valores sempre NEGATIVOS para gastos (ex: -150.00)
@@ -86,7 +86,7 @@ INSTRUÇÕES CRÍTICAS:
       - Procure especialmente por: "- Parcela 9/12", "Parcela 9/12", "9/12", "9 de 12", "9ª parcela de 12"
       - IMPORTANTE: Para "Agi*Tute Tech - Parcela 9/12" detecte installment_number: 9, installment_total: 12
       - Para parcelamentos detectados, installment_total DEVE ser maior que 1
-      - Se NÃO for parcelamento, NÃO inclua installment_number e installment_total no JSON
+      - SEMPRE inclua installment_number e installment_total no JSON para TODAS as transações
 
 🎯 OBJETIVO: Garantir que NENHUM gasto seja perdido na análise. Seja meticuloso e detalhado.
 
