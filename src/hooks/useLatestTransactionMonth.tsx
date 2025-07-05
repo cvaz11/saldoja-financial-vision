@@ -10,11 +10,12 @@ export const useLatestTransactionMonth = () => {
     queryFn: async () => {
       if (!user) return null;
 
-      // Buscar mês da transação mais recente (não do upload do extrato)
+      // Buscar mês da transação REAL mais recente (apenas do extrato importado)
       const { data, error } = await supabase
         .from('transactions')
         .select('transaction_date')
         .eq('user_id', user.id)
+        .not('statement_id', 'is', null) // Apenas transações reais do extrato
         .order('transaction_date', { ascending: false })
         .limit(1);
 
