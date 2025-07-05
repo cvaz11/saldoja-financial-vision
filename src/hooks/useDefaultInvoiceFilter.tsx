@@ -29,49 +29,97 @@ export const useDefaultInvoiceFilter = (): DefaultFilterResult => {
       }
 
       try {
-        console.log('[DEFAULT_FILTER] Loading most recent statements...');
+        console.log('[DEFAULT_FILTER] Finding month with most transactions...');
         
-        // Buscar o mês mais recente com extratos
-        const { data: recentStatements, error } = await supabase
+        // Primeiro, buscar todos os extratos disponíveis
+        const { data: allStatements, error: statementsError } = await supabase
           .from('statements')
           .select('id, month, year, bank')
           .eq('user_id', user.id)
-          .eq('status', 'ready')
-          .not('month', 'is', null)
-          .not('year', 'is', null)
-          .order('year', { ascending: false })
-          .order('month', { ascending: false });
+          .eq('status', 'ready');
 
-        if (error) {
-          console.error('[DEFAULT_FILTER] Error fetching statements:', error);
+        if (statementsError) {
+          console.error('[DEFAULT_FILTER] Error fetching statements:', statementsError);
           setIsLoading(false);
           return;
         }
 
-        if (!recentStatements || recentStatements.length === 0) {
+        if (!allStatements || allStatements.length === 0) {
           console.log('[DEFAULT_FILTER] No statements found, using current month');
           setIsLoading(false);
           return;
         }
 
-        // Pegar o mês/ano mais recente
-        const mostRecent = recentStatements[0];
-        console.log('[DEFAULT_FILTER] Most recent month:', mostRecent.month, mostRecent.year);
+        // Buscar transações reais agrupadas por mês/ano para encontrar o mês com mais gastos
+        const { data: transactionCounts, error: transError } = await supabase
+          .from('transactions')
+          .select('transaction_date')
+          .eq('user_id', user.id)
+          .not('statement_id', 'is', null); // Apenas transações reais do extrato
 
-        // Buscar todos os extratos desse mês
-        const statementsOfMonth = recentStatements.filter(
-          s => s.month === mostRecent.month && s.year === mostRecent.year
-        );
+        if (transError) {
+          console.error('[DEFAULT_FILTER] Error fetching transactions:', transError);
+          setIsLoading(false);
+          return;
+        }
 
-        const selectedStatements = statementsOfMonth.map(s => s.id);
+        if (!transactionCounts || transactionCounts.length === 0) {
+          console.log('[DEFAULT_FILTER] No transactions found, using current month');
+          setIsLoading(false);
+          return;
+        }
+
+        // Agrupar transações por mês/ano e contar
+        const monthCounts = new Map<string, { month: number; year: number; count: number }>();
+        
+        transactionCounts.forEach(t => {
+          const date = new Date(t.transaction_date);
+          const month = date.getMonth() + 1;
+          const year = date.getFullYear();
+          const key = `${year}-${month}`;
+          
+          if (monthCounts.has(key)) {
+            monthCounts.get(key)!.count++;
+          } else {
+            monthCounts.set(key, { month, year, count: 1 });
+          }
+        });
+
+        // Encontrar o mês com mais transações
+        let maxCount = 0;
+        let targetMonth = new Date().getMonth() + 1;
+        let targetYear = new Date().getFullYear();
+
+        for (const [, data] of monthCounts) {
+          if (data.count > maxCount) {
+            maxCount = data.count;
+            targetMonth = data.month;
+            targetYear = data.year;
+          }
+        }
+
+        console.log('[DEFAULT_FILTER] Month with most transactions:', targetMonth, targetYear, 'count:', maxCount);
+
+        // Buscar extratos que correspondem a esse período ou próximo
+        const relevantStatements = allStatements.filter(s => {
+          // Buscar extratos do mesmo mês ou mês anterior/posterior (para casos de ciclo de fatura)
+          return (s.year === targetYear && Math.abs((s.month || 0) - targetMonth) <= 1) ||
+                 (s.year === targetYear - 1 && s.month === 12 && targetMonth === 1) ||
+                 (s.year === targetYear + 1 && s.month === 1 && targetMonth === 12);
+        });
+
+        // Se não encontrar extratos próximos, usar qualquer extrato disponível
+        const selectedStatements = relevantStatements.length > 0 
+          ? relevantStatements.map(s => s.id)
+          : allStatements.map(s => s.id);
         
         console.log('[DEFAULT_FILTER] Selected statements:', selectedStatements.length);
 
         setFilterConfig({
           type: 'invoices',
           invoiceConfig: {
-            month: mostRecent.month,
-            year: mostRecent.year,
+            month: targetMonth,
+            year: targetYear,
             selectedStatements
           }
         });
