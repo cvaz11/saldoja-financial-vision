@@ -100,9 +100,18 @@ export const useDefaultInvoiceFilter = (): DefaultFilterResult => {
 
         console.log('[DEFAULT_FILTER] Month with most transactions:', targetMonth, targetYear, 'count:', maxCount);
 
-        // SEMPRE usar todos os extratos disponíveis, pois pode haver divergência 
-        // entre o mês das transações e o mês marcado no extrato
-        const selectedStatements = allStatements.map(s => s.id);
+        // Buscar extratos que correspondem a esse período ou próximo
+        const relevantStatements = allStatements.filter(s => {
+          // Buscar extratos do mesmo mês ou mês anterior/posterior (para casos de ciclo de fatura)
+          return (s.year === targetYear && Math.abs((s.month || 0) - targetMonth) <= 1) ||
+                 (s.year === targetYear - 1 && s.month === 12 && targetMonth === 1) ||
+                 (s.year === targetYear + 1 && s.month === 1 && targetMonth === 12);
+        });
+
+        // Se não encontrar extratos próximos, usar qualquer extrato disponível
+        const selectedStatements = relevantStatements.length > 0 
+          ? relevantStatements.map(s => s.id)
+          : allStatements.map(s => s.id);
         
         console.log('[DEFAULT_FILTER] Selected statements:', selectedStatements.length);
 
