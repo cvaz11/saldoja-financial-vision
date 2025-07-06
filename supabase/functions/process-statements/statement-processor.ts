@@ -167,7 +167,10 @@ export const processStatement = async (statement: any, supabase: any) => {
     // Insert transactions using the database operations module
     await insertTransactions(supabase, transactions, statement.id, statement.user_id);
 
-    // Update statement with success status
+    // === ANÁLISE INTELIGENTE DE PERÍODO ===
+    console.log(`🔍 Iniciando análise de período para ${transactions.length} transações...`);
+    
+    // Update statement with success status - agora inclui detecção automática de período
     await updateStatementStatus(supabase, statement.id, 'ready', transactions);
 
     console.log(`✅ Extrato processado com sucesso:`);

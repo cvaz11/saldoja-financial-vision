@@ -157,6 +157,48 @@ export const updateStatementStatus = async (
     
     updateData.total_debit = totalDebit;
     updateData.total_credit = totalCredit;
+
+    // === NOVA FUNCIONALIDADE: DETECÇÃO AUTOMÁTICA DE PERÍODO ===
+    console.log(`[DB] 🔍 Iniciando análise inteligente de período...`);
+    
+    // Buscar dados do statement atual para obter closing_day
+    const { data: statement } = await supabase
+      .from('statements')
+      .select('closing_day, month, year')
+      .eq('id', statementId)
+      .single();
+    
+    if (statement) {
+      const { analyzeInvoicePeriod } = await import('./period-analyzer.ts');
+      
+      // Analisar transações para detectar período correto
+      const analysis = analyzeInvoicePeriod(transactions, statement.closing_day || 5);
+      
+      console.log(`[DB] 📊 Análise de período concluída:`);
+      console.log(`[DB]   - Período atual no banco: ${statement.month}/${statement.year}`);
+      console.log(`[DB]   - Período sugerido: ${analysis.suggestedMonth}/${analysis.suggestedYear}`);
+      console.log(`[DB]   - Confiança: ${analysis.confidence}%`);
+      console.log(`[DB]   - Raciocínio: ${analysis.reasoning}`);
+      
+      // Se a confiança for alta e diferente do período atual, atualizar
+      if (analysis.confidence >= 60 && 
+          (statement.month !== analysis.suggestedMonth || statement.year !== analysis.suggestedYear)) {
+        
+        console.log(`[DB] 🎯 Corrigindo período automaticamente:`);
+        console.log(`[DB]   - De: ${statement.month}/${statement.year}`);
+        console.log(`[DB]   - Para: ${analysis.suggestedMonth}/${analysis.suggestedYear}`);
+        
+        updateData.month = analysis.suggestedMonth;
+        updateData.year = analysis.suggestedYear;
+        
+        // Log da correção para auditoria
+        console.log(`[DB] ✅ PERÍODO CORRIGIDO AUTOMATICAMENTE: ${analysis.reasoning}`);
+      } else if (analysis.confidence < 60) {
+        console.log(`[DB] ⚠️ Confiança baixa (${analysis.confidence}%), mantendo período original`);
+      } else {
+        console.log(`[DB] ✅ Período atual já está correto`);
+      }
+    }
     
     console.log(`[DB] Definindo totais - débito: R$ ${totalDebit.toFixed(2)}, crédito: R$ ${totalCredit.toFixed(2)}`);
   } else {
