@@ -74,16 +74,32 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
           console.log('[FILTERED_QUERY] Fetching transactions for statements:', selectedStatements);
           query = query.in('statement_id', selectedStatements);
         } else {
-          // Buscar por período da fatura considerando fechamento
-          console.log('[FILTERED_QUERY] Fetching transactions for invoice period:', month, year);
+          // Buscar por extrato do período selecionado
+          console.log('[FILTERED_QUERY] Fetching transactions for period:', month, year);
           
-          // Calcular período da fatura (fechamento dia 15 ou fim do mês anterior)
-          const invoiceStartDate = new Date(year, month - 2, 16); // Dia 16 do mês anterior
-          const invoiceEndDate = new Date(year, month - 1, 15); // Dia 15 do mês atual
+          // Primeiro buscar o extrato do período
+          const { data: statements } = await supabase
+            .from('statements')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('month', month)
+            .eq('year', year);
           
-          query = query
-            .gte('transaction_date', invoiceStartDate.toISOString().split('T')[0])
-            .lte('transaction_date', invoiceEndDate.toISOString().split('T')[0]);
+          if (statements && statements.length > 0) {
+            // Se existe extrato para o período, usar todas as transações dele
+            const statementIds = statements.map(s => s.id);
+            console.log('[FILTERED_QUERY] Using statement IDs:', statementIds);
+            query = query.in('statement_id', statementIds);
+          } else {
+            // Fallback: usar período calculado se não houver extrato específico
+            console.log('[FILTERED_QUERY] No statement found, using date range fallback');
+            const invoiceStartDate = new Date(year, month - 2, 16);
+            const invoiceEndDate = new Date(year, month - 1, 15);
+            
+            query = query
+              .gte('transaction_date', invoiceStartDate.toISOString().split('T')[0])
+              .lte('transaction_date', invoiceEndDate.toISOString().split('T')[0]);
+          }
         }
 
         const { data, error } = await query.order('created_at', { ascending: false });
