@@ -34,9 +34,6 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
         .eq('user_id', user.id)
         .not('installment_number', 'is', null)
         .not('installment_total', 'is', null)
-        .not('installment_id', 'is', null)
-        .order('installment_id', { ascending: true })
-        .order('installment_number', { ascending: true })
         .order('transaction_date', { ascending: true });
 
       if (error) {
@@ -51,7 +48,9 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
       const seenCombinations = new Set<string>();
       
       (data || []).forEach(transaction => {
-        const installmentId = transaction.installment_id;
+        // Gerar installment_id se não existe (baseado na descrição)
+        const installmentId = transaction.installment_id || 
+          `auto_${transaction.description?.replace(/[^a-zA-Z0-9]/g, '_')}_${transaction.installment_total}`;
         const uniqueKey = `${installmentId}-${transaction.installment_number}`;
         
         // Evitar duplicatas - só adicionar se não vimos esta combinação antes
