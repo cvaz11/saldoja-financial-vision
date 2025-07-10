@@ -73,17 +73,23 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
         
         // Gerar apenas as parcelas do mês específico filtrado
         for (let i = 1; i <= baseTransaction.installment_total; i++) {
-          const installmentDate = new Date(baseTransaction.transaction_date);
-          // Ajustar o mês baseado no número da parcela
-          installmentDate.setMonth(installmentDate.getMonth() + (i - baseTransaction.installment_number));
+          // Calcular a data desta parcela específica
+          const baseDate = new Date(baseTransaction.transaction_date);
+          const parcelsFromBase = i - baseTransaction.installment_number; // Quantos meses à frente/atrás da base
+          const installmentDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + parcelsFromBase, baseDate.getDate());
           
           const month = installmentDate.getMonth() + 1;
           const year = installmentDate.getFullYear();
           
-          // Se temos filtro de mês/ano, aplicar - MOSTRAR APENAS as parcelas do mês específico
+          console.log(`[INSTALLMENTS] Parcela ${i}/${baseTransaction.installment_total} -> ${month}/${year} (filterMonth: ${filterMonth}/${filterYear})`);
+          
+          // FILTRO CRÍTICO: Se não é o mês que estamos visualizando, pular
           if (filterMonth && filterYear && (month !== filterMonth || year !== filterYear)) {
+            console.log(`[INSTALLMENTS] Parcela ${i}/${baseTransaction.installment_total} PULA - não é ${filterMonth}/${filterYear}`);
             continue;
           }
+          
+          console.log(`[INSTALLMENTS] Parcela ${i}/${baseTransaction.installment_total} INCLUÍDA no mês ${month}/${year}`);
           
           // Verificar se já existe uma transação real para esta parcela
           const existingTransaction = transactions.find(t => 
