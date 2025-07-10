@@ -120,8 +120,9 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
       });
 
       console.log(`[INSTALLMENTS] Generated ${allInstallments.length} installments for month ${filterMonth}/${filterYear}`);
+      console.log(`[INSTALLMENTS] Breakdown:`, allInstallments.map(i => `${i.installment_number}/${i.installment_total} (${i.transaction_date})`));
       
-      return allInstallments.sort((a, b) => 
+      return allInstallments.sort((a, b) =>
         new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
       );
     },
