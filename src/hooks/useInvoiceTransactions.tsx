@@ -74,16 +74,16 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
           console.log('[FILTERED_QUERY] Fetching transactions for statements:', selectedStatements);
           query = query.in('statement_id', selectedStatements);
         } else {
-          // Buscar por mês/ano quando nenhum extrato específico for selecionado
-          console.log('[FILTERED_QUERY] Fetching transactions for month/year:', month, year);
+          // Buscar por período da fatura considerando fechamento
+          console.log('[FILTERED_QUERY] Fetching transactions for invoice period:', month, year);
           
-          // Calcular range de datas para o mês
-          const startDate = new Date(year, month - 1, 1);
-          const endDate = new Date(year, month, 0); // Último dia do mês
+          // Calcular período da fatura (fechamento dia 15 ou fim do mês anterior)
+          const invoiceStartDate = new Date(year, month - 2, 16); // Dia 16 do mês anterior
+          const invoiceEndDate = new Date(year, month - 1, 15); // Dia 15 do mês atual
           
           query = query
-            .gte('transaction_date', startDate.toISOString().split('T')[0])
-            .lte('transaction_date', endDate.toISOString().split('T')[0]);
+            .gte('transaction_date', invoiceStartDate.toISOString().split('T')[0])
+            .lte('transaction_date', invoiceEndDate.toISOString().split('T')[0]);
         }
 
         const { data, error } = await query.order('created_at', { ascending: false });

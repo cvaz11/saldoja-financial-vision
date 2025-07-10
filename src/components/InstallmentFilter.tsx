@@ -119,21 +119,9 @@ const InstallmentFilter = ({}: InstallmentFilterProps = {}) => {
 
   return (
     <div className="space-y-6">
-      {/* Cabeçalho com navegação de mês */}
+      {/* Cabeçalho simples sem filtro duplicado */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <h2 className="text-xl font-semibold">Parcelas</h2>
-          <MonthNavigator
-            month={effectiveMonth}
-            year={effectiveYear}
-            onMonthChange={(month, year) => {
-              setSelectedMonth(month);
-              setSelectedYear(year);
-            }}
-            allowFutureMonths={true}
-            className="bg-white border border-gray-200 rounded-md px-3 py-2"
-          />
-        </div>
+        <h2 className="text-xl font-semibold">Parcelas</h2>
         
         {latestTransaction && (
           <Badge variant="secondary" className="text-sm">
