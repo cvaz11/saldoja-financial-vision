@@ -82,9 +82,13 @@ INSTRUÇÕES CRÍTICAS:
    - Valores sempre NEGATIVOS para gastos (ex: -150.00)
    - Datas no formato YYYY-MM-DD
    - Descrições claras e informativas
-     - Se encontrar "Parcela X/Y" ou "X/Y" ou "X de Y", extraia X para installment_number e Y para installment_total
-      - Procure especialmente por: "- Parcela 9/12", "Parcela 9/12", "9/12", "9 de 12", "9ª parcela de 12"
-      - IMPORTANTE: Para "Agi*Tute Tech - Parcela 9/12" detecte installment_number: 9, installment_total: 12
+       - Se encontrar "Parcela X/Y" ou "X/Y" ou "X de Y", extraia X para installment_number e Y para installment_total
+       - Procure especialmente por: "- Parcela 9/12", "Parcela 9/12", "9/12", "9 de 12", "9ª parcela de 12"
+       - IMPORTANTE: Para "Agi*Tute Tech - Parcela 9/12" detecte installment_number: 9, installment_total: 12
+       - CARACTERES ESPECIAIS: Ignore asteriscos (*), pontos (.), hífen (-) e outros caracteres especiais ao analisar parcelas
+       - FOQUE nos números X/Y mesmo se houver caracteres especiais no nome da loja/descrição
+       - Exemplos: "Apple.Com/Bill - Parc 2/6" → installment_number: 2, installment_total: 6
+       - "IOF de Apollo.Io - 3/10" → installment_number: 3, installment_total: 10
       - Para parcelamentos detectados, installment_total DEVE ser maior que 1
       - SEMPRE inclua installment_number e installment_total no JSON para TODAS as transações
 

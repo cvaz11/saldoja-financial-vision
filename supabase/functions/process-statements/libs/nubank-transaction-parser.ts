@@ -289,13 +289,14 @@ export class NubankTransactionParser {
     // DEBUG: Testar cada padrão individualmente
     this.debugParcelaDetection(description);
     
-    // Padrões para detectar parcelas - mais específicos
+    // Padrões para detectar parcelas - robustos para caracteres especiais
     const patterns = [
-      /-\s*parcela\s+(\d{1,2})\/(\d{1,2})/i,    // "- Parcela 9/12"
-      /parcela\s+(\d{1,2})\/(\d{1,2})/i,        // "Parcela 9/12"
-      /(\d{1,2})\s*de\s*(\d{1,2})/i,            // "9 de 12"
-      /(\d{1,2})\/(\d{1,2})\s*parcela/i,        // "9/12 parcela"
-      /(\d{1,2})\s*\/\s*(\d{1,2})/i             // "9/12" (genérico)
+      /.*?-\s*parcela\s+(\d{1,2})\/(\d{1,2})/i,    // "Agi*Tute Tech - Parcela 9/12"
+      /.*?parcela\s+(\d{1,2})\/(\d{1,2})/i,        // "Qualquer coisa Parcela 9/12"
+      /.*?parc\.?\s*(\d{1,2})\/(\d{1,2})/i,        // "Apple.Com/Bill - Parc 2/6"
+      /.*?(\d{1,2})\s*de\s*(\d{1,2})/i,            // "IOF de Apollo.Io - 3 de 10"
+      /.*?(\d{1,2})\/(\d{1,2})\s*parcela/i,        // "9/12 parcela"
+      /.*?(\d{1,2})\s*\/\s*(\d{1,2})(?!\d|\/)/i    // "9/12" (não datas como 01/01/2024)
     ];
 
     // Testar com cada string (original e limpa)

@@ -5,13 +5,14 @@ const problematicString = "Agi*Tute Tech - Parcela 9/12";
 console.log("Input:", problematicString);
 console.log("Caracteres especiais:", [...problematicString].filter(c => /[^a-zA-Z0-9\s]/.test(c)));
 
-// Definir padrões exatos do nubank-transaction-parser.ts
+// Definir padrões corrigidos do nubank-transaction-parser.ts
 const patterns = [
-    { name: "Padrão 1: '- Parcela X/Y'", regex: /-\s*parcela\s+(\d{1,2})\/(\d{1,2})/i },
-    { name: "Padrão 2: 'Parcela X/Y'", regex: /parcela\s+(\d{1,2})\/(\d{1,2})/i },
-    { name: "Padrão 3: 'X de Y'", regex: /(\d{1,2})\s*de\s*(\d{1,2})/i },
-    { name: "Padrão 4: 'X/Y parcela'", regex: /(\d{1,2})\/(\d{1,2})\s*parcela/i },
-    { name: "Padrão 5: 'X/Y' (genérico)", regex: /(\d{1,2})\s*\/\s*(\d{1,2})/i }
+    { name: "Padrão 1: '.*- Parcela X/Y'", regex: /.*?-\s*parcela\s+(\d{1,2})\/(\d{1,2})/i },
+    { name: "Padrão 2: '.*Parcela X/Y'", regex: /.*?parcela\s+(\d{1,2})\/(\d{1,2})/i },
+    { name: "Padrão 3: '.*Parc X/Y'", regex: /.*?parc\.?\s*(\d{1,2})\/(\d{1,2})/i },
+    { name: "Padrão 4: '.*X de Y'", regex: /.*?(\d{1,2})\s*de\s*(\d{1,2})/i },
+    { name: "Padrão 5: '.*X/Y parcela'", regex: /.*?(\d{1,2})\/(\d{1,2})\s*parcela/i },
+    { name: "Padrão 6: '.*X/Y' (não data)", regex: /.*?(\d{1,2})\s*\/\s*(\d{1,2})(?!\d|\/)/i }
 ];
 
 // Verificações básicas
@@ -68,13 +69,19 @@ patterns.forEach((pattern, index) => {
     }
 });
 
-// Teste específico para o padrão que DEVERIA funcionar
-console.log("\n=== TESTE ESPECÍFICO PADRÃO 2 ===");
-const specificPattern = /parcela\s+(\d{1,2})\/(\d{1,2})/i;
+// Teste específico para o padrão corrigido que DEVE funcionar
+console.log("\n=== TESTE ESPECÍFICO PADRÃO CORRIGIDO ===");
+const specificPattern = /.*?-\s*parcela\s+(\d{1,2})\/(\d{1,2})/i;
 const specificMatch = problematicString.match(specificPattern);
 console.log(`Padrão específico: ${specificPattern.source}`);
 console.log(`Input: "${problematicString}"`);
 console.log(`Match:`, specificMatch);
+
+if (specificMatch) {
+    console.log(`✅ SUCESSO! Detectou: ${specificMatch[1]}/${specificMatch[2]}`);
+} else {
+    console.log(`❌ FALHOU - Padrão ainda não funciona`);
+}
 
 // Teste com string limpa
 const cleanString = problematicString.replace('*', '');
