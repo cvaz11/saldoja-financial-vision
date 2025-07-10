@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Search, Filter, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import FilterButton, { type FilterConfig } from "./FilterButton";
+import MonthNavigator from "./MonthNavigator";
+import { type FilterConfig } from "./FilterButton";
 
 export type QuickFilterType = 'all' | 'expenses' | 'income' | 'installments' | 'categories';
 
@@ -86,12 +87,23 @@ const QuickFilterButtons = ({
               />
             </div>
 
-            {/* Filtro de período */}
+            {/* Navegador de mês simplificado */}
             {filterConfig && onFilterConfigChange && (
-              <FilterButton 
-                config={filterConfig}
-                onConfigChange={onFilterConfigChange}
-                className="h-9 text-sm bg-white border-gray-200 hover:bg-gray-50"
+              <MonthNavigator 
+                month={filterConfig.invoiceConfig?.month || new Date().getMonth() + 1}
+                year={filterConfig.invoiceConfig?.year || new Date().getFullYear()}
+                onMonthChange={(month, year) => {
+                  onFilterConfigChange({
+                    type: 'invoices',
+                    invoiceConfig: {
+                      month,
+                      year,
+                      selectedStatements: filterConfig.invoiceConfig?.selectedStatements || []
+                    }
+                  });
+                }}
+                allowFutureMonths={activeFilter === 'installments'}
+                className="bg-white border border-gray-200 rounded-md px-3 py-1.5"
               />
             )}
           </div>

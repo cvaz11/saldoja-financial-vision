@@ -226,10 +226,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
             onDeleteClick={handleDeleteClick}
           />
         ) : quickFilter === 'installments' ? (
-          <InstallmentFilter 
-            currentMonth={filterConfig.invoiceConfig?.month}
-            currentYear={filterConfig.invoiceConfig?.year}
-          />
+          <InstallmentFilter />
         ) : (
           <TransactionTableContent
             transactions={transactions}

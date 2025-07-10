@@ -62,21 +62,31 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
       } 
       
       if (config.type === 'invoices' && config.invoiceConfig) {
-        const { selectedStatements } = config.invoiceConfig;
+        const { selectedStatements, month, year } = config.invoiceConfig;
         
-        if (selectedStatements.length === 0) {
-          console.log('[FILTERED_QUERY] No statements selected');
-          return [];
-        }
-
-        console.log('[FILTERED_QUERY] Fetching transactions for statements:', selectedStatements);
-
-        const { data, error } = await supabase
+        let query = supabase
           .from('transactions')
           .select('*')
-          .eq('user_id', user.id)
-          .in('statement_id', selectedStatements)
-          .order('created_at', { ascending: false });
+          .eq('user_id', user.id);
+
+        if (selectedStatements.length > 0) {
+          // Usar extratos específicos se selecionados
+          console.log('[FILTERED_QUERY] Fetching transactions for statements:', selectedStatements);
+          query = query.in('statement_id', selectedStatements);
+        } else {
+          // Buscar por mês/ano quando nenhum extrato específico for selecionado
+          console.log('[FILTERED_QUERY] Fetching transactions for month/year:', month, year);
+          
+          // Calcular range de datas para o mês
+          const startDate = new Date(year, month - 1, 1);
+          const endDate = new Date(year, month, 0); // Último dia do mês
+          
+          query = query
+            .gte('transaction_date', startDate.toISOString().split('T')[0])
+            .lte('transaction_date', endDate.toISOString().split('T')[0]);
+        }
+
+        const { data, error } = await query.order('created_at', { ascending: false });
 
         if (error) {
           console.error('[FILTERED_QUERY] Error fetching invoice transactions:', error);

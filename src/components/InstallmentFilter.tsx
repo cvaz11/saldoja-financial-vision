@@ -9,28 +9,26 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { CreditCard, Calendar, TrendingUp, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import MonthNavigator from "./MonthNavigator";
 
-interface InstallmentFilterProps {
-  currentMonth?: number;
-  currentYear?: number;
-}
+interface InstallmentFilterProps {}
 
-const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps = {}) => {
+const InstallmentFilter = ({}: InstallmentFilterProps = {}) => {
   const { data: latestTransaction } = useLatestTransactionMonth();
   
-  // Usar mês do último extrato como padrão se não especificado
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-  const [selectedYear, setSelectedYear] = useState(currentYear);
+  // Usar mês do último extrato como padrão inicial
+  const [selectedMonth, setSelectedMonth] = useState<number | undefined>(undefined);
+  const [selectedYear, setSelectedYear] = useState<number | undefined>(undefined);
 
   useEffect(() => {
-    if (!currentMonth && !currentYear && latestTransaction) {
+    if (latestTransaction && !selectedMonth && !selectedYear) {
       setSelectedMonth(latestTransaction.month);
       setSelectedYear(latestTransaction.year);
     }
-  }, [latestTransaction, currentMonth, currentYear]);
+  }, [latestTransaction, selectedMonth, selectedYear]);
 
-  const effectiveMonth = selectedMonth || currentMonth;
-  const effectiveYear = selectedYear || currentYear;
+  const effectiveMonth = selectedMonth || new Date().getMonth() + 1;
+  const effectiveYear = selectedYear || new Date().getFullYear();
 
   const { data: transactions = [], isLoading } = useInstallmentTransactions(effectiveMonth, effectiveYear);
   const stats = useInstallmentStats(effectiveMonth, effectiveYear);
@@ -121,15 +119,25 @@ const InstallmentFilter = ({ currentMonth, currentYear }: InstallmentFilterProps
 
   return (
     <div className="space-y-6">
-      {/* Título do período */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">
-          Parcelas - {formatMonthYear(effectiveMonth, effectiveYear)}
-        </h2>
+      {/* Cabeçalho com navegação de mês */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <h2 className="text-xl font-semibold">Parcelas</h2>
+          <MonthNavigator
+            month={effectiveMonth}
+            year={effectiveYear}
+            onMonthChange={(month, year) => {
+              setSelectedMonth(month);
+              setSelectedYear(year);
+            }}
+            allowFutureMonths={true}
+            className="bg-white border border-gray-200 rounded-md px-3 py-2"
+          />
+        </div>
         
         {latestTransaction && (
           <Badge variant="secondary" className="text-sm">
-            Última transação: {formatMonthYear(latestTransaction.month, latestTransaction.year)}
+            Último extrato: {formatMonthYear(latestTransaction.month, latestTransaction.year)}
           </Badge>
         )}
       </div>
