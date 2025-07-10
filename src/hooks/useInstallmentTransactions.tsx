@@ -48,10 +48,9 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
       const processedSeries = new Set<string>();
 
       (data || []).forEach(transaction => {
-        // Verificar se já tem installment_id válido
-        if (!transaction.installment_id) return;
-        
-        const installmentId = transaction.installment_id;
+        // Gerar installment_id se não existe (para compatibilidade com parcelas antigas)
+        const installmentId = transaction.installment_id || 
+          `auto_${transaction.description?.replace(/[^a-zA-Z0-9]/g, '_')}_${transaction.installment_total}`;
         
         // Evitar processar a mesma série múltiplas vezes
         if (processedSeries.has(installmentId)) return;
