@@ -54,94 +54,26 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
 
       console.log('[INSTALLMENTS] Raw transactions found:', data?.length || 0);
 
-      // Agrupar transações por série de parcelas e eliminar duplicatas
-      const seriesMap = new Map<string, any[]>();
-      const seenCombinations = new Set<string>();
+      // Transformar diretamente as transações encontradas
+      const installments: InstallmentTransaction[] = (data || []).map(transaction => ({
+        id: transaction.id,
+        description: transaction.description || '',
+        amount: transaction.amount,
+        transaction_date: transaction.transaction_date,
+        is_credit: transaction.is_credit || false,
+        installment_number: transaction.installment_number,
+        installment_total: transaction.installment_total,
+        category: transaction.category,
+        user_id: transaction.user_id,
+        statement_id: transaction.statement_id,
+        installment_id: transaction.installment_id || `auto_${transaction.description?.replace(/[^a-zA-Z0-9]/g, '_')}_${transaction.installment_total}`,
+        is_projected: !transaction.statement_id // Se não tem statement_id, é projetada
+      }));
+
+      console.log(`[INSTALLMENTS] Generated ${installments.length} installments for month ${filterMonth}/${filterYear}`);
+      console.log(`[INSTALLMENTS] Details:`, installments.map(i => `${i.installment_number}/${i.installment_total} on ${i.transaction_date}`));
       
-      (data || []).forEach(transaction => {
-        // Gerar installment_id se não existe (baseado na descrição)
-        const installmentId = transaction.installment_id || 
-          `auto_${transaction.description?.replace(/[^a-zA-Z0-9]/g, '_')}_${transaction.installment_total}`;
-        const uniqueKey = `${installmentId}-${transaction.installment_number}`;
-        
-        // Evitar duplicatas - só adicionar se não vimos esta combinação antes
-        if (!seenCombinations.has(uniqueKey)) {
-          seenCombinations.add(uniqueKey);
-          
-          if (!seriesMap.has(installmentId)) {
-            seriesMap.set(installmentId, []);
-          }
-          seriesMap.get(installmentId)!.push({ ...transaction, installment_id: installmentId });
-        }
-      });
-
-      const allInstallments: InstallmentTransaction[] = [];
-
-      // Processar cada série uma única vez
-      seriesMap.forEach((transactions, installmentId) => {
-        // Pegar a primeira transação como base para gerar a série
-        const baseTransaction = transactions[0];
-        
-        // Gerar apenas as parcelas do mês específico filtrado
-        for (let i = 1; i <= baseTransaction.installment_total; i++) {
-          // Calcular a data desta parcela específica
-          const baseDate = new Date(baseTransaction.transaction_date);
-          const parcelsFromBase = i - baseTransaction.installment_number; // Quantos meses à frente/atrás da base
-          const installmentDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + parcelsFromBase, baseDate.getDate());
-          
-          const month = installmentDate.getMonth() + 1;
-          const year = installmentDate.getFullYear();
-          
-          console.log(`[INSTALLMENTS] Parcela ${i}/${baseTransaction.installment_total} -> ${month}/${year} (filterMonth: ${filterMonth}/${filterYear})`);
-          
-          // FILTRO CRÍTICO: Se não é o mês que estamos visualizando, pular
-          if (filterMonth && filterYear && (month !== filterMonth || year !== filterYear)) {
-            console.log(`[INSTALLMENTS] Parcela ${i}/${baseTransaction.installment_total} PULA - não é ${filterMonth}/${filterYear}`);
-            continue;
-          }
-          
-          console.log(`[INSTALLMENTS] Parcela ${i}/${baseTransaction.installment_total} INCLUÍDA no mês ${month}/${year}`);
-          
-          // Verificar se já existe uma transação real para esta parcela
-          const existingTransaction = transactions.find(t => 
-            t.installment_number === i &&
-            t.installment_total === baseTransaction.installment_total
-          );
-
-          if (existingTransaction) {
-            // Usar a transação real
-            allInstallments.push({
-              ...existingTransaction,
-              installment_id: installmentId,
-              is_projected: false
-            });
-          } else {
-            // Criar projeção apenas se não existe no banco E está no mês correto
-            const baseDescription = baseTransaction.description?.replace(/- Parcela \d+\/\d+/, '').trim() || '';
-            allInstallments.push({
-              id: `projected-${installmentId}-${i}`,
-              description: `${baseDescription} - Parcela ${i}/${baseTransaction.installment_total}`,
-              amount: baseTransaction.amount,
-              transaction_date: installmentDate.toISOString().split('T')[0],
-              is_credit: baseTransaction.is_credit,
-              installment_number: i,
-              installment_total: baseTransaction.installment_total,
-              category: baseTransaction.category,
-              user_id: baseTransaction.user_id,
-              statement_id: undefined,
-              installment_id: installmentId,
-              is_projected: true
-            });
-          }
-        }
-      });
-
-      console.log(`[INSTALLMENTS] Generated ${allInstallments.length} installments for month ${filterMonth}/${filterYear}`);
-      console.log(`[INSTALLMENTS] Breakdown:`, allInstallments.map(i => `${i.installment_number}/${i.installment_total} (${i.transaction_date})`));
-      
-      return allInstallments.sort((a, b) =>
-        new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
-      );
+      return installments;
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000, // 5 minutos
