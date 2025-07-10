@@ -27,14 +27,25 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
 
       console.log('[INSTALLMENTS] Fetching for month/year:', filterMonth, filterYear);
 
-      // Buscar todas as transações com dados de parcela válidos
-      const { data, error } = await supabase
+      // Buscar apenas transações do mês específico filtrado
+      let query = supabase
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
         .not('installment_number', 'is', null)
-        .not('installment_total', 'is', null)
-        .order('transaction_date', { ascending: true });
+        .not('installment_total', 'is', null);
+
+      // FILTRO CRÍTICO: Adicionar filtro de data se especificado
+      if (filterMonth && filterYear) {
+        const startDate = new Date(filterYear, filterMonth - 1, 1);
+        const endDate = new Date(filterYear, filterMonth, 0); // Último dia do mês
+        
+        query = query
+          .gte('transaction_date', startDate.toISOString().split('T')[0])
+          .lte('transaction_date', endDate.toISOString().split('T')[0]);
+      }
+
+      const { data, error } = await query.order('transaction_date', { ascending: true });
 
       if (error) {
         console.error('[INSTALLMENTS] Error fetching:', error);
