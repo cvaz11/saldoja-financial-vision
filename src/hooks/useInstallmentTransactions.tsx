@@ -43,24 +43,32 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
 
       console.log('[INSTALLMENTS] Raw transactions found:', data?.length || 0);
 
-      // Gerar todas as parcelas (reais + projetadas) usando installment_id
-      const allInstallments: InstallmentTransaction[] = [];
-      const processedSeries = new Set<string>();
-
+      // Agrupar transações por série de parcelas
+      const seriesMap = new Map<string, any[]>();
+      
       (data || []).forEach(transaction => {
         // Gerar installment_id se não existe (para compatibilidade com parcelas antigas)
         const installmentId = transaction.installment_id || 
           `auto_${transaction.description?.replace(/[^a-zA-Z0-9]/g, '_')}_${transaction.installment_total}`;
         
-        // Evitar processar a mesma série múltiplas vezes
-        if (processedSeries.has(installmentId)) return;
-        processedSeries.add(installmentId);
+        if (!seriesMap.has(installmentId)) {
+          seriesMap.set(installmentId, []);
+        }
+        seriesMap.get(installmentId)!.push({ ...transaction, installment_id: installmentId });
+      });
 
+      const allInstallments: InstallmentTransaction[] = [];
+
+      // Processar cada série uma única vez
+      seriesMap.forEach((transactions, installmentId) => {
+        // Pegar a primeira transação como base para gerar a série
+        const baseTransaction = transactions[0];
+        
         // Gerar todas as parcelas da série
-        for (let i = 1; i <= transaction.installment_total; i++) {
-          const installmentDate = new Date(transaction.transaction_date);
+        for (let i = 1; i <= baseTransaction.installment_total; i++) {
+          const installmentDate = new Date(baseTransaction.transaction_date);
           // Ajustar o mês baseado no número da parcela
-          installmentDate.setMonth(installmentDate.getMonth() + (i - transaction.installment_number));
+          installmentDate.setMonth(installmentDate.getMonth() + (i - baseTransaction.installment_number));
           
           const month = installmentDate.getMonth() + 1;
           const year = installmentDate.getFullYear();
@@ -71,10 +79,9 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
           }
           
           // Verificar se já existe uma transação real para esta parcela
-          const existingTransaction = data.find(t => 
-            t.installment_id === installmentId &&
+          const existingTransaction = transactions.find(t => 
             t.installment_number === i &&
-            t.installment_total === transaction.installment_total
+            t.installment_total === baseTransaction.installment_total
           );
 
           if (existingTransaction) {
@@ -86,17 +93,17 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
             });
           } else {
             // Criar projeção apenas se não existe no banco
-            const baseDescription = transaction.description?.replace(/- Parcela \d+\/\d+/, '').trim() || '';
+            const baseDescription = baseTransaction.description?.replace(/- Parcela \d+\/\d+/, '').trim() || '';
             allInstallments.push({
               id: `projected-${installmentId}-${i}`,
-              description: `${baseDescription} - Parcela ${i}/${transaction.installment_total}`,
-              amount: transaction.amount,
+              description: `${baseDescription} - Parcela ${i}/${baseTransaction.installment_total}`,
+              amount: baseTransaction.amount,
               transaction_date: installmentDate.toISOString().split('T')[0],
-              is_credit: transaction.is_credit,
+              is_credit: baseTransaction.is_credit,
               installment_number: i,
-              installment_total: transaction.installment_total,
-              category: transaction.category,
-              user_id: transaction.user_id,
+              installment_total: baseTransaction.installment_total,
+              category: baseTransaction.category,
+              user_id: baseTransaction.user_id,
               statement_id: undefined,
               installment_id: installmentId,
               is_projected: true
