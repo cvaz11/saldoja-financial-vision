@@ -71,7 +71,7 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
         // Pegar a primeira transação como base para gerar a série
         const baseTransaction = transactions[0];
         
-        // Gerar todas as parcelas da série
+        // Gerar apenas as parcelas do mês específico filtrado
         for (let i = 1; i <= baseTransaction.installment_total; i++) {
           const installmentDate = new Date(baseTransaction.transaction_date);
           // Ajustar o mês baseado no número da parcela
@@ -80,7 +80,7 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
           const month = installmentDate.getMonth() + 1;
           const year = installmentDate.getFullYear();
           
-          // Se temos filtro de mês/ano, aplicar
+          // Se temos filtro de mês/ano, aplicar - MOSTRAR APENAS as parcelas do mês específico
           if (filterMonth && filterYear && (month !== filterMonth || year !== filterYear)) {
             continue;
           }
@@ -99,7 +99,7 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
               is_projected: false
             });
           } else {
-            // Criar projeção apenas se não existe no banco
+            // Criar projeção apenas se não existe no banco E está no mês correto
             const baseDescription = baseTransaction.description?.replace(/- Parcela \d+\/\d+/, '').trim() || '';
             allInstallments.push({
               id: `projected-${installmentId}-${i}`,
