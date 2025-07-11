@@ -1,35 +1,19 @@
-import React, { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import React from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { useInstallmentTransactions, useInstallmentStats } from "@/hooks/useInstallmentTransactions";
-import { useLatestTransactionMonth } from "@/hooks/useLatestTransactionMonth";
 import { formatCurrency } from "@/lib/utils";
 import TransactionRowCard from "./TransactionRowCard";
-import { Badge } from "@/components/ui/badge";
 import { CreditCard, Calendar, TrendingUp } from "lucide-react";
-import MonthNavigator from "./MonthNavigator";
 
-interface InstallmentFilterProps {}
+interface InstallmentFilterProps {
+  month: number;
+  year: number;
+}
 
-const InstallmentFilter = ({}: InstallmentFilterProps = {}) => {
-  const { data: latestTransaction } = useLatestTransactionMonth();
-  
-  // Usar mês do último extrato como padrão inicial
-  const [selectedMonth, setSelectedMonth] = useState<number | undefined>(undefined);
-  const [selectedYear, setSelectedYear] = useState<number | undefined>(undefined);
+const InstallmentFilter = ({ month, year }: InstallmentFilterProps) => {
 
-  useEffect(() => {
-    if (latestTransaction && !selectedMonth && !selectedYear) {
-      setSelectedMonth(latestTransaction.month);
-      setSelectedYear(latestTransaction.year);
-    }
-  }, [latestTransaction, selectedMonth, selectedYear]);
-
-  const effectiveMonth = selectedMonth || new Date().getMonth() + 1;
-  const effectiveYear = selectedYear || new Date().getFullYear();
-
-  const { data: transactions = [], isLoading } = useInstallmentTransactions(effectiveMonth, effectiveYear);
-  const stats = useInstallmentStats(effectiveMonth, effectiveYear);
-
+  const { data: transactions = [], isLoading } = useInstallmentTransactions(month, year);
+  const stats = useInstallmentStats(month, year);
 
   const formatMonthYear = (month?: number, year?: number) => {
     if (!month || !year) return "Carregando...";
@@ -116,21 +100,10 @@ const InstallmentFilter = ({}: InstallmentFilterProps = {}) => {
 
   return (
     <div className="space-y-6">
-      {/* Navegador de mês */}
-      <MonthNavigator 
-        month={effectiveMonth}
-        year={effectiveYear}
-        onMonthChange={(month, year) => {
-          setSelectedMonth(month);
-          setSelectedYear(year);
-        }}
-        allowFutureMonths={true}
-      />
-      
       {/* Cabeçalho simples */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h2 className="text-xl font-semibold">
-          Parcelas - {formatMonthYear(effectiveMonth, effectiveYear)}
+          Parcelas - {formatMonthYear(month, year)}
         </h2>
       </div>
 
