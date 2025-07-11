@@ -27,23 +27,13 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
 
       console.log('[INSTALLMENTS] Fetching for month/year:', filterMonth, filterYear);
 
-      // Buscar apenas transações do mês específico filtrado
+      // Buscar TODAS as parcelas sem filtro de data primeiro
       let query = supabase
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
         .not('installment_number', 'is', null)
         .not('installment_total', 'is', null);
-
-      // FILTRO CRÍTICO: Adicionar filtro de data se especificado
-      if (filterMonth && filterYear) {
-        const startDate = new Date(filterYear, filterMonth - 1, 1);
-        const endDate = new Date(filterYear, filterMonth, 0); // Último dia do mês
-        
-        query = query
-          .gte('transaction_date', startDate.toISOString().split('T')[0])
-          .lte('transaction_date', endDate.toISOString().split('T')[0]);
-      }
 
       const { data, error } = await query.order('transaction_date', { ascending: true });
 
@@ -54,24 +44,85 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
 
       console.log('[INSTALLMENTS] Raw transactions found:', data?.length || 0);
 
-      // Transformar diretamente as transações encontradas
-      const installments: InstallmentTransaction[] = (data || []).map(transaction => ({
-        id: transaction.id,
-        description: transaction.description || '',
-        amount: transaction.amount,
-        transaction_date: transaction.transaction_date,
-        is_credit: transaction.is_credit || false,
-        installment_number: transaction.installment_number,
-        installment_total: transaction.installment_total,
-        category: transaction.category,
-        user_id: transaction.user_id,
-        statement_id: transaction.statement_id,
-        installment_id: transaction.installment_id || `auto_${transaction.description?.replace(/[^a-zA-Z0-9]/g, '_')}_${transaction.installment_total}`,
-        is_projected: !transaction.statement_id // Se não tem statement_id, é projetada
-      }));
+      // Agrupar por installment_id e calcular qual parcela deve aparecer no período
+      const installmentGroups = new Map<string, any[]>();
+      
+      (data || []).forEach(transaction => {
+        const installmentId = transaction.installment_id || `auto_${transaction.description?.replace(/[^a-zA-Z0-9]/g, '_')}_${transaction.installment_total}`;
+        
+        if (!installmentGroups.has(installmentId)) {
+          installmentGroups.set(installmentId, []);
+        }
+        installmentGroups.get(installmentId)!.push(transaction);
+      });
+
+      // Para cada grupo, determinar qual parcela deve aparecer no mês/ano filtrado
+      const installments: InstallmentTransaction[] = [];
+      
+      installmentGroups.forEach((transactions, installmentId) => {
+        // Ordenar por installment_number
+        transactions.sort((a, b) => a.installment_number - b.installment_number);
+        
+        // Encontrar a primeira parcela paga (com statement_id)
+        const firstPaidInstallment = transactions.find(t => t.statement_id);
+        
+        if (!firstPaidInstallment) return; // Pular se não há parcela paga
+        
+        // Calcular qual parcela deveria estar no período solicitado
+        const firstPaidDate = new Date(firstPaidInstallment.transaction_date);
+        const targetDate = new Date(filterYear!, filterMonth! - 1, firstPaidDate.getDate());
+        
+        // Calcular diferença em meses
+        const monthsDiff = (filterYear! - firstPaidDate.getFullYear()) * 12 + (filterMonth! - 1 - firstPaidDate.getMonth());
+        const targetInstallmentNumber = firstPaidInstallment.installment_number + monthsDiff;
+        
+        // Verificar se o installment_number calculado é válido
+        if (targetInstallmentNumber < 1 || targetInstallmentNumber > firstPaidInstallment.installment_total) {
+          console.log(`[INSTALLMENTS] Skipping installment ${targetInstallmentNumber} for ${installmentId} (out of range 1-${firstPaidInstallment.installment_total})`);
+          return;
+        }
+        
+        // Verificar se já existe essa parcela no banco
+        const existingTransaction = transactions.find(t => t.installment_number === targetInstallmentNumber);
+        
+        if (existingTransaction) {
+          // Usar transação existente
+          installments.push({
+            id: existingTransaction.id,
+            description: existingTransaction.description || '',
+            amount: existingTransaction.amount,
+            transaction_date: existingTransaction.transaction_date,
+            is_credit: existingTransaction.is_credit || false,
+            installment_number: existingTransaction.installment_number,
+            installment_total: existingTransaction.installment_total,
+            category: existingTransaction.category,
+            user_id: existingTransaction.user_id,
+            statement_id: existingTransaction.statement_id,
+            installment_id: installmentId,
+            is_projected: !existingTransaction.statement_id
+          });
+        } else {
+          // Criar parcela projetada
+          const baseDescription = firstPaidInstallment.description?.replace(/- Parcela \d+\/\d+/, '').trim() || '';
+          installments.push({
+            id: `projected_${installmentId}_${targetInstallmentNumber}`,
+            description: `${baseDescription} - Parcela ${targetInstallmentNumber}/${firstPaidInstallment.installment_total}`,
+            amount: firstPaidInstallment.amount,
+            transaction_date: targetDate.toISOString().split('T')[0],
+            is_credit: firstPaidInstallment.is_credit || false,
+            installment_number: targetInstallmentNumber,
+            installment_total: firstPaidInstallment.installment_total,
+            category: firstPaidInstallment.category,
+            user_id: firstPaidInstallment.user_id,
+            statement_id: undefined,
+            installment_id: installmentId,
+            is_projected: true
+          });
+        }
+      });
 
       console.log(`[INSTALLMENTS] Generated ${installments.length} installments for month ${filterMonth}/${filterYear}`);
-      console.log(`[INSTALLMENTS] Details:`, installments.map(i => `${i.installment_number}/${i.installment_total} on ${i.transaction_date}`));
+      console.log(`[INSTALLMENTS] Details:`, installments.map(i => `${i.installment_number}/${i.installment_total} on ${i.transaction_date} (projected: ${i.is_projected})`));
       
       return installments;
     },
