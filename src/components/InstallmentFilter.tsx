@@ -114,7 +114,7 @@ const InstallmentFilter = ({ month, year }: InstallmentFilterProps) => {
             <div className="flex items-center gap-3">
               <CreditCard className="h-8 w-8 text-blue-600" />
               <div>
-                <p className="text-sm text-gray-600">Total de Parcelas</p>
+                <p className="text-sm text-gray-600">Quantidade de Parcelas</p>
                 <p className="text-2xl font-bold">{stats.totalInstallments}</p>
               </div>
             </div>
@@ -138,9 +138,8 @@ const InstallmentFilter = ({ month, year }: InstallmentFilterProps) => {
             <div className="flex items-center gap-3">
               <TrendingUp className="h-8 w-8 text-orange-600" />
               <div>
-                <p className="text-sm text-gray-600">Parcelas Pendentes</p>
-                <p className="text-2xl font-bold text-orange-600">{stats.pendingInstallments}</p>
-                <p className="text-sm text-gray-500">{formatCurrency(stats.pendingAmount)}</p>
+                <p className="text-sm text-gray-600">Valor de Parcelas Futuras</p>
+                <p className="text-2xl font-bold text-orange-600">{formatCurrency(stats.futureAmount)}</p>
               </div>
             </div>
           </CardContent>

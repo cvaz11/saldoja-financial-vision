@@ -1,3 +1,4 @@
+import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
@@ -133,11 +134,76 @@ export const useInstallmentTransactions = (filterMonth?: number, filterYear?: nu
 
 export const useInstallmentStats = (filterMonth?: number, filterYear?: number) => {
   const { data: transactions = [] } = useInstallmentTransactions(filterMonth, filterYear);
+  const { user } = useAuth();
+
+  const [futureValue, setFutureValue] = React.useState(0);
+
+  // Calcular valor das parcelas futuras
+  React.useEffect(() => {
+    if (!user || !filterMonth || !filterYear) return;
+
+    const calculateFutureValue = async () => {
+      // Buscar todas as parcelas do usuário
+      const { data: allTransactions } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .not('installment_number', 'is', null)
+        .not('installment_total', 'is', null);
+
+      if (!allTransactions) return;
+
+      // Agrupar por installment_id
+      const installmentGroups = new Map<string, any[]>();
+      
+      allTransactions.forEach(transaction => {
+        const installmentId = transaction.installment_id || `auto_${transaction.description?.replace(/[^a-zA-Z0-9]/g, '_')}_${transaction.installment_total}`;
+        
+        if (!installmentGroups.has(installmentId)) {
+          installmentGroups.set(installmentId, []);
+        }
+        installmentGroups.get(installmentId)!.push(transaction);
+      });
+
+      let futureAmount = 0;
+      const currentPeriod = filterYear * 12 + filterMonth;
+
+      // Para cada grupo de parcelas
+      installmentGroups.forEach((groupTransactions) => {
+        const firstPaidInstallment = groupTransactions.find(t => t.statement_id);
+        if (!firstPaidInstallment) return;
+
+        const firstPaidDate = new Date(firstPaidInstallment.transaction_date);
+        const installmentAmount = firstPaidInstallment.amount;
+        
+        // Calcular todas as parcelas futuras (após o período atual)
+        for (let i = 1; i <= firstPaidInstallment.installment_total; i++) {
+          const installmentDate = new Date(firstPaidDate);
+          installmentDate.setMonth(installmentDate.getMonth() + (i - firstPaidInstallment.installment_number));
+          
+          const installmentPeriod = installmentDate.getFullYear() * 12 + (installmentDate.getMonth() + 1);
+          
+          // Se a parcela é de um período futuro ao atual
+          if (installmentPeriod > currentPeriod) {
+            // Verificar se já foi paga
+            const existingTransaction = groupTransactions.find(t => t.installment_number === i);
+            if (!existingTransaction || existingTransaction.is_projected || !existingTransaction.statement_id) {
+              futureAmount += installmentAmount;
+            }
+          }
+        }
+      });
+
+      setFutureValue(futureAmount);
+    };
+
+    calculateFutureValue();
+  }, [user, filterMonth, filterYear]);
 
   const stats = {
     totalInstallments: 0,
     monthlyAmount: 0,
-    pendingAmount: 0,
+    futureAmount: futureValue,
     pendingInstallments: 0,
   };
 
@@ -147,7 +213,6 @@ export const useInstallmentStats = (filterMonth?: number, filterYear?: number) =
     stats.monthlyAmount += transaction.amount;
     
     if (transaction.is_projected) {
-      stats.pendingAmount += transaction.amount;
       stats.pendingInstallments++;
     }
   });
