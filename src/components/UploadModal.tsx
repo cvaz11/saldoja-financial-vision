@@ -22,8 +22,6 @@ const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: U
     file: null as File | null,
     bankName: "Nubank"
   });
-  const [closingDay, setClosingDay] = useState<string>(profile?.invoice_closing_day?.toString() || "5");
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -36,12 +34,6 @@ const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: U
     
     if (!formData.file || !formData.bankName) {
       return;
-    }
-
-    // Atualizar dia de fechamento se foi alterado
-    const newClosingDay = parseInt(closingDay);
-    if (profile && profile.invoice_closing_day !== newClosingDay) {
-      updateProfile({ invoice_closing_day: newClosingDay });
     }
 
     const result = await uploadFile({
@@ -109,24 +101,6 @@ const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: U
             />
           </div>
 
-          <div>
-            <Label htmlFor="closingDay" className="text-base font-medium">Dia de Fechamento da Fatura</Label>
-            <Select value={closingDay} onValueChange={setClosingDay}>
-              <SelectTrigger className="mt-2">
-                <SelectValue placeholder="Selecione o dia" />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                  <SelectItem key={day} value={day.toString()}>
-                    Dia {day}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-gray-500 mt-1">
-              Dia do mês em que sua fatura de cartão fecha
-            </p>
-          </div>
 
           <Button 
             type="submit" 
