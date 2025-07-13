@@ -39,15 +39,21 @@ export const useRealDashboardData = () => {
     console.log('[DASHBOARD] Processing transactions:', currentTransactions.length);
     console.log('[DASHBOARD] Sample transactions:', currentTransactions.slice(0, 3));
     
-    // Separar receitas e despesas corretamente
-    const expenses = currentTransactions.filter(t => !t.is_credit);
-    const incomes = currentTransactions.filter(t => t.is_credit);
+    // USAR EXATAMENTE A MESMA LÓGICA DA ABA MOVIMENTAÇÕES (TransactionTableFooter)
+    // Débitos = !is_credit (despesas)
+    // Créditos = is_credit (receitas) 
+    const totalDebits = currentTransactions
+      .filter(t => !t.is_credit)
+      .reduce((sum, t) => sum + Number(t.amount), 0);
     
-    const totalExpenses = expenses.reduce((sum, t) => sum + Number(t.amount), 0);
-    const totalIncomes = incomes.reduce((sum, t) => sum + Number(t.amount), 0);
-    const monthResult = totalIncomes - totalExpenses;
+    const totalCredits = currentTransactions
+      .filter(t => t.is_credit)
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+    
+    // Resultado = receitas - despesas (igual ao saldo do footer)
+    const balance = totalCredits - totalDebits;
 
-    console.log('[DASHBOARD] Expenses:', totalExpenses, 'Incomes:', totalIncomes);
+    console.log('[DASHBOARD] Debits (Despesas):', totalDebits, 'Credits (Receitas):', totalCredits, 'Balance:', balance);
 
     // Parcelas do mês atual
     const currentMonthInstallments = currentInstallments
@@ -64,12 +70,14 @@ export const useRealDashboardData = () => {
       .filter(t => t.is_projected)
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
-    // Dados por categoria (apenas despesas reais)
+    // Dados por categoria (apenas despesas - débitos)
     const categoryData: { [key: string]: number } = {};
-    expenses.forEach(transaction => {
-      const category = transaction.category || 'Sem categoria';
-      categoryData[category] = (categoryData[category] || 0) + Number(transaction.amount);
-    });
+    currentTransactions
+      .filter(t => !t.is_credit) // Só despesas
+      .forEach(transaction => {
+        const category = transaction.category || 'Sem categoria';
+        categoryData[category] = (categoryData[category] || 0) + Number(transaction.amount);
+      });
 
     const realCategoryData = Object.entries(categoryData)
       .map(([category, value]) => ({
@@ -80,43 +88,54 @@ export const useRealDashboardData = () => {
       }))
       .sort((a, b) => b.value - a.value);
 
-    // Dados por banco (buscar de statements reais)
+    // Dados por banco - extrair de statements reais ou usar dados dinâmicos
     const bankData: { [key: string]: number } = {};
     
-    // Agrupar despesas por statement_id para determinar banco
+    // Primeiro, tentar agrupar por statement_id para pegar banco real
+    const expenseTransactions = currentTransactions.filter(t => !t.is_credit);
     const statementGroups: { [key: string]: number } = {};
-    expenses.forEach(transaction => {
+    
+    expenseTransactions.forEach(transaction => {
       if (transaction.statement_id) {
         statementGroups[transaction.statement_id] = 
           (statementGroups[transaction.statement_id] || 0) + Number(transaction.amount);
       }
     });
 
-    // Se não há statements específicos, assumir um banco padrão baseado nos dados
-    if (Object.keys(statementGroups).length === 0 && expenses.length > 0) {
-      bankData['Nubank'] = totalExpenses;
+    // Se temos statements, assumir banco baseado no contexto
+    // Se não, usar "Sem banco" para transações manuais
+    if (Object.keys(statementGroups).length === 0 && expenseTransactions.length > 0) {
+      // Transações sem statement = transações manuais
+      bankData['Transações Manuais'] = totalDebits;
     } else {
-      // Para cada statement, assumir Nubank (pode ser expandido futuramente)
+      // Com statements, assumir Nubank (expandir futuramente com dados reais de banco)
       Object.values(statementGroups).forEach(amount => {
         bankData['Nubank'] = (bankData['Nubank'] || 0) + amount;
       });
+      
+      // Adicionar transações manuais se existirem
+      const manualTransactions = expenseTransactions.filter(t => !t.statement_id);
+      if (manualTransactions.length > 0) {
+        const manualTotal = manualTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+        bankData['Transações Manuais'] = manualTotal;
+      }
     }
 
     const realBankData = Object.entries(bankData).map(([bank, amount]) => ({
       name: bank,
-      value: Object.keys(bankData).length === 1 ? 100 : Math.round((amount / totalExpenses) * 100),
+      value: totalDebits > 0 ? Math.round((amount / totalDebits) * 100) : 0,
       amount,
       color: getBankColor(bank)
     }));
 
-    // Dados de fluxo de caixa (apenas mês atual com dados)
+    // Dados de fluxo de caixa (apenas com dados reais)
     const monthlyData: { [key: string]: { receitas: number; despesas: number } } = {};
     
     if (currentTransactions.length > 0) {
       const currentMonth = currentCycle?.startDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') || 'Mai';
       monthlyData[currentMonth] = {
-        receitas: totalIncomes,
-        despesas: totalExpenses
+        receitas: totalCredits,
+        despesas: totalDebits
       };
     }
 
@@ -126,19 +145,20 @@ export const useRealDashboardData = () => {
       despesas: data.despesas
     }));
 
-    console.log('[DASHBOARD] Final metrics:', {
-      totalExpenses,
-      totalIncomes,
-      monthResult,
+    console.log('[DASHBOARD] Final metrics (same as TransactionTableFooter):', {
+      totalDebits,
+      totalCredits,
+      balance,
       categoriesCount: realCategoryData.length,
-      banksCount: realBankData.length
+      banksCount: realBankData.length,
+      transactionsCount: currentTransactions.length
     });
 
     return {
-      // Cards de resumo
-      totalExpenses,
-      totalIncomes,
-      monthResult,
+      // Cards de resumo (usando mesmos nomes que TransactionTableFooter)
+      totalExpenses: totalDebits,
+      totalIncomes: totalCredits,
+      monthResult: balance,
       currentMonthInstallments,
       nextMonthInstallments,
       totalPendingInstallments,
@@ -185,7 +205,8 @@ const getBankColor = (bank: string) => {
     'Bradesco': '#CC092F',
     'Santander': '#E50000',
     'Banco do Brasil': '#FDF200',
-    'Caixa': '#0066CC'
+    'Caixa': '#0066CC',
+    'Transações Manuais': '#6d8471'
   };
   
   return bankColors[bank] || '#A7BFAC';
