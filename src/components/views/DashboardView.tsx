@@ -151,7 +151,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
       <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6">
         {/* Fluxo de Caixa - Full width on mobile, 2 cols on desktop */}
         <div className="lg:col-span-2 order-1">
-          <CashFlowChart />
+          <CashFlowChart selectedMonth={selectedMonth} selectedYear={selectedYear} />
         </div>
         
         {/* Enviar Extratos - Updated text and formats */}
@@ -172,12 +172,12 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
       <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6">
         {/* Gastos por categoria - Full width on mobile, 2 cols on desktop */}
         <div className="lg:col-span-2 order-3 lg:order-1">
-          <CategoryChart />
+          <CategoryChart selectedMonth={selectedMonth} selectedYear={selectedYear} />
         </div>
         
         {/* Bancos - Full width on mobile, 1 col on desktop */}
         <div className="order-4 lg:order-2">
-          <BankPieChart />
+          <BankPieChart selectedMonth={selectedMonth} selectedYear={selectedYear} />
         </div>
       </div>
     </div>

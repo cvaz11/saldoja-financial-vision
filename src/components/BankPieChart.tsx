@@ -2,8 +2,13 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useRealDashboardData } from '@/hooks/useRealDashboardData';
 
-const BankPieChart = () => {
-  const { bankData, hasBanks } = useRealDashboardData();
+interface BankPieChartProps {
+  selectedMonth?: number;
+  selectedYear?: number;
+}
+
+const BankPieChart = ({ selectedMonth, selectedYear }: BankPieChartProps) => {
+  const { bankData, hasBanks } = useRealDashboardData(selectedMonth, selectedYear);
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4 sm:mb-6">

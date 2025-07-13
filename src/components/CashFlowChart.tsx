@@ -2,17 +2,17 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { useRealDashboardData } from '@/hooks/useRealDashboardData';
 
-const CashFlowChart = () => {
-  const { monthlyData, hasMonthlyData } = useRealDashboardData();
+interface CashFlowChartProps {
+  selectedMonth?: number;
+  selectedYear?: number;
+}
+
+const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
+  const { monthlyData, hasMonthlyData } = useRealDashboardData(selectedMonth, selectedYear);
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4 sm:mb-6">
         <h3 className="text-lg font-semibold text-gray-900">Fluxo de Caixa</h3>
-        <select className="border border-gray-300 rounded-md px-3 py-1 text-sm bg-white">
-          <option>2025</option>
-          <option>2024</option>
-          <option>2023</option>
-        </select>
       </div>
 
       <div className="h-64 sm:h-80">
