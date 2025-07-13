@@ -1,23 +1,9 @@
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-
-// Dados zerados - serão preenchidos quando as transações reais chegarem
-const data = [
-  { mes: 'Jan', receitas: 0, despesas: 0 },
-  { mes: 'Fev', receitas: 0, despesas: 0 },
-  { mes: 'Mar', receitas: 0, despesas: 0 },
-  { mes: 'Abr', receitas: 0, despesas: 0 },
-  { mes: 'Mai', receitas: 0, despesas: 0 },
-  { mes: 'Jun', receitas: 0, despesas: 0 },
-  { mes: 'Jul', receitas: 0, despesas: 0 },
-  { mes: 'Ago', receitas: 0, despesas: 0 },
-  { mes: 'Set', receitas: 0, despesas: 0 },
-  { mes: 'Out', receitas: 0, despesas: 0 },
-  { mes: 'Nov', receitas: 0, despesas: 0 },
-  { mes: 'Dez', receitas: 0, despesas: 0 },
-];
+import { useRealDashboardData } from '@/hooks/useRealDashboardData';
 
 const CashFlowChart = () => {
+  const { monthlyData, hasMonthlyData } = useRealDashboardData();
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4 sm:mb-6">
@@ -31,7 +17,7 @@ const CashFlowChart = () => {
 
       <div className="h-64 sm:h-80">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+          <LineChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis 
               dataKey="mes" 
@@ -74,9 +60,11 @@ const CashFlowChart = () => {
         </ResponsiveContainer>
       </div>
       
-      <div className="mt-4 text-center text-sm text-gray-500">
-        📊 Gráfico será atualizado automaticamente quando você processar seus extratos
-      </div>
+      {!hasMonthlyData && (
+        <div className="mt-4 text-center text-sm text-gray-500">
+          📊 Gráfico será atualizado automaticamente quando você processar seus extratos
+        </div>
+      )}
     </div>
   );
 };

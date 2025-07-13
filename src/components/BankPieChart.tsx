@@ -1,12 +1,9 @@
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-
-// Dados zerados - serão preenchidos quando as transações reais chegarem
-const data = [
-  { name: 'Aguardando dados', value: 100, amount: 0, color: '#A7BFAC' },
-];
+import { useRealDashboardData } from '@/hooks/useRealDashboardData';
 
 const BankPieChart = () => {
+  const { bankData, hasBanks } = useRealDashboardData();
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4 sm:mb-6">
@@ -20,7 +17,7 @@ const BankPieChart = () => {
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={data}
+              data={bankData}
               cx="50%"
               cy="50%"
               innerRadius={30}
@@ -29,7 +26,7 @@ const BankPieChart = () => {
               startAngle={90}
               endAngle={450}
             >
-              {data.map((entry, index) => (
+              {bankData.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />
               ))}
             </Pie>
@@ -50,7 +47,7 @@ const BankPieChart = () => {
       </div>
 
       <div className="space-y-2 sm:space-y-3">
-        {data.map((item, index) => (
+        {bankData.map((item, index) => (
           <div key={index} className="flex items-center justify-between">
             <div className="flex items-center">
               <div 
@@ -68,9 +65,11 @@ const BankPieChart = () => {
         ))}
       </div>
       
-      <div className="mt-4 text-center text-sm text-gray-500">
-        🏦 Dados dos bancos aparecerão após processar extratos
-      </div>
+      {!hasBanks && (
+        <div className="mt-4 text-center text-sm text-gray-500">
+          🏦 Dados dos bancos aparecerão após processar extratos
+        </div>
+      )}
     </div>
   );
 };
