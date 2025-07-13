@@ -55,18 +55,18 @@ export const useRealDashboardData = () => {
 
     console.log('[DASHBOARD] Debits (Despesas):', totalDebits, 'Credits (Receitas):', totalCredits, 'Balance:', balance);
 
-    // Parcelas do mês atual
-    const currentMonthInstallments = currentInstallments
-      .filter(t => !t.is_projected)
+    // Parcelas executadas no mês atual (transações com installment_number)
+    const currentMonthInstallments = currentTransactions
+      .filter(t => t.installment_number && !t.is_credit)
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
-    // Parcelas do próximo mês
+    // Parcelas do próximo mês (projetadas)
     const nextMonthInstallments = nextInstallments
-      .filter(t => !t.is_projected)
+      .filter(t => t.is_projected)
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
-    // Total de parcelas pendentes (todas não pagas)
-    const totalPendingInstallments = currentInstallments
+    // Total de parcelas pendentes (futuras, não executadas ainda)
+    const totalPendingInstallments = nextInstallments
       .filter(t => t.is_projected)
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
@@ -128,12 +128,15 @@ export const useRealDashboardData = () => {
       color: getBankColor(bank)
     }));
 
-    // Dados de fluxo de caixa (apenas com dados reais)
+    // Dados de fluxo de caixa - usar o mês da transação, não do ciclo
     const monthlyData: { [key: string]: { receitas: number; despesas: number } } = {};
     
     if (currentTransactions.length > 0) {
-      const currentMonth = currentCycle?.startDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') || 'Mai';
-      monthlyData[currentMonth] = {
+      // Pegar o mês das transações reais
+      const transactionDate = new Date(currentTransactions[0].transaction_date);
+      const monthName = transactionDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+      
+      monthlyData[monthName] = {
         receitas: totalCredits,
         despesas: totalDebits
       };
