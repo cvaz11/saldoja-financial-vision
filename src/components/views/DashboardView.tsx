@@ -5,6 +5,9 @@ import { useRealDashboardData } from "@/hooks/useRealDashboardData";
 import CashFlowChart from "@/components/CashFlowChart";
 import CategoryChart from "@/components/CategoryChart";
 import BankPieChart from "@/components/BankPieChart";
+import MonthNavigator from "@/components/MonthNavigator";
+import { useState } from "react";
+import { useLatestTransactionMonth } from "@/hooks/useLatestTransactionMonth";
 
 interface DashboardViewProps {
   onUploadClick: () => void;
@@ -12,6 +15,23 @@ interface DashboardViewProps {
 }
 
 const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) => {
+  const { data: latestTransaction } = useLatestTransactionMonth();
+  
+  // Inicializar com o último mês com dados, ou maio 2025 como fallback
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    if (latestTransaction) {
+      return latestTransaction.month;
+    }
+    return 5; // maio
+  });
+  
+  const [selectedYear, setSelectedYear] = useState(() => {
+    if (latestTransaction) {
+      return latestTransaction.year;
+    }
+    return 2025;
+  });
+
   const {
     totalExpenses,
     totalIncomes,
@@ -21,7 +41,12 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
     totalPendingInstallments,
     hasData,
     currentPeriodName
-  } = useRealDashboardData();
+  } = useRealDashboardData(selectedMonth, selectedYear);
+
+  const handleMonthChange = (month: number, year: number) => {
+    setSelectedMonth(month);
+    setSelectedYear(year);
+  };
 
   return (
     <div className="space-y-6">
@@ -29,9 +54,12 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Visão Geral</h1>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" className="hover:bg-sage-50 hidden sm:flex">
-            🔄 Atualizar
-          </Button>
+          <MonthNavigator
+            month={selectedMonth}
+            year={selectedYear}
+            onMonthChange={handleMonthChange}
+            allowFutureMonths={false}
+          />
           <Button 
             variant="outline" 
             size="sm"

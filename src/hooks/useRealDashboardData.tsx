@@ -4,11 +4,14 @@ import { useInstallmentTransactions } from "./useInstallmentTransactions";
 import { useUserProfile } from "./useUserProfile";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
 
-export const useRealDashboardData = () => {
+export const useRealDashboardData = (selectedMonth?: number, selectedYear?: number) => {
   const { profile } = useUserProfile();
   
-  // Período atual
-  const currentCycle = profile ? calculateInvoiceCycle(profile.invoice_closing_day) : null;
+  // Se mês/ano específicos são fornecidos, usar eles; senão usar o período atual
+  const currentCycle = profile && selectedMonth && selectedYear ? 
+    calculateInvoiceCycle(profile.invoice_closing_day, new Date(selectedYear, selectedMonth - 1)) :
+    profile ? calculateInvoiceCycle(profile.invoice_closing_day) : null;
+    
   const currentCycleRange = currentCycle ? { from: currentCycle.startDate, to: currentCycle.endDate } : null;
   
   // Próximo período
