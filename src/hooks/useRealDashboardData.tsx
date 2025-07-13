@@ -36,13 +36,18 @@ export const useRealDashboardData = () => {
   );
 
   const metrics = useMemo(() => {
-    // Separar receitas e despesas
+    console.log('[DASHBOARD] Processing transactions:', currentTransactions.length);
+    console.log('[DASHBOARD] Sample transactions:', currentTransactions.slice(0, 3));
+    
+    // Separar receitas e despesas corretamente
     const expenses = currentTransactions.filter(t => !t.is_credit);
     const incomes = currentTransactions.filter(t => t.is_credit);
     
     const totalExpenses = expenses.reduce((sum, t) => sum + Number(t.amount), 0);
     const totalIncomes = incomes.reduce((sum, t) => sum + Number(t.amount), 0);
     const monthResult = totalIncomes - totalExpenses;
+
+    console.log('[DASHBOARD] Expenses:', totalExpenses, 'Incomes:', totalIncomes);
 
     // Parcelas do mês atual
     const currentMonthInstallments = currentInstallments
@@ -59,7 +64,7 @@ export const useRealDashboardData = () => {
       .filter(t => t.is_projected)
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
-    // Dados por categoria (apenas categorias reais)
+    // Dados por categoria (apenas despesas reais)
     const categoryData: { [key: string]: number } = {};
     expenses.forEach(transaction => {
       const category = transaction.category || 'Sem categoria';
@@ -75,36 +80,59 @@ export const useRealDashboardData = () => {
       }))
       .sort((a, b) => b.value - a.value);
 
-    // Dados por banco (apenas bancos reais)
+    // Dados por banco (buscar de statements reais)
     const bankData: { [key: string]: number } = {};
-    currentTransactions.forEach(transaction => {
-      // Inferir banco a partir do statement ou usar 'Não identificado'
-      const bank = 'Nubank'; // Por enquanto, assumindo Nubank baseado no contexto
-      bankData[bank] = (bankData[bank] || 0) + Number(transaction.amount);
+    
+    // Agrupar despesas por statement_id para determinar banco
+    const statementGroups: { [key: string]: number } = {};
+    expenses.forEach(transaction => {
+      if (transaction.statement_id) {
+        statementGroups[transaction.statement_id] = 
+          (statementGroups[transaction.statement_id] || 0) + Number(transaction.amount);
+      }
     });
+
+    // Se não há statements específicos, assumir um banco padrão baseado nos dados
+    if (Object.keys(statementGroups).length === 0 && expenses.length > 0) {
+      bankData['Nubank'] = totalExpenses;
+    } else {
+      // Para cada statement, assumir Nubank (pode ser expandido futuramente)
+      Object.values(statementGroups).forEach(amount => {
+        bankData['Nubank'] = (bankData['Nubank'] || 0) + amount;
+      });
+    }
 
     const realBankData = Object.entries(bankData).map(([bank, amount]) => ({
       name: bank,
-      value: Object.keys(bankData).length === 1 ? 100 : 0, // Se só um banco, 100%
+      value: Object.keys(bankData).length === 1 ? 100 : Math.round((amount / totalExpenses) * 100),
       amount,
       color: getBankColor(bank)
     }));
 
-    // Dados de fluxo de caixa (apenas meses com dados)
+    // Dados de fluxo de caixa (apenas mês atual com dados)
     const monthlyData: { [key: string]: { receitas: number; despesas: number } } = {};
     
-    // Por enquanto, apenas o mês atual
-    const currentMonth = currentCycle?.startDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
-    monthlyData[currentMonth || 'Mai'] = {
-      receitas: totalIncomes,
-      despesas: totalExpenses
-    };
+    if (currentTransactions.length > 0) {
+      const currentMonth = currentCycle?.startDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') || 'Mai';
+      monthlyData[currentMonth] = {
+        receitas: totalIncomes,
+        despesas: totalExpenses
+      };
+    }
 
     const realMonthlyData = Object.entries(monthlyData).map(([mes, data]) => ({
       mes,
       receitas: data.receitas,
       despesas: data.despesas
     }));
+
+    console.log('[DASHBOARD] Final metrics:', {
+      totalExpenses,
+      totalIncomes,
+      monthResult,
+      categoriesCount: realCategoryData.length,
+      banksCount: realBankData.length
+    });
 
     return {
       // Cards de resumo
