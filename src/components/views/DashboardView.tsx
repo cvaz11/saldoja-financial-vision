@@ -44,6 +44,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
   } = useRealDashboardData(selectedMonth, selectedYear);
 
   const handleMonthChange = (month: number, year: number) => {
+    console.log('[DASHBOARD] Month changed:', { from: { month: selectedMonth, year: selectedYear }, to: { month, year } });
     setSelectedMonth(month);
     setSelectedYear(year);
   };
@@ -58,7 +59,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
             month={selectedMonth}
             year={selectedYear}
             onMonthChange={handleMonthChange}
-            allowFutureMonths={false}
+            allowFutureMonths={true}
           />
           <Button 
             variant="outline" 

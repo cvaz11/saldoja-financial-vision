@@ -7,17 +7,27 @@ import { calculateInvoiceCycle } from "@/lib/invoice-utils";
 export const useRealDashboardData = (selectedMonth?: number, selectedYear?: number) => {
   const { profile } = useUserProfile();
   
+  console.log('[DASHBOARD] Hook called with:', { selectedMonth, selectedYear });
+  
   // Se mês/ano específicos são fornecidos, usar eles; senão usar o período atual
   const currentCycle = profile && selectedMonth && selectedYear ? 
     calculateInvoiceCycle(profile.invoice_closing_day, new Date(selectedYear, selectedMonth - 1)) :
     profile ? calculateInvoiceCycle(profile.invoice_closing_day) : null;
     
+  console.log('[DASHBOARD] Current cycle calculated:', currentCycle);
+    
   const currentCycleRange = currentCycle ? { from: currentCycle.startDate, to: currentCycle.endDate } : null;
   
-  // Próximo período
-  const nextMonthDate = new Date();
-  nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+  // Próximo período - baseado no período selecionado  
+  const nextMonthDate = selectedMonth && selectedYear ? 
+    new Date(selectedYear, selectedMonth) : // próximo mês do selecionado
+    new Date();
+  if (!selectedMonth || !selectedYear) {
+    nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+  }
   const nextCycle = profile ? calculateInvoiceCycle(profile.invoice_closing_day, nextMonthDate) : null;
+  
+  console.log('[DASHBOARD] Next cycle for period:', nextCycle);
   
   // Dados reais
   const fallbackRange = { from: new Date(), to: new Date() };
