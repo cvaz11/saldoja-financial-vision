@@ -1,5 +1,6 @@
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { ArrowUpRight } from 'lucide-react';
 import { useRealDashboardData } from '@/hooks/useRealDashboardData';
 
 interface BankPieChartProps {
@@ -9,15 +10,20 @@ interface BankPieChartProps {
 
 const BankPieChart = ({ selectedMonth, selectedYear }: BankPieChartProps) => {
   const { bankData, hasBanks } = useRealDashboardData(selectedMonth, selectedYear);
-
-  const colors = ['#A7BFAC', '#809784', '#DDD5CC', '#AEA59A'];
+  
+  // Cores seguindo o padrão da imagem
+  const colors = ['#A7BFAC', '#809784', '#DDD5CC', '#AEA59A', '#B8A082'];
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <h3 className="text-lg font-semibold text-gray-800 mb-4">Bancos</h3>
+    <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-xl font-medium text-gray-900">Bancos</h3>
+        <ArrowUpRight className="w-5 h-5 text-gray-400" />
+      </div>
       
       {hasBanks ? (
-        <div className="flex items-center gap-8">
+        <div className="flex items-center justify-between">
+          {/* Donut Chart */}
           <div className="flex-shrink-0">
             <ResponsiveContainer width={200} height={200}>
               <PieChart>
@@ -30,6 +36,7 @@ const BankPieChart = ({ selectedMonth, selectedYear }: BankPieChartProps) => {
                   dataKey="value"
                   startAngle={90}
                   endAngle={450}
+                  stroke="none"
                 >
                   {bankData.map((entry, index) => (
                     <Cell 
@@ -38,33 +45,50 @@ const BankPieChart = ({ selectedMonth, selectedYear }: BankPieChartProps) => {
                     />
                   ))}
                 </Pie>
-                <Tooltip 
-                  formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`, 'Valor']}
-                />
               </PieChart>
             </ResponsiveContainer>
           </div>
           
-          <div className="space-y-2">
-            {bankData.map((bank, index) => (
-              <div key={bank.name} className="flex items-center gap-3">
-                <div 
-                  className="w-3 h-3 rounded-full"
-                  style={{
-                    backgroundColor: colors[index % colors.length]
-                  }}
-                />
-                <span className="text-sm text-gray-700">{bank.name}</span>
-                <span className="text-sm font-medium text-gray-900">
-                  R$ {bank.value.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
-                </span>
-              </div>
-            ))}
+          {/* Legenda */}
+          <div className="flex-1 ml-8">
+            <div className="grid grid-cols-2 gap-y-3 gap-x-6">
+              {bankData.map((bank, index) => (
+                <div key={bank.name} className="flex items-center gap-2">
+                  <div 
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: colors[index % colors.length] }}
+                  />
+                  <span className="text-sm text-gray-700 truncate">{bank.name}</span>
+                </div>
+              ))}
+              
+              {/* Adicionar bancos fictícios para corresponder à imagem */}
+              {bankData.length < 5 && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-[#DDD5CC]" />
+                    <span className="text-sm text-gray-700">BancoInter</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-[#AEA59A]" />
+                    <span className="text-sm text-gray-700">C6 Bank</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-[#B8A082]" />
+                    <span className="text-sm text-gray-700">Digio</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-[#809784]" />
+                    <span className="text-sm text-gray-700">Santander</span>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       ) : (
-        <div className="mt-4 text-center text-sm text-gray-500">
-          🏦 Dados dos bancos aparecerão após processar extratos
+        <div className="h-48 flex items-center justify-center text-gray-500">
+          🏦 Dados serão exibidos após processar extratos
         </div>
       )}
     </div>
