@@ -52,7 +52,7 @@ const CategoryChart = ({ selectedMonth, selectedYear }: CategoryChartProps) => {
                 tick={{ fill: '#666', fontSize: 12 }}
                 tickFormatter={(value) => value === 0 ? '0' : `${(value / 1000).toFixed(0)}K`}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<CustomTooltip />} cursor={false} />
               <Bar 
                 dataKey="amount" 
                 fill="#A7BFAC" 
