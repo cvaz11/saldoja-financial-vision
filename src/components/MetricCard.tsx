@@ -26,10 +26,10 @@ const MetricCard = ({
   hasPreviousData = true 
 }: MetricCardProps) => {
   const colorClasses = {
-    green: "bg-card border-border hover:bg-accent/50",
-    blue: "bg-card border-border hover:bg-accent/50", 
-    red: "bg-card border-border hover:bg-accent/50",
-    orange: "bg-card border-border hover:bg-accent/50"
+    green: "bg-card border-border",
+    blue: "bg-card border-border", 
+    red: "bg-card border-border",
+    orange: "bg-card border-border"
   };
 
   const trendColor = trend === "up" ? "text-green-600" : "text-red-600";

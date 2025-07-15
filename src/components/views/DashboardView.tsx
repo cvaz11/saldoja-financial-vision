@@ -5,15 +5,18 @@ import { useRealDashboardData } from "@/hooks/useRealDashboardData";
 import CashFlowChart from "@/components/CashFlowChart";
 import CategoryChart from "@/components/CategoryChart";
 import BankPieChart from "@/components/BankPieChart";
+import MonthNavigator from "@/components/MonthNavigator";
+import { useState } from "react";
+
 interface DashboardViewProps {
   onUploadClick: () => void;
   onProfileClick: () => void;
 }
 
 const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) => {
-  // PERÍODO FIXO - maio 2025
-  const selectedMonth = 5;
-  const selectedYear = 2025;
+  // Estado para controlar mês/ano selecionado
+  const [selectedMonth, setSelectedMonth] = useState(5);
+  const [selectedYear, setSelectedYear] = useState(2025);
 
   const {
     totalExpenses,
@@ -26,11 +29,24 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
     currentPeriodName
   } = useRealDashboardData(selectedMonth, selectedYear);
 
+  const handleMonthChange = (month: number, year: number) => {
+    setSelectedMonth(month);
+    setSelectedYear(year);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Visão Geral - Maio 2025</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Visão Geral</h1>
+          <MonthNavigator 
+            month={selectedMonth}
+            year={selectedYear}
+            onMonthChange={handleMonthChange}
+            allowFutureMonths={false}
+          />
+        </div>
         <Button 
           variant="outline" 
           size="sm"
