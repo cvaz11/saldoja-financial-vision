@@ -1,5 +1,5 @@
 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Legend, ReferenceLine } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, ReferenceLine } from 'recharts';
 import { useRealDashboardData } from '@/hooks/useRealDashboardData';
 
 interface CashFlowChartProps {
@@ -10,14 +10,23 @@ interface CashFlowChartProps {
 const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
   const { monthlyData, hasMonthlyData } = useRealDashboardData(selectedMonth, selectedYear);
   
-  // Transformar dados para barras positivas e negativas
-  const chartData = monthlyData.map(item => ({
-    month: item.month,
-    receitas: item.receitas,
-    despesas: -Math.abs(item.despesas), // Negativo para aparecer abaixo do eixo
-    receitasDisplay: item.receitas,
-    despesasDisplay: item.despesas
-  }));
+  // Todos os meses do ano
+  const allMonths = [
+    'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+    'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
+  ];
+
+  // Criar dados para todos os meses, preenchendo com zeros onde não há dados
+  const chartData = allMonths.map(month => {
+    const existingData = monthlyData.find(item => item.month === month);
+    return {
+      month,
+      receitas: existingData?.receitas || 0,
+      despesas: existingData ? -Math.abs(existingData.despesas) : 0, // Negativo para aparecer abaixo
+      receitasDisplay: existingData?.receitas || 0,
+      despesasDisplay: existingData?.despesas || 0
+    };
+  });
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -25,20 +34,18 @@ const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
       const despesas = payload.find((p: any) => p.dataKey === 'despesas')?.payload?.despesasDisplay || 0;
       
       return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-medium text-gray-800 mb-2">{label}</p>
+        <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
+          <p className="font-medium text-gray-800 mb-2">{label} de 2025</p>
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-[#A7BFAC]"></div>
+            <div className="flex items-center justify-between gap-4">
               <span className="text-sm">Receita</span>
-              <span className="text-sm font-medium text-green-600">
+              <span className="text-sm font-medium">
                 R$ {receitas.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-[#DDD5CC]"></div>
+            <div className="flex items-center justify-between gap-4">
               <span className="text-sm">Despesas</span>
-              <span className="text-sm font-medium text-red-600">
+              <span className="text-sm font-medium">
                 -R$ {despesas.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
               </span>
             </div>
@@ -53,20 +60,15 @@ const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
     <div className="bg-white rounded-lg border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-xl font-medium text-gray-900">Fluxo de Caixa</h3>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-[#A7BFAC]"></div>
-              <span className="text-sm text-gray-600">Receita</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-[#DDD5CC]"></div>
-              <span className="text-sm text-gray-600">Despesas</span>
-            </div>
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded bg-[#A7BFAC]"></div>
+            <span className="text-sm text-gray-600">Receita</span>
           </div>
-          <select className="text-sm border border-gray-300 rounded px-3 py-1 bg-white">
-            <option>2025</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded bg-[#DDD5CC]"></div>
+            <span className="text-sm text-gray-600">Despesas</span>
+          </div>
         </div>
       </div>
 
