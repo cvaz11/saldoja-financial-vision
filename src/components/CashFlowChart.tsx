@@ -126,7 +126,7 @@ const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
               fill="#DDD5CC" 
               radius={[0, 0, 4, 4]}
               stroke="none"
-              maxBarSize={40}
+              maxBarSize={60}
             />
           </BarChart>
         </ResponsiveContainer>
