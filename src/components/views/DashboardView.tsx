@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Upload, User, TrendingDown, TrendingUp, CreditCard, Calendar, DollarSign, PiggyBank } from "lucide-react";
+import { Upload, User, TrendingDown, TrendingUp, CreditCard, Calendar, DollarSign, Clock } from "lucide-react";
 import MetricCard from "@/components/MetricCard";
 import { useRealDashboardData } from "@/hooks/useRealDashboardData";
 import CashFlowChart from "@/components/CashFlowChart";
@@ -50,7 +50,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
           previousValue="R$ 0,00"
           trend="down"
           percentage="0%"
-          icon={<TrendingDown className="h-6 w-6" style={{ color: '#A7BFAC' }} />}
+          icon={<TrendingDown className="h-6 w-6" style={{ color: '#809784' }} />}
           color="red"
           hasData={hasData}
           hasPreviousData={false}
@@ -62,7 +62,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
           previousValue="R$ 0,00"
           trend="up"
           percentage="0%"
-          icon={<TrendingUp className="h-6 w-6" style={{ color: '#A7BFAC' }} />}
+          icon={<TrendingUp className="h-6 w-6" style={{ color: '#809784' }} />}
           color="green"
           hasData={hasData}
           hasPreviousData={false}
@@ -74,7 +74,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
           previousValue="R$ 0,00"
           trend={monthResult >= 0 ? "up" : "down"}
           percentage="0%"
-          icon={<DollarSign className="h-6 w-6" style={{ color: '#A7BFAC' }} />}
+          icon={<DollarSign className="h-6 w-6" style={{ color: '#809784' }} />}
           color="blue"
           hasData={hasData}
           hasPreviousData={false}
@@ -86,7 +86,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
           previousValue="R$ 0,00"
           trend="up"
           percentage="0%"
-          icon={<CreditCard className="h-6 w-6" style={{ color: '#A7BFAC' }} />}
+          icon={<CreditCard className="h-6 w-6" style={{ color: '#809784' }} />}
           color="orange"
           hasData={hasData}
           hasPreviousData={false}
@@ -98,7 +98,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
           previousValue="R$ 0,00"
           trend="up"
           percentage="0%"
-          icon={<Calendar className="h-6 w-6" style={{ color: '#A7BFAC' }} />}
+          icon={<Calendar className="h-6 w-6" style={{ color: '#809784' }} />}
           color="blue"
           hasData={hasData}
           hasPreviousData={false}
@@ -110,7 +110,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
           previousValue="R$ 0,00"
           trend="up"
           percentage="0%"
-          icon={<PiggyBank className="h-6 w-6" style={{ color: '#A7BFAC' }} />}
+          icon={<Clock className="h-6 w-6" style={{ color: '#809784' }} />}
           color="green"
           hasData={hasData}
           hasPreviousData={false}
