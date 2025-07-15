@@ -5,32 +5,15 @@ import { useRealDashboardData } from "@/hooks/useRealDashboardData";
 import CashFlowChart from "@/components/CashFlowChart";
 import CategoryChart from "@/components/CategoryChart";
 import BankPieChart from "@/components/BankPieChart";
-import MonthNavigator from "@/components/MonthNavigator";
-import { useState } from "react";
-import { useLatestTransactionMonth } from "@/hooks/useLatestTransactionMonth";
-
 interface DashboardViewProps {
   onUploadClick: () => void;
   onProfileClick: () => void;
 }
 
 const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) => {
-  const { data: latestTransaction } = useLatestTransactionMonth();
-  
-  // Inicializar com o último mês com dados, ou maio 2025 como fallback
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    if (latestTransaction) {
-      return latestTransaction.month;
-    }
-    return 5; // maio
-  });
-  
-  const [selectedYear, setSelectedYear] = useState(() => {
-    if (latestTransaction) {
-      return latestTransaction.year;
-    }
-    return 2025;
-  });
+  // PERÍODO FIXO - maio 2025
+  const selectedMonth = 5;
+  const selectedYear = 2025;
 
   const {
     totalExpenses,
@@ -43,34 +26,20 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
     currentPeriodName
   } = useRealDashboardData(selectedMonth, selectedYear);
 
-  const handleMonthChange = (month: number, year: number) => {
-    console.log('[DASHBOARD] Month changed:', { from: { month: selectedMonth, year: selectedYear }, to: { month, year } });
-    setSelectedMonth(month);
-    setSelectedYear(year);
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Visão Geral</h1>
-        <div className="flex items-center space-x-2">
-          <MonthNavigator
-            month={selectedMonth}
-            year={selectedYear}
-            onMonthChange={handleMonthChange}
-            allowFutureMonths={true}
-          />
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={onProfileClick}
-            className="hover:bg-sage-50"
-          >
-            <User className="h-4 w-4 mr-0 sm:mr-2" />
-            <span className="hidden sm:inline">Perfil</span>
-          </Button>
-        </div>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Visão Geral - Maio 2025</h1>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={onProfileClick}
+          className="hover:bg-sage-50"
+        >
+          <User className="h-4 w-4 mr-0 sm:mr-2" />
+          <span className="hidden sm:inline">Perfil</span>
+        </Button>
       </div>
 
       {/* Cards de Resumo */}
