@@ -134,7 +134,7 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
   const currentMonthInstallments = currentInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
   const nextMonthInstallments = nextInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
   
-  // Calcular todas as parcelas futuras de maio para frente
+  // Calcular valor total das parcelas futuras (após período atual)
   const { data: allInstallmentTransactions = [] } = useInstallmentTransactions();
   const totalPendingInstallments = useMemo(() => {
     if (!allInstallmentTransactions.length) return 0;
@@ -154,19 +154,24 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
     let futureAmount = 0;
     
     installmentGroups.forEach((groupTransactions) => {
-      // Encontrar primeira parcela paga 
-      const firstPaidInstallment = groupTransactions.find(t => t.statement_id);
-      if (!firstPaidInstallment) return;
+      // Encontrar a parcela detectada no período atual (maio 2025)
+      const currentInstallment = groupTransactions.find(t => t.statement_id);
+      if (!currentInstallment) return;
       
-      const totalParcelas = firstPaidInstallment.installment_total;
-      const parcelaAtual = firstPaidInstallment.installment_number;
-      const valorParcela = Math.abs(firstPaidInstallment.amount);
+      const totalParcelas = currentInstallment.installment_total;
+      const parcelaAtual = currentInstallment.installment_number;
+      const valorParcela = Math.abs(currentInstallment.amount);
       
-      // Calcular parcelas futuras (de junho 2025 em diante)
+      // Calcular parcelas futuras após o período atual
+      // Se detectamos parcela 9/12 em maio, restam 3 parcelas (10, 11, 12)
       const parcelasRestantes = totalParcelas - parcelaAtual;
-      futureAmount += parcelasRestantes * valorParcela;
+      
+      if (parcelasRestantes > 0) {
+        futureAmount += parcelasRestantes * valorParcela;
+      }
     });
     
+    console.log('[DASHBOARD] Valor de Parcelas Futuras calculado:', futureAmount);
     return futureAmount;
   }, [allInstallmentTransactions]);
   

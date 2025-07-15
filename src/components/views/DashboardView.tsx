@@ -121,7 +121,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
         />
         
         <MetricCard
-          title="Total de Parcelas Pendentes"
+          title="Valor de Parcelas Futuras"
           value={`R$ ${totalPendingInstallments.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
           previousValue="R$ 0,00"
           trend="up"
