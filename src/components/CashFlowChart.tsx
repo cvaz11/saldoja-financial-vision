@@ -18,13 +18,25 @@ const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
 
   // Criar dados para todos os meses, preenchendo com zeros onde não há dados
   const chartData = allMonths.map(month => {
-    const existingData = monthlyData.find(item => item.month === month);
+    // Se for maio, usar dados reais
+    if (month === 'Mai' && hasMonthlyData) {
+      const maiData = monthlyData.find(item => item.month === 'Mai 2025');
+      return {
+        month,
+        receitas: maiData?.receitas || 0,
+        despesas: maiData ? -Math.abs(maiData.despesas) : 0,
+        receitasDisplay: maiData?.receitas || 0,
+        despesasDisplay: maiData?.despesas || 0
+      };
+    }
+    
+    // Para outros meses, retornar zeros
     return {
       month,
-      receitas: existingData?.receitas || 0,
-      despesas: existingData ? -Math.abs(existingData.despesas) : 0, // Negativo para aparecer abaixo
-      receitasDisplay: existingData?.receitas || 0,
-      despesasDisplay: existingData?.despesas || 0
+      receitas: 0,
+      despesas: 0,
+      receitasDisplay: 0,
+      despesasDisplay: 0
     };
   });
 
