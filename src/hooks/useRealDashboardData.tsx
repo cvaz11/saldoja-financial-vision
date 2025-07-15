@@ -31,14 +31,18 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
   // Dados reais usando as mesmas transações das Movimentações
   const fallbackRange = { from: new Date(), to: new Date() };
   
-  // Parcelas do período atual - passar apenas 5 (maio)
-  const { data: currentInstallments = [] } = useInstallmentTransactions(5);
+  // Parcelas do período atual - passar mês e ano (maio 2025)
+  const { data: currentInstallments = [] } = useInstallmentTransactions(5, 2025);
   
-  // Parcelas do próximo período - passar apenas 6 (junho)  
-  const { data: nextInstallments = [] } = useInstallmentTransactions(6);
+  // Parcelas do próximo período - passar mês e ano (junho 2025)  
+  const { data: nextInstallments = [] } = useInstallmentTransactions(6, 2025);
   
-  // Todas as parcelas pendentes - passar mês atual para frente
-  const { data: allPendingInstallments = [] } = useInstallmentTransactions(5);
+  // Todas as parcelas pendentes - passar mês e ano atual para frente
+  const { data: allPendingInstallments = [] } = useInstallmentTransactions(5, 2025);
+  
+  // Debug parcelas
+  console.log('[DASHBOARD] Parcelas atuais (maio):', currentInstallments?.length, 'valor:', currentInstallments?.reduce((sum, t) => sum + Math.abs(t.amount), 0));
+  console.log('[DASHBOARD] Parcelas próximo mês (junho):', nextInstallments?.length, 'valor:', nextInstallments?.reduce((sum, t) => sum + Math.abs(t.amount), 0));
 
   // CALCULAR TOTAIS USANDO AS MESMAS TRANSAÇÕES DAS MOVIMENTAÇÕES
   const calculatedData = useMemo(() => {
@@ -72,17 +76,18 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
     console.log('[DASHBOARD] Receitas:', incomes.length, 'transações =', totalIncomes);
     console.log('[DASHBOARD] Resultado:', monthResult);
     
-    // Dados para gráficos
+    // Dados para gráficos de categorias - formato correto para o component
     const categoryData = expenses.reduce((acc: any[], transaction) => {
-      const category = transaction.category || 'Sem categoria';
+      const category = transaction.category || 'Outros';
       const existing = acc.find(item => item.category === category);
       
       if (existing) {
-        existing.amount += transaction.amount;
+        existing.amount += Math.abs(transaction.amount);
+        existing.count += 1;
       } else {
         acc.push({
           category,
-          amount: transaction.amount,
+          amount: Math.abs(transaction.amount),
           count: 1
         });
       }
@@ -90,23 +95,17 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
       return acc;
     }, []).sort((a, b) => b.amount - a.amount);
 
-    const bankData = expenses.reduce((acc: any[], transaction) => {
-      // Extrair banco do statement_id ou usar 'Não identificado'
-      const bank = 'Nubank'; // Por enquanto fixo, pode ser melhorado
-      const existing = acc.find(item => item.bank === bank);
-      
-      if (existing) {
-        existing.amount += transaction.amount;
-      } else {
-        acc.push({
-          bank,
-          amount: transaction.amount,
-          count: 1
-        });
+    // Dados para gráfico de bancos - formato correto para pie chart
+    const bankData = [
+      {
+        name: 'Nubank',
+        value: totalExpenses,
+        color: '#8B5CF6'
       }
-      
-      return acc;
-    }, []);
+    ];
+    
+    console.log('[DASHBOARD] Category data:', categoryData);
+    console.log('[DASHBOARD] Bank data:', bankData);
 
     const monthlyData = [
       {
@@ -131,10 +130,51 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
     };
   }, [transactions]);
 
-  // Calcular parcelas
+  // Calcular parcelas usando useInstallmentStats para futuras
   const currentMonthInstallments = currentInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
   const nextMonthInstallments = nextInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-  const totalPendingInstallments = allPendingInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  
+  // Calcular todas as parcelas futuras de maio para frente
+  const { data: allInstallmentTransactions = [] } = useInstallmentTransactions();
+  const totalPendingInstallments = useMemo(() => {
+    if (!allInstallmentTransactions.length) return 0;
+    
+    // Agrupar por installment_id e calcular parcelas restantes
+    const installmentGroups = new Map<string, any[]>();
+    
+    allInstallmentTransactions.forEach(transaction => {
+      const installmentId = transaction.installment_id || `auto_${transaction.description?.replace(/[^a-zA-Z0-9]/g, '_')}_${transaction.installment_total}`;
+      
+      if (!installmentGroups.has(installmentId)) {
+        installmentGroups.set(installmentId, []);
+      }
+      installmentGroups.get(installmentId)!.push(transaction);
+    });
+    
+    let futureAmount = 0;
+    
+    installmentGroups.forEach((groupTransactions) => {
+      // Encontrar primeira parcela paga 
+      const firstPaidInstallment = groupTransactions.find(t => t.statement_id);
+      if (!firstPaidInstallment) return;
+      
+      const totalParcelas = firstPaidInstallment.installment_total;
+      const parcelaAtual = firstPaidInstallment.installment_number;
+      const valorParcela = Math.abs(firstPaidInstallment.amount);
+      
+      // Calcular parcelas futuras (de junho 2025 em diante)
+      const parcelasRestantes = totalParcelas - parcelaAtual;
+      futureAmount += parcelasRestantes * valorParcela;
+    });
+    
+    return futureAmount;
+  }, [allInstallmentTransactions]);
+  
+  console.log('[DASHBOARD] Parcelas calculadas:', {
+    atual: currentMonthInstallments,
+    proximo: nextMonthInstallments,
+    futuras: totalPendingInstallments
+  });
 
   return {
     ...calculatedData,

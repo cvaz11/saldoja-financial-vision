@@ -43,8 +43,8 @@ const BankPieChart = ({ selectedMonth, selectedYear }: BankPieChartProps) => {
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
               }}
               formatter={(value: number, name: string, props: any) => [
-                `R$ ${props.payload.amount.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`,
-                `${value}%`
+                `R$ ${props.payload.value.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`,
+                `${name}`
               ]}
             />
           </PieChart>
@@ -63,7 +63,7 @@ const BankPieChart = ({ selectedMonth, selectedYear }: BankPieChartProps) => {
             </div>
             <div className="text-right">
               <span className="text-sm font-semibold text-gray-900">
-                R$ {item.amount.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
               </span>
             </div>
           </div>
