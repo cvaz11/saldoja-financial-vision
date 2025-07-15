@@ -26,10 +26,10 @@ const MetricCard = ({
   hasPreviousData = true 
 }: MetricCardProps) => {
   const colorClasses = {
-    green: "bg-sage-50 border-sage-200",
-    blue: "bg-blue-50 border-blue-200", 
-    red: "bg-red-50 border-red-200",
-    orange: "bg-orange-50 border-orange-200"
+    green: "bg-card border-border hover:bg-accent/50",
+    blue: "bg-card border-border hover:bg-accent/50", 
+    red: "bg-card border-border hover:bg-accent/50",
+    orange: "bg-card border-border hover:bg-accent/50"
   };
 
   const trendColor = trend === "up" ? "text-green-600" : "text-red-600";
@@ -46,8 +46,8 @@ const MetricCard = ({
         <div className="flex items-center">
           <div className="mr-3">{icon}</div>
           <div>
-            <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-2xl font-bold text-gray-900">
+            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            <p className="text-2xl font-bold text-foreground">
               {displayValue}
             </p>
           </div>
@@ -59,11 +59,11 @@ const MetricCard = ({
                 {trend === "up" ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
                 {percentage}
               </div>
-              <p className="text-xs text-gray-500">Vs mês anterior</p>
-              <p className="text-xs text-gray-500">{previousValue}</p>
+              <p className="text-xs text-muted-foreground">Vs mês anterior</p>
+              <p className="text-xs text-muted-foreground">{previousValue}</p>
             </>
           ) : (
-            <div className="text-xs text-gray-400">
+            <div className="text-xs text-muted-foreground">
               {!hasData ? "Sem dados" : "Primeiro período"}
             </div>
           )}
