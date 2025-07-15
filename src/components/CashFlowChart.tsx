@@ -41,9 +41,12 @@ const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
   });
 
   const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const receitas = payload.find((p: any) => p.dataKey === 'receitas')?.payload?.receitasDisplay || 0;
-      const despesas = payload.find((p: any) => p.dataKey === 'despesas')?.payload?.despesasDisplay || 0;
+    const currentMonthIndex = allMonths.indexOf(label);
+    const isSelectedMonth = selectedMonth ? currentMonthIndex + 1 === selectedMonth : false;
+    
+    if ((active && payload && payload.length) || isSelectedMonth) {
+      const receitas = payload?.find((p: any) => p.dataKey === 'receitas')?.payload?.receitasDisplay || 0;
+      const despesas = payload?.find((p: any) => p.dataKey === 'despesas')?.payload?.despesasDisplay || 0;
       
       return (
         <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
@@ -101,22 +104,29 @@ const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
               tickFormatter={(value) => {
                 if (value === 0) return '0';
                 const absValue = Math.abs(value);
-                return absValue >= 1000 ? `${(absValue/1000).toFixed(0)}k` : absValue.toString();
+                const formattedValue = absValue >= 1000 ? `${(absValue/1000).toFixed(0)}k` : absValue.toString();
+                return value < 0 ? `-${formattedValue}` : formattedValue;
               }}
             />
             <ReferenceLine y={0} stroke="#333" strokeWidth={1} />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip 
+              content={<CustomTooltip />} 
+              cursor={false}
+              wrapperStyle={{ backgroundColor: 'transparent' }}
+            />
             <Bar 
               dataKey="receitas" 
               fill="#A7BFAC" 
               radius={[4, 4, 0, 0]}
               stroke="none"
+              maxBarSize={40}
             />
             <Bar 
               dataKey="despesas" 
-              fill="#DDD5CC" 
+              fill="#8B4513" 
               radius={[0, 0, 4, 4]}
               stroke="none"
+              maxBarSize={40}
             />
           </BarChart>
         </ResponsiveContainer>
