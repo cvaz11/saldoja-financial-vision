@@ -29,9 +29,6 @@ const CategoryChart = ({ selectedMonth, selectedYear }: CategoryChartProps) => {
     <div className="bg-white rounded-lg border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-xl font-medium text-gray-900">Gastos por categorias</h3>
-        <select className="text-sm border border-gray-300 rounded px-3 py-1 bg-white">
-          <option>Junho</option>
-        </select>
       </div>
       
       {hasCategories ? (
@@ -61,6 +58,7 @@ const CategoryChart = ({ selectedMonth, selectedYear }: CategoryChartProps) => {
                 fill="#A7BFAC" 
                 radius={[4, 4, 0, 0]}
                 stroke="none"
+                maxBarSize={30}
               />
             </BarChart>
           </ResponsiveContainer>
