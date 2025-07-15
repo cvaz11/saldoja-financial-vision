@@ -123,7 +123,7 @@ const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
             />
             <Bar 
               dataKey="despesas" 
-              fill="#8B4513" 
+              fill="#DDD5CC" 
               radius={[0, 0, 4, 4]}
               stroke="none"
               maxBarSize={40}
