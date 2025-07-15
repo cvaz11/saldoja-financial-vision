@@ -9,7 +9,7 @@ interface CategoryChartProps {
 const CategoryChart = ({ selectedMonth, selectedYear }: CategoryChartProps) => {
   const { categoryData, hasCategories } = useRealDashboardData(selectedMonth, selectedYear);
 
-  const maxValue = Math.max(...categoryData.map(cat => cat.value));
+  const maxValue = Math.max(...categoryData.map(cat => cat.amount || 0), 1);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -26,13 +26,13 @@ const CategoryChart = ({ selectedMonth, selectedYear }: CategoryChartProps) => {
                 <div 
                   className="h-8 rounded-full transition-all duration-500"
                   style={{
-                    width: `${(category.value / maxValue) * 100}%`,
+                    width: `${((category.amount || 0) / maxValue) * 100}%`,
                     backgroundColor: index % 2 === 0 ? '#A7BFAC' : '#809784'
                   }}
                 />
                 <div className="absolute inset-0 flex items-center justify-end pr-3">
                   <span className="text-xs font-medium text-gray-700">
-                    R$ {category.value.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                    R$ {(category.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
                   </span>
                 </div>
               </div>
