@@ -50,7 +50,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
           previousValue="R$ 0,00"
           trend="down"
           percentage="0%"
-          icon={<TrendingDown className="h-6 w-6 text-red-600" />}
+          icon={<TrendingDown className="h-6 w-6 text-sage-600" />}
           color="red"
           hasData={hasData}
           hasPreviousData={false}
@@ -62,7 +62,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
           previousValue="R$ 0,00"
           trend="up"
           percentage="0%"
-          icon={<TrendingUp className="h-6 w-6 text-green-600" />}
+          icon={<TrendingUp className="h-6 w-6 text-sage-600" />}
           color="green"
           hasData={hasData}
           hasPreviousData={false}
@@ -74,7 +74,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
           previousValue="R$ 0,00"
           trend={monthResult >= 0 ? "up" : "down"}
           percentage="0%"
-          icon={<DollarSign className="h-6 w-6 text-blue-600" />}
+          icon={<DollarSign className="h-6 w-6 text-sage-600" />}
           color="blue"
           hasData={hasData}
           hasPreviousData={false}
@@ -86,7 +86,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
           previousValue="R$ 0,00"
           trend="up"
           percentage="0%"
-          icon={<CreditCard className="h-6 w-6 text-orange-600" />}
+          icon={<CreditCard className="h-6 w-6 text-sage-600" />}
           color="orange"
           hasData={hasData}
           hasPreviousData={false}
@@ -98,7 +98,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
           previousValue="R$ 0,00"
           trend="up"
           percentage="0%"
-          icon={<Calendar className="h-6 w-6 text-blue-600" />}
+          icon={<Calendar className="h-6 w-6 text-sage-600" />}
           color="blue"
           hasData={hasData}
           hasPreviousData={false}
@@ -110,7 +110,7 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
           previousValue="R$ 0,00"
           trend="up"
           percentage="0%"
-          icon={<PiggyBank className="h-6 w-6 text-green-600" />}
+          icon={<PiggyBank className="h-6 w-6 text-sage-600" />}
           color="green"
           hasData={hasData}
           hasPreviousData={false}
