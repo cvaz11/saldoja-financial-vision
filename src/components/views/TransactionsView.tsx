@@ -5,16 +5,22 @@ import TransactionTable from "@/components/TransactionTable";
 interface TransactionsViewProps {
   onAddTransaction: () => void;
   onProfileClick: () => void;
+  onRefresh?: () => void;
 }
 
-const TransactionsView = ({ onAddTransaction, onProfileClick }: TransactionsViewProps) => {
+const TransactionsView = ({ onAddTransaction, onProfileClick, onRefresh }: TransactionsViewProps) => {
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Movimentações</h1>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" className="hover:bg-sage-50 hidden sm:flex">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="hover:bg-sage-50 hidden sm:flex"
+            onClick={onRefresh}
+          >
             🔄 Atualizar
           </Button>
           <Button 
@@ -33,6 +39,7 @@ const TransactionsView = ({ onAddTransaction, onProfileClick }: TransactionsView
       <TransactionTable 
         onAddTransaction={onAddTransaction}
         showCategories={true}
+        onRefresh={onRefresh}
       />
     </div>
   );

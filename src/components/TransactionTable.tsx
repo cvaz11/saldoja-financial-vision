@@ -33,9 +33,10 @@ interface UnifiedTransaction {
 interface TransactionTableProps {
   onAddTransaction?: () => void;
   showCategories?: boolean;
+  onRefresh?: () => void;
 }
 
-const TransactionTable = ({ onAddTransaction, showCategories = false }: TransactionTableProps) => {
+const TransactionTable = ({ onAddTransaction, showCategories = false, onRefresh }: TransactionTableProps) => {
   const { profile } = useUserProfile();
   const { filterConfig: defaultFilterConfig, isLoading: isLoadingDefault } = useDefaultInvoiceFilter();
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
@@ -139,6 +140,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false }: Transact
     console.log('[TABLE] Manually refreshing transactions...');
     try {
       await refetch();
+      onRefresh?.(); // Call parent refresh if provided
       console.log('[TABLE] Refresh completed successfully');
     } catch (error) {
       console.error('[TABLE] Refresh failed:', error);

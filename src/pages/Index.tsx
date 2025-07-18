@@ -96,6 +96,7 @@ const Index = () => {
           <TransactionsView 
             onAddTransaction={handleAddIncome}
             onProfileClick={() => setIsProfileOpen(true)}
+            onRefresh={() => window.location.reload()}
           />
         );
       case "configuracoes":
