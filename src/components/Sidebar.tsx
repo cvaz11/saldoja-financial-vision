@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { BarChart3, FileText, TrendingUp, Settings, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 interface SidebarProps {
   activeSection: string;
@@ -9,6 +10,8 @@ interface SidebarProps {
 }
 
 const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
+  const { signOut } = useAuth();
+  
   const menuItems = [
     { id: "visao-geral", label: "Visão Geral", icon: BarChart3 },
     { id: "extratos", label: "Extratos (upload)", icon: Upload },
@@ -46,7 +49,10 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
       </nav>
       
       <div className="p-4 border-t border-gray-200">
-        <button className="flex items-center text-gray-600 hover:text-gray-900">
+        <button 
+          onClick={signOut}
+          className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+        >
           <span className="mr-2">👤</span>
           <span>Sair</span>
         </button>
