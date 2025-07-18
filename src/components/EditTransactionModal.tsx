@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEditTransaction } from "@/hooks/useEditTransaction";
+import { useCategories } from "@/hooks/useCategories";
 
 interface Transaction {
   id: string;
@@ -23,7 +24,7 @@ interface EditTransactionModalProps {
   onSuccess: () => void;
 }
 
-const categories = [
+const defaultCategories = [
   'Alimentação',
   'Transporte', 
   'Saúde',
@@ -42,6 +43,13 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('Outros');
   const { editTransaction, isEditing } = useEditTransaction();
+  const { categories: userCategories } = useCategories();
+
+  // Combinar categorias padrão com personalizadas
+  const allCategories = [
+    ...defaultCategories,
+    ...userCategories.map(cat => cat.name).filter(name => !defaultCategories.includes(name))
+  ];
 
   // Reset form when transaction changes
   useEffect(() => {
@@ -134,7 +142,7 @@ const EditTransactionModal = ({ transaction, isOpen, onClose, onSuccess }: EditT
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {categories.map((cat) => (
+                {allCategories.map((cat) => (
                   <SelectItem key={cat} value={cat}>
                     {cat}
                   </SelectItem>

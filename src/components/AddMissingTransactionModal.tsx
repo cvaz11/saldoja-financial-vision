@@ -9,6 +9,7 @@ import { Calendar, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useCategories } from "@/hooks/useCategories";
 
 interface AddMissingTransactionModalProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ const AddMissingTransactionModal = ({
 }: AddMissingTransactionModalProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { categories: userCategories } = useCategories();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     description: "",
@@ -35,7 +37,7 @@ const AddMissingTransactionModal = ({
     installment_total: ""
   });
 
-  const categories = [
+  const defaultCategories = [
     "Alimentação",
     "Transporte", 
     "Tecnologia",
@@ -45,6 +47,12 @@ const AddMissingTransactionModal = ({
     "Financeiro",
     "Serviços",
     "Outros"
+  ];
+
+  // Combinar categorias padrão com personalizadas
+  const allCategories = [
+    ...defaultCategories,
+    ...userCategories.map(cat => cat.name).filter(name => !defaultCategories.includes(name))
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -149,7 +157,7 @@ const AddMissingTransactionModal = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {categories.map((category) => (
+                {allCategories.map((category) => (
                   <SelectItem key={category} value={category}>
                     {category}
                   </SelectItem>

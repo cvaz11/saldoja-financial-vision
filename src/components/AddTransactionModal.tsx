@@ -16,6 +16,7 @@ import { saveTransaction } from "@/services/transactionService";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCategories } from "@/hooks/useCategories";
 
 interface AddTransactionModalProps {
   isOpen: boolean;
@@ -33,6 +34,7 @@ const AddTransactionModal = ({
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { categories: userCategories } = useCategories();
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -67,9 +69,15 @@ const AddTransactionModal = ({
     enabled: !!user && isOpen
   });
 
-  const categories = type === "receita" 
+  const defaultCategories = type === "receita" 
     ? ["Receita", "Salário", "Freelance", "Investimentos", "Outros"]
     : ["Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Casa", "Vestuário", "Tecnologia", "Financeiro", "Outros"];
+
+  // Combinar categorias padrão com personalizadas
+  const allCategories = [
+    ...defaultCategories,
+    ...userCategories.map(cat => cat.name).filter(name => !defaultCategories.includes(name))
+  ];
 
   // Handler para mudança do valor - permitir números, vírgula e ponto
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -243,7 +251,7 @@ const AddTransactionModal = ({
                 <SelectValue placeholder="Selecione uma categoria" />
               </SelectTrigger>
               <SelectContent>
-                {categories.map((category) => (
+                {allCategories.map((category) => (
                   <SelectItem key={category} value={category}>
                     {category}
                   </SelectItem>
