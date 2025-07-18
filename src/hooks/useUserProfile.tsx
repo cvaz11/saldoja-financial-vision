@@ -10,6 +10,12 @@ interface UserProfile {
   plan: string;
   pdf_uploads_this_month: number;
   created_at: string;
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  notifications_email?: boolean;
+  email_marketing?: boolean;
+  installment_alerts?: boolean;
 }
 
 export const useUserProfile = () => {
@@ -56,7 +62,11 @@ export const useUserProfile = () => {
         throw error;
       }
 
-      return data as UserProfile;
+      return {
+        ...data,
+        full_name: user.user_metadata?.name || (data as any).full_name,
+        email: user.email || (data as any).email,
+      } as UserProfile;
     },
     enabled: !!user,
   });
@@ -96,11 +106,99 @@ export const useUserProfile = () => {
     },
   });
 
+  const deleteAccount = async () => {
+    try {
+      if (!user) return false;
+
+      // Delete profile first
+      await supabase
+        .from('profiles')
+        .delete()
+        .eq('user_id', user.id);
+
+      // Delete all user transactions
+      await supabase
+        .from('transactions')
+        .delete()
+        .eq('user_id', user.id);
+
+      // Delete all user statements
+      await supabase
+        .from('statements')
+        .delete()
+        .eq('user_id', user.id);
+
+      // Sign out the user
+      await supabase.auth.signOut();
+
+      toast({
+        title: "Conta excluída",
+        description: "Sua conta foi excluída com sucesso",
+      });
+      return true;
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao excluir conta",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const exportData = async () => {
+    try {
+      if (!user) return;
+
+      // Fetch all user data
+      const [transactionsRes, statementsRes, profileRes] = await Promise.all([
+        supabase.from('transactions').select('*').eq('user_id', user.id),
+        supabase.from('statements').select('*').eq('user_id', user.id),
+        supabase.from('profiles').select('*').eq('user_id', user.id).single()
+      ]);
+
+      const exportData = {
+        profile: profileRes.data,
+        transactions: transactionsRes.data,
+        statements: statementsRes.data,
+        exported_at: new Date().toISOString()
+      };
+
+      // Create download link
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: 'application/json'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `meus_dados_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Dados exportados",
+        description: "Seus dados foram exportados com sucesso",
+      });
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao exportar dados",
+        variant: "destructive",
+      });
+    }
+  };
+
   return {
     profile: profileQuery.data,
     isLoading: profileQuery.isLoading,
     error: profileQuery.error,
     updateProfile: updateProfileMutation.mutate,
     isUpdating: updateProfileMutation.isPending,
+    deleteAccount,
+    exportData,
   };
 };
