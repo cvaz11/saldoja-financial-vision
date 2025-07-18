@@ -17,22 +17,40 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string | null
+          email: string | null
+          email_marketing: boolean | null
+          full_name: string | null
+          installment_alerts: boolean | null
           invoice_closing_day: number | null
+          notifications_email: boolean | null
           pdf_uploads_this_month: number | null
+          phone: string | null
           plan: string | null
           user_id: string
         }
         Insert: {
           created_at?: string | null
+          email?: string | null
+          email_marketing?: boolean | null
+          full_name?: string | null
+          installment_alerts?: boolean | null
           invoice_closing_day?: number | null
+          notifications_email?: boolean | null
           pdf_uploads_this_month?: number | null
+          phone?: string | null
           plan?: string | null
           user_id: string
         }
         Update: {
           created_at?: string | null
+          email?: string | null
+          email_marketing?: boolean | null
+          full_name?: string | null
+          installment_alerts?: boolean | null
           invoice_closing_day?: number | null
+          notifications_email?: boolean | null
           pdf_uploads_this_month?: number | null
+          phone?: string | null
           plan?: string | null
           user_id?: string
         }
