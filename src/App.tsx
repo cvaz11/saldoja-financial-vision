@@ -87,14 +87,9 @@ const AppRoutes = () => (
     <Route path="/" element={<Landing />} />
     
     {/* Tower Admin Routes - PRIMEIRA PRIORIDADE */}
-    <Route 
-      path="/tower" 
-      element={
-        <AdminProtectedRoute>
-          <Tower />
-        </AdminProtectedRoute>
-      } 
-    />
+    <Route path="/tower" element={<Tower />} />
+    <Route path="/tower/users" element={<div className="p-8">Página de Usuários</div>} />
+    <Route path="/tower/billing" element={<div className="p-8">Página de Faturamento</div>} />
     
     <Route 
       path="/dashboard" 
@@ -110,38 +105,6 @@ const AppRoutes = () => (
         <ProtectedRoute>
           <Index />
         </ProtectedRoute>
-      } 
-    />
-    <Route 
-      path="/tower/users" 
-      element={
-        <AdminProtectedRoute>
-          <TowerUsers />
-        </AdminProtectedRoute>
-      } 
-    />
-    <Route 
-      path="/tower/billing" 
-      element={
-        <AdminProtectedRoute>
-          <TowerBilling />
-        </AdminProtectedRoute>
-      } 
-    />
-    <Route 
-      path="/tower/analytics" 
-      element={
-        <AdminProtectedRoute>
-          <TowerAnalytics />
-        </AdminProtectedRoute>
-      } 
-    />
-    <Route 
-      path="/tower/team" 
-      element={
-        <AdminProtectedRoute>
-          <TowerTeam />
-        </AdminProtectedRoute>
       } 
     />
     
