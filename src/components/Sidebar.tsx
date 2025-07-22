@@ -1,8 +1,10 @@
 
 import { useState } from "react";
-import { BarChart3, FileText, TrendingUp, Settings, Upload } from "lucide-react";
+import { BarChart3, FileText, TrendingUp, Settings, Upload, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useNavigate } from "react-router-dom";
 
 interface SidebarProps {
   activeSection: string;
@@ -11,6 +13,8 @@ interface SidebarProps {
 
 const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
   const { signOut } = useAuth();
+  const { isAdmin } = useAdminAuth();
+  const navigate = useNavigate();
   
   const menuItems = [
     { id: "visao-geral", label: "Visão Geral", icon: BarChart3 },
@@ -18,6 +22,11 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
     { id: "movimentacoes", label: "Movimentações", icon: TrendingUp },
     { id: "configuracoes", label: "Configurações", icon: Settings },
   ];
+
+  // Add admin menu item if user is admin
+  if (isAdmin) {
+    menuItems.push({ id: "tower", label: "Tower Admin", icon: Shield });
+  }
 
   return (
     <div className="w-64 h-screen bg-white border-r border-gray-200 flex flex-col">
@@ -33,7 +42,13 @@ const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
           return (
             <button
               key={item.id}
-              onClick={() => onSectionChange(item.id)}
+              onClick={() => {
+                if (item.id === "tower") {
+                  navigate("/tower");
+                } else {
+                  onSectionChange(item.id);
+                }
+              }}
               className={cn(
                 "w-full flex items-center px-3 py-2 text-left rounded-lg transition-colors",
                 isActive 
