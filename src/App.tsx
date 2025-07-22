@@ -90,24 +90,9 @@ const AppRoutes = () => (
     <Route 
       path="/tower" 
       element={
-        <div className="min-h-screen bg-red-100 p-8">
-          <h1 className="text-4xl font-bold text-red-900">
-            🏗️ TOWER ADMIN AREA
-          </h1>
-          <p className="text-xl mt-4">
-            Esta é a área administrativa - URL /tower funcionando!
-          </p>
-          <div className="mt-8 grid grid-cols-2 gap-4">
-            <div className="bg-white p-4 rounded shadow">
-              <h3>Total Usuários</h3>
-              <p className="text-2xl font-bold">127</p>
-            </div>
-            <div className="bg-white p-4 rounded shadow">
-              <h3>MRR</h3>
-              <p className="text-2xl font-bold">R$ 12.450</p>
-            </div>
-          </div>
-        </div>
+        <AdminProtectedRoute>
+          <Tower />
+        </AdminProtectedRoute>
       } 
     />
     
