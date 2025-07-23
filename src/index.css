@@ -6,27 +6,27 @@
 
 @layer base {
   :root {
-    /* Conversão das cores para HSL */
+    /* Cores do design system */
     --background: 0 0% 86.7%;  /* #DDDDDD */
-    --foreground: 0 0% 20%;    /* #333333 */
+    --foreground: 0 0% 20%;    /* #333333 - preto para texto principal */
 
     --card: 30 29% 85.1%;     /* #DDD5CC */
-    --card-foreground: 0 0% 20%;
+    --card-foreground: 0 0% 20%; /* #333333 - preto para texto em cards */
 
     --popover: 30 29% 85.1%;
-    --popover-foreground: 0 0% 20%;
+    --popover-foreground: 0 0% 20%; /* #333333 - preto para texto em popovers */
 
-    --primary: 126 23% 70.2%;  /* #A7BFAC */
-    --primary-foreground: 0 0% 20%;
+    --primary: 126 23% 70.2%;  /* #A7BFAC - verde como destaque */
+    --primary-foreground: 0 0% 20%; /* #333333 - preto sobre verde */
 
-    --secondary: 126 15% 52.4%; /* #809784 */
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 30 29% 85.1%; /* #DDD5CC - marrom fraco */
+    --secondary-foreground: 0 0% 20%; /* #333333 - preto */
 
     --muted: 30 29% 85.1%;     /* #DDD5CC */
-    --muted-foreground: 30 13% 67.5%; /* #AEA59A */
+    --muted-foreground: 30 13% 67.5%; /* #AEA59A - marrom forte para texto secundário */
 
-    --accent: 126 23% 70.2%;   /* #A7BFAC */
-    --accent-foreground: 0 0% 20%;
+    --accent: 126 23% 70.2%;   /* #A7BFAC - verde apenas como destaque */
+    --accent-foreground: 0 0% 20%; /* #333333 - preto sobre verde */
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -57,17 +57,17 @@
     --popover: 0 0% 15%;
     --popover-foreground: 0 0% 86.7%;
 
-    --primary: 126 23% 70.2%;
+    --primary: 126 23% 70.2%; /* #A7BFAC - verde como destaque no dark mode */
     --primary-foreground: 0 0% 20%;
 
-    --secondary: 126 15% 52.4%;
+    --secondary: 0 0% 25%;
     --secondary-foreground: 0 0% 86.7%;
 
     --muted: 0 0% 25%;
     --muted-foreground: 30 13% 67.5%;
 
-    --accent: 126 15% 52.4%;
-    --accent-foreground: 0 0% 86.7%;
+    --accent: 126 23% 70.2%; /* #A7BFAC - verde apenas como destaque */
+    --accent-foreground: 0 0% 20%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
