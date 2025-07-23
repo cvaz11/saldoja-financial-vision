@@ -78,7 +78,7 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md h-[80vh] overflow-y-auto pb-8">{/*Fixed height to prevent cutting*/}
         <DialogHeader className="pb-4">
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
@@ -177,12 +177,32 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Ações Rápidas</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full justify-start h-auto py-3">
+            <CardContent className="space-y-2 pb-4">
+              <Button 
+                variant="outline" 
+                className="w-full justify-start h-auto py-3"
+                onClick={() => {
+                  console.log('Gerenciar Plano clicked');
+                  toast({
+                    title: "Em breve",
+                    description: "Funcionalidade em desenvolvimento.",
+                  });
+                }}
+              >
                 <CreditCard className="h-4 w-4 mr-3" />
                 Gerenciar Plano
               </Button>
-              <Button variant="outline" className="w-full justify-start h-auto py-3">
+              <Button 
+                variant="outline" 
+                className="w-full justify-start h-auto py-3"
+                onClick={() => {
+                  console.log('Configurações clicked');
+                  toast({
+                    title: "Em breve",
+                    description: "Funcionalidade em desenvolvimento.",
+                  });
+                }}
+              >
                 <Settings className="h-4 w-4 mr-3" />
                 Configurações
               </Button>
@@ -198,7 +218,7 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
           </Card>
 
           {/* Botões de Ação */}
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-2 pt-4 pb-4">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
