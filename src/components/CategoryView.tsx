@@ -228,74 +228,73 @@ const CategoryView = ({
               <CollapsibleContent>
                 <CardContent className="pt-0 border-t border-gray-100">
                   {/* Lista de transações expandida */}
-                  <div className="space-y-3 mt-4">
+                  <div className="space-y-2 mt-4">
                     {category.transactions.map((transaction, index) => (
                       <div 
                         key={transaction.id}
-                        className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg relative"
+                        className="bg-white border border-gray-200 rounded-lg p-4 relative"
                       >
-                        {/* Linha vertical conectora */}
-                        {index < category.transactions.length - 1 && (
-                          <div className="absolute left-6 top-12 w-px h-6 bg-gray-200"></div>
-                        )}
-                        
-                        {/* Ícone da transação */}
-                        <div className="w-3 h-3 bg-sage-600 rounded-full flex-shrink-0 relative z-10"></div>
-                        
-                        {/* Detalhes da transação */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="font-medium text-gray-900 truncate">
-                              {transaction.description}
-                            </p>
-                            <p className="font-semibold text-red-600">
+                        {/* Layout Mobile Otimizado */}
+                        <div className="space-y-3">
+                          {/* Linha 1: Descrição e Valor */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="w-2 h-2 bg-sage-600 rounded-full flex-shrink-0"></div>
+                              <p className="font-medium text-gray-900 text-sm leading-tight">
+                                {transaction.description}
+                              </p>
+                            </div>
+                            <p className="font-bold text-red-600 text-lg whitespace-nowrap">
                               -{formatCurrency(transaction.amount)}
                             </p>
                           </div>
                           
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <span>
-                              {format(new Date(transaction.transaction_date), "dd MMM yyyy", { locale: ptBR })}
-                            </span>
+                          {/* Linha 2: Data e Badges */}
+                          <div className="flex items-center justify-between gap-2 ml-5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm text-gray-600">
+                                {format(new Date(transaction.transaction_date), "dd MMM yyyy", { locale: ptBR })}
+                              </span>
+                              
+                              {transaction.installment_number && transaction.installment_total && (
+                                <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                                  {transaction.installment_number}/{transaction.installment_total}
+                                </Badge>
+                              )}
+                              
+                              {transaction.statement_id && (
+                                <Badge variant="outline" className="text-xs px-2 py-0.5">
+                                  Extrato
+                                </Badge>
+                              )}
+                            </div>
                             
-                            {transaction.installment_number && transaction.installment_total && (
-                              <Badge variant="secondary" className="text-xs">
-                                {transaction.installment_number}/{transaction.installment_total}
-                              </Badge>
-                            )}
-                            
-                            {transaction.statement_id && (
-                              <Badge variant="outline" className="text-xs">
-                                Extrato
-                              </Badge>
-                            )}
+                            {/* Ações */}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onEditTransaction(transaction);
+                                }}
+                                className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteClick(transaction.id);
+                                }}
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                        
-                        {/* Ações */}
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEditTransaction(transaction);
-                            }}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteClick(transaction.id);
-                            }}
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         </div>
                       </div>
                     ))}
