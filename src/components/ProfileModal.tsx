@@ -36,17 +36,18 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
     }
   }, [profile, user]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     
     try {
-      updateProfile(formData);
+      await updateProfile(formData);
       toast({
         title: "Perfil atualizado",
         description: "Suas informações foram salvas com sucesso.",
       });
       onClose();
     } catch (error) {
+      console.error('Erro ao atualizar perfil:', error);
       toast({
         title: "Erro",
         description: "Não foi possível atualizar o perfil.",
