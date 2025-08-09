@@ -13,6 +13,43 @@ interface Transaction {
   is_installment?: boolean;
 }
 
+// ===== Helpers de normalização e chave de parcela (idempotência) =====
+const stripParcelaMarkers = (text: string): string => {
+  return text
+    // remover padrões de parcela (ordem importa)
+    .replace(/-\s*parcela\s+\d{1,2}\s*\/\s*\d{1,2}/gi, '')
+    .replace(/parcela\s+\d{1,2}\s*\/\s*\d{1,2}/gi, '')
+    .replace(/\d{1,2}\s*\/\s*\d{1,2}\s*parcela/gi, '')
+    .replace(/\d{1,2}\s*de\s*\d{1,2}/gi, '')
+    .replace(/\b\d{1,2}\s*\/\s*\d{1,2}\b/gi, '')
+    .trim();
+};
+
+const normalizeDescription = (text: string): string => {
+  const noParcela = stripParcelaMarkers(text || '');
+  // remover acentos, pontuação e normalizar espaços/caixa
+  const ascii = noParcela
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ') // remove pontuação e símbolos (ex.: *)
+    .replace(/\s+/g, ' ') // colapsar espaços
+    .trim();
+  return ascii;
+};
+
+const buildInstallmentKey = (params: {
+  description: string;
+  amountPerInstallment: number;
+  totalInstallments: number;
+  userId: string;
+}): string => {
+  const base = normalizeDescription(params.description);
+  const amt = (Math.round(params.amountPerInstallment * 100) / 100).toFixed(2);
+  // formato estável e legível
+  return `${params.userId}:${base}:${amt}:${params.totalInstallments}`;
+};
+
 export const insertTransactions = async (
   supabase: any,
   transactions: Transaction[],
@@ -51,8 +88,16 @@ export const insertTransactions = async (
       is_installment: transaction.is_installment
     });
     
-    // Detectar se é parcela baseado na presença de installment_total > 1
-    const isInstallment = transaction.installment_total && transaction.installment_total > 1;
+    const isInstallment = !!(transaction.installment_total && transaction.installment_total > 1 && transaction.installment_number);
+
+    const computedInstallmentId = isInstallment
+      ? buildInstallmentKey({
+          description: transaction.description,
+          amountPerInstallment: Math.abs(transaction.amount),
+          totalInstallments: transaction.installment_total!,
+          userId,
+        })
+      : null;
     
     return {
       statement_id: statementId,
@@ -63,8 +108,9 @@ export const insertTransactions = async (
       category: transaction.category || 'Outros',
       installment_number: transaction.installment_number || null,
       installment_total: transaction.installment_total || null,
+      installment_id: computedInstallmentId,
       is_credit: false, // Todas são débitos
-    };
+    } as any;
   });
 
   console.log('[DB] Exemplo de transação a inserir:', dbTransactions[0]);
@@ -77,41 +123,36 @@ export const insertTransactions = async (
     const transaction = dbTransactions[i];
     
     try {
-      // Para parcelas, usar upsert baseado em installment_id + number
-      if (transaction.installment_number && transaction.installment_total) {
-        // Verificar se já existe essa parcela
-        const { data: existing } = await supabase
+      // Para parcelas, usar upsert baseado na constraint única (user_id, installment_id, installment_number)
+      if (transaction.installment_number && transaction.installment_total && transaction.installment_id) {
+        const { error: upsertError } = await supabase
           .from('transactions')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('description', transaction.description)
-          .eq('installment_number', transaction.installment_number)
-          .eq('installment_total', transaction.installment_total)
-          .single();
+          .upsert([transaction], { onConflict: 'user_id,installment_id,installment_number' });
 
-        if (existing) {
-          console.log(`[DB] Parcela ${transaction.installment_number}/${transaction.installment_total} já existe, pulando...`);
-          continue;
-        }
-      }
-
-      const { error: insertError } = await supabase
-        .from('transactions')
-        .insert([transaction]);
-
-      if (insertError) {
-        console.error(`[DB] Erro ao inserir transação ${i + 1}:`, insertError);
-        errors.push(`Transação ${i + 1}: ${insertError.message}`);
-      } else {
-        insertedCount++;
-        
-        // Se é uma parcela, gerar as parcelas futuras
-        if (transaction.installment_number && transaction.installment_total) {
+        if (upsertError) {
+          console.error(`[DB] Erro no upsert da parcela ${i + 1}:`, upsertError);
+          errors.push(`Transação ${i + 1}: ${upsertError.message}`);
+        } else {
+          insertedCount++;
           await generateFutureInstallments(supabase, transaction, userId, statementId);
+          if (i % 10 === 0) {
+            console.log(`[DB] Progresso: ${i + 1}/${dbTransactions.length} transações processadas`);
+          }
         }
-        
-        if (i % 10 === 0) {
-          console.log(`[DB] Progresso: ${i + 1}/${dbTransactions.length} transações processadas`);
+      } else {
+        // Transação normal (não parcelada)
+        const { error: insertError } = await supabase
+          .from('transactions')
+          .insert([transaction]);
+
+        if (insertError) {
+          console.error(`[DB] Erro ao inserir transação ${i + 1}:`, insertError);
+          errors.push(`Transação ${i + 1}: ${insertError.message}`);
+        } else {
+          insertedCount++;
+          if (i % 10 === 0) {
+            console.log(`[DB] Progresso: ${i + 1}/${dbTransactions.length} transações processadas`);
+          }
         }
       }
     } catch (error) {
@@ -246,14 +287,16 @@ const generateFutureInstallments = async (
     futureDate.setMonth(futureDate.getMonth() + (i - currentInstallment));
     
     // Atualizar descrição com o número da parcela
-    const baseDescription = baseTransaction.description
-      .replace(/parcela\s+\d{1,2}\/\d{1,2}/i, '')
-      .replace(/\d{1,2}\s*de\s*\d{1,2}/i, '')
-      .replace(/\d{1,2}\/\d{1,2}\s*parcela/i, '')
-      .replace(/\d{1,2}\s*\/\s*\d{1,2}/i, '')
-      .trim();
+    const baseDescription = stripParcelaMarkers(baseTransaction.description).trim();
     
     const futureDescription = `${baseDescription} - Parcela ${i}/${totalInstallments}`;
+
+    const futureInstallmentId = buildInstallmentKey({
+      description: baseDescription,
+      amountPerInstallment: Math.abs(baseTransaction.amount),
+      totalInstallments: totalInstallments,
+      userId,
+    });
 
     futureInstallments.push({
       statement_id: null, // Parcelas futuras não têm extrato ainda
@@ -264,20 +307,21 @@ const generateFutureInstallments = async (
       category: baseTransaction.category,
       installment_number: i,
       installment_total: totalInstallments,
+      installment_id: futureInstallmentId,
       is_credit: false,
     });
   }
 
-  // Inserir parcelas futuras
+  // Inserir/atualizar parcelas futuras (idempotente)
   if (futureInstallments.length > 0) {
     const { error } = await supabase
       .from('transactions')
-      .insert(futureInstallments);
+      .upsert(futureInstallments, { onConflict: 'user_id,installment_id,installment_number' });
       
     if (error) {
-      console.error('[DB] Erro ao inserir parcelas futuras:', error);
+      console.error('[DB] Erro ao upsert de parcelas futuras:', error);
     } else {
-      console.log(`[DB] ✅ ${futureInstallments.length} parcelas futuras geradas`);
+      console.log(`[DB] ✅ ${futureInstallments.length} parcelas futuras garantidas (upsert)`);
     }
   }
-};
+}
