@@ -93,7 +93,6 @@ const TransactionTableFooter = ({ transactions, alwaysVisible = false }: Transac
           </div>
         </div>
       </div>
-    </div>
   );
 };
 
