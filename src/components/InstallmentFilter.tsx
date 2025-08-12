@@ -4,6 +4,7 @@ import { useInstallmentTransactions, useInstallmentStats } from "@/hooks/useInst
 import { formatCurrency } from "@/lib/utils";
 import TransactionRowCard from "./TransactionRowCard";
 import { CreditCard, Calendar, TrendingUp } from "lucide-react";
+import { useFirstStatementMonth } from "@/hooks/useFirstStatementMonth";
 
 interface InstallmentFilterProps {
   month: number;
@@ -14,12 +15,29 @@ const InstallmentFilter = ({ month, year }: InstallmentFilterProps) => {
 
   const { data: transactions = [], isLoading } = useInstallmentTransactions(month, year);
   const stats = useInstallmentStats(month, year);
+  const { data: firstStatement } = useFirstStatementMonth();
 
   const formatMonthYear = (month?: number, year?: number) => {
     if (!month || !year) return "Carregando...";
     const date = new Date(year, month - 1);
     return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   };
+
+  const selectedPeriod = year * 12 + month;
+  const startPeriod = firstStatement ? (firstStatement.year * 12 + firstStatement.month) : Number.POSITIVE_INFINITY;
+  const isBeforeStart = firstStatement ? (selectedPeriod < startPeriod) : false;
+
+  const visibleExpenses = React.useMemo(() => transactions.filter(t => !t.is_credit), [transactions]);
+  const monthlyAmountDisplay = React.useMemo(() => {
+    const items = isBeforeStart ? visibleExpenses : visibleExpenses.filter(t => !t.is_projected);
+    const sum = items.reduce((acc, t) => acc + Number(t.amount), 0);
+    if (import.meta.env.DEV) {
+      console.log('[INSTALLMENTS_UI] mês/ano:', month, year, 'início:', firstStatement, 'antesDoInício:', isBeforeStart);
+      console.log('[INSTALLMENTS_UI] visíveis:', transactions.length, 'despesas somadas:', items.length, 'ids:', items.map(i => i.id));
+      console.log('[INSTALLMENTS_UI] total mês exibido:', sum.toFixed(2), 'futuro:', stats.futureAmount.toFixed(2));
+    }
+    return sum;
+  }, [isBeforeStart, visibleExpenses, transactions, month, year, firstStatement, stats.futureAmount]);
 
   // Agrupar transações por installment_id preciso
   const groupedTransactions = React.useMemo(() => {
@@ -127,7 +145,7 @@ const InstallmentFilter = ({ month, year }: InstallmentFilterProps) => {
               <Calendar className="h-8 w-8 text-green-600" />
               <div>
                 <p className="text-sm text-gray-600">Valor das Parcelas do Mês</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(stats.monthlyAmount)}</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(monthlyAmountDisplay)}</p>
               </div>
             </div>
           </CardContent>
@@ -174,6 +192,7 @@ const InstallmentFilter = ({ month, year }: InstallmentFilterProps) => {
                 statement_id: transaction.statement_id,
                 is_projected: transaction.is_projected
               }}
+              paidBeforeStart={isBeforeStart && !!transaction.is_projected}
             />
           ))}
         </div>

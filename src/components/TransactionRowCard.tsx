@@ -21,13 +21,15 @@ interface TransactionRowCardProps {
   showCategories?: boolean;
   onEdit?: (transaction: any) => void;
   onDelete?: (id: string) => void;
+  paidBeforeStart?: boolean;
 }
 
 const TransactionRowCard = ({ 
   transaction, 
   showCategories = false, 
   onEdit, 
-  onDelete 
+  onDelete,
+  paidBeforeStart = false,
 }: TransactionRowCardProps) => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR');
@@ -46,6 +48,7 @@ const TransactionRowCard = ({
                 installmentNumber={transaction.installment_number}
                 installmentTotal={transaction.installment_total}
                 isProjected={transaction.is_projected || false}
+                paidBeforeStart={paidBeforeStart}
               />
               {showCategories && transaction.category && (
                 <Badge variant="outline" className="text-xs">

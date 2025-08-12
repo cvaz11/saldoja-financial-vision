@@ -12,9 +12,10 @@ interface Transaction {
 
 interface TransactionTableFooterProps {
   transactions: Transaction[];
+  alwaysVisible?: boolean;
 }
 
-const TransactionTableFooter = ({ transactions }: TransactionTableFooterProps) => {
+const TransactionTableFooter = ({ transactions, alwaysVisible = false }: TransactionTableFooterProps) => {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -40,15 +41,11 @@ const TransactionTableFooter = ({ transactions }: TransactionTableFooterProps) =
     return { totalDebits, totalCredits, balance };
   }, [transactions]);
 
-  if (transactions.length === 0) {
-    return null;
-  }
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-sage-100 border-t-2 border-sage-300 p-4 shadow-lg z-50">
       <div className="max-w-7xl mx-auto">
         {/* Mobile Total Bar */}
-        <div className="lg:hidden">
           <div className="font-semibold text-sage-900 mb-2 flex items-center justify-between">
             <span>TOTAL</span>
             <span className="text-sm text-sage-700">{transactions.length} transação{transactions.length !== 1 ? 'ões' : ''}</span>
