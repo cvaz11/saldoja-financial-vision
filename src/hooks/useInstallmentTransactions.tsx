@@ -210,9 +210,9 @@ export const useInstallmentStats = (filterMonth?: number, filterYear?: number) =
   // Calcular estatísticas baseadas apenas nas parcelas do mês atual
   transactions.forEach(transaction => {
     stats.totalInstallments++;
-    stats.monthlyAmount += transaction.amount;
-    
-    if (transaction.is_projected) {
+    if (!transaction.is_projected) {
+      stats.monthlyAmount += transaction.amount;
+    } else {
       stats.pendingInstallments++;
     }
   });

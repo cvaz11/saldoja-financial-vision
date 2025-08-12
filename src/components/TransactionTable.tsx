@@ -15,6 +15,7 @@ import TransactionTableModals from "./TransactionTableModals";
 import AddTransactionModal from "./AddTransactionModal";
 import CategoryView from "./CategoryView";
 import InstallmentFilter from "./InstallmentFilter";
+import { useInstallmentTransactions } from "@/hooks/useInstallmentTransactions";
 
 // Unified transaction type
 interface UnifiedTransaction {
@@ -130,6 +131,14 @@ const TransactionTable = ({ onAddTransaction, showCategories = false, onRefresh 
   };
 
   const transactions = getFilteredTransactions();
+
+  // Installments tab footer must use the same list as visible (real installments of the period)
+  const month = filterConfig.invoiceConfig?.month || new Date().getMonth() + 1;
+  const year = filterConfig.invoiceConfig?.year || new Date().getFullYear();
+  const { data: installmentData = [] } = useInstallmentTransactions(month, year);
+  const footerTransactions = quickFilter === 'installments'
+    ? installmentData.filter((t) => !t.is_projected)
+    : transactions;
 
   // Log de debug para erro
   if (error) {
@@ -266,7 +275,7 @@ const TransactionTable = ({ onAddTransaction, showCategories = false, onRefresh 
       </div>
 
       {quickFilter !== 'categories' && (
-        <TransactionTableFooter transactions={transactions} />
+        <TransactionTableFooter transactions={footerTransactions} />
       )}
     </>
   );

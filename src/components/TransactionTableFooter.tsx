@@ -2,8 +2,12 @@
 import React from "react";
 
 interface Transaction {
+  id?: string;
   amount: number;
   is_credit: boolean;
+  statement_id?: string | null;
+  is_projected?: boolean;
+  transaction_date?: string;
 }
 
 interface TransactionTableFooterProps {
@@ -20,16 +24,19 @@ const TransactionTableFooter = ({ transactions }: TransactionTableFooterProps) =
 
   // Calculate totals
   const totals = React.useMemo(() => {
-    const totalDebits = transactions
-      .filter(t => !t.is_credit)
-      .reduce((sum, t) => sum + Number(t.amount), 0);
-    
-    const totalCredits = transactions
-      .filter(t => t.is_credit)
-      .reduce((sum, t) => sum + Number(t.amount), 0);
-    
+    const debitItems = transactions.filter(t => !t.is_credit);
+    const creditItems = transactions.filter(t => t.is_credit);
+
+    const totalDebits = debitItems.reduce((sum, t) => sum + Number(t.amount), 0);
+    const totalCredits = creditItems.reduce((sum, t) => sum + Number(t.amount), 0);
     const balance = totalCredits - totalDebits;
-    
+
+    // Logs temporários de diagnóstico
+    const debitIds = debitItems.map((t: any) => t.id || '(sem-id)');
+    console.log('[FOOTER] Visíveis:', transactions.length, 'Despesas consideradas:', debitItems.length);
+    console.log('[FOOTER] IDs somados (despesas):', debitIds);
+    console.log('[FOOTER] Total despesas:', totalDebits.toFixed(2), 'Créditos:', totalCredits.toFixed(2), 'Saldo:', balance.toFixed(2));
+
     return { totalDebits, totalCredits, balance };
   }, [transactions]);
 
