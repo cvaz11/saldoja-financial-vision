@@ -46,11 +46,11 @@ const TransactionTableFooter = ({ transactions, alwaysVisible = false }: Transac
     <div className="fixed bottom-0 left-0 right-0 bg-sage-100 border-t-2 border-sage-300 p-4 shadow-lg z-50">
       <div className="max-w-7xl mx-auto">
         {/* Mobile Total Bar */}
-          <div className="font-semibold text-sage-900 mb-2 flex items-center justify-between">
+          <div className="font-semibold text-sage-900 mb-2 flex items-center justify-between lg:hidden">
             <span>TOTAL</span>
             <span className="text-sm text-sage-700">{transactions.length} transação{transactions.length !== 1 ? 'ões' : ''}</span>
           </div>
-          <div className="grid grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-3 gap-4 text-sm lg:hidden">
             <div className="text-center">
               <div className="text-red-600 font-medium">-{formatCurrency(totals.totalDebits)}</div>
               <div className="text-xs text-sage-600">Despesas</div>
