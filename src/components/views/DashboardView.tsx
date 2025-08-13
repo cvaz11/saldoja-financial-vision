@@ -2,11 +2,13 @@ import { Button } from "@/components/ui/button";
 import { Upload, User, TrendingDown, TrendingUp, CreditCard, Calendar, DollarSign, Clock } from "lucide-react";
 import MetricCard from "@/components/MetricCard";
 import { useRealDashboardData } from "@/hooks/useRealDashboardData";
+import { useLatestStatementMonth } from "@/hooks/useLatestStatementMonth";
+import { useStatementRange } from "@/hooks/useStatementRange";
 import CashFlowChart from "@/components/CashFlowChart";
 import CategoryChart from "@/components/CategoryChart";
 import BankPieChart from "@/components/BankPieChart";
 import MonthNavigator from "@/components/MonthNavigator";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface DashboardViewProps {
   onUploadClick: () => void;
@@ -15,8 +17,24 @@ interface DashboardViewProps {
 
 const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) => {
   // Estado para controlar mês/ano selecionado
-  const [selectedMonth, setSelectedMonth] = useState(5);
-  const [selectedYear, setSelectedYear] = useState(2025);
+  const [selectedMonth, setSelectedMonth] = useState<number | undefined>();
+  const [selectedYear, setSelectedYear] = useState<number | undefined>();
+
+  // Buscar último mês com extrato e range de navegação
+  const { data: latestStatement } = useLatestStatementMonth();
+  const { data: statementRange } = useStatementRange();
+
+  // Definir mês padrão baseado no último extrato
+  useEffect(() => {
+    if (latestStatement && selectedMonth === undefined) {
+      setSelectedMonth(latestStatement.month);
+      setSelectedYear(latestStatement.year);
+      
+      if (import.meta.env.DEV) {
+        console.log('[DASHBOARD_VIEW] Mês padrão definido:', latestStatement);
+      }
+    }
+  }, [latestStatement, selectedMonth]);
 
   const {
     totalExpenses,
@@ -34,18 +52,61 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
     setSelectedYear(year);
   };
 
+  // Se não há extratos, mostrar estado vazio
+  if (!latestStatement || !statementRange) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Visão Geral</h1>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={onProfileClick}
+            className="hover:bg-sage-50"
+          >
+            <User className="h-4 w-4 mr-0 sm:mr-2" />
+            <span className="hidden sm:inline">Perfil</span>
+          </Button>
+        </div>
+        
+        <div className="text-center py-12">
+          <Upload className="mx-auto h-16 w-16 text-sage-700 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum extrato encontrado</h3>
+          <p className="text-gray-600 mb-6">Faça upload do seu primeiro extrato para ver a visão geral</p>
+          <Button 
+            onClick={onUploadClick}
+            className="bg-sage-600 hover:bg-sage-700 text-white"
+          >
+            Upload Primeiro Extrato
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Debug em desenvolvimento
+  if (import.meta.env.DEV) {
+    console.log('[DASHBOARD_VIEW] Range de navegação:', {
+      primeiro: `${statementRange.firstMonth}/${statementRange.firstYear}`,
+      ultimo: `${statementRange.lastMonth}/${statementRange.lastYear}`,
+      selecionado: selectedMonth && selectedYear ? `${selectedMonth}/${selectedYear}` : 'carregando...'
+    });
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Visão Geral</h1>
-          <MonthNavigator 
-            month={selectedMonth}
-            year={selectedYear}
-            onMonthChange={handleMonthChange}
-            allowFutureMonths={false}
-          />
+          {selectedMonth && selectedYear && (
+            <MonthNavigator 
+              month={selectedMonth}
+              year={selectedYear}
+              onMonthChange={handleMonthChange}
+              allowFutureMonths={false}
+            />
+          )}
         </div>
         <Button 
           variant="outline" 

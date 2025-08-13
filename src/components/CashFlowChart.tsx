@@ -8,31 +8,29 @@ interface CashFlowChartProps {
 }
 
 const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
-  const { monthlyData, hasMonthlyData } = useRealDashboardData(selectedMonth, selectedYear);
+  const { monthlyData, hasData } = useRealDashboardData(selectedMonth, selectedYear);
   
-  // Todos os meses do ano
-  const allMonths = [
-    'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
-    'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
-  ];
-
-  // Criar dados para todos os meses, preenchendo com zeros onde não há dados
-  const chartData = allMonths.map(month => {
-    // Se for maio, usar dados reais
-    if (month === 'Mai' && hasMonthlyData) {
-      const maiData = monthlyData.find(item => item.month === 'Mai 2025');
+  // Definir array de meses 
+  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  
+  // Para agora, mostrar apenas o mês selecionado (será expandido depois)
+  const chartData = monthNames.map((monthName, index) => {
+    const monthNumber = index + 1;
+    const isCurrentMonth = monthNumber === selectedMonth;
+    
+    if (isCurrentMonth && monthlyData && monthlyData.length > 0) {
+      const data = monthlyData[0];
       return {
-        month,
-        receitas: maiData?.receitas || 0,
-        despesas: maiData ? -Math.abs(maiData.despesas) : 0,
-        receitasDisplay: maiData?.receitas || 0,
-        despesasDisplay: maiData?.despesas || 0
+        month: monthName,
+        receitas: data.receitas || 0,
+        despesas: data.despesas ? -Math.abs(data.despesas) : 0,
+        receitasDisplay: data.receitas || 0,
+        despesasDisplay: data.despesas || 0
       };
     }
     
-    // Para outros meses, retornar zeros
     return {
-      month,
+      month: monthName,
       receitas: 0,
       despesas: 0,
       receitasDisplay: 0,
@@ -41,7 +39,7 @@ const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
   });
 
   const CustomTooltip = ({ active, payload, label }: any) => {
-    const currentMonthIndex = allMonths.indexOf(label);
+    const currentMonthIndex = monthNames.indexOf(label);
     const isSelectedMonth = selectedMonth ? currentMonthIndex + 1 === selectedMonth : false;
     
     if ((active && payload && payload.length) || isSelectedMonth) {
@@ -132,7 +130,7 @@ const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
         </ResponsiveContainer>
       </div>
       
-      {!hasMonthlyData && (
+      {!hasData && (
         <div className="mt-4 text-center text-sm text-gray-500">
           📊 Dados serão exibidos após processar extratos
         </div>

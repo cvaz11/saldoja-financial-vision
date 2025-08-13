@@ -2,47 +2,47 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { useInvoiceTransactions } from "@/hooks/useInvoiceTransactions";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
 import { useInstallmentTransactions } from "@/hooks/useInstallmentTransactions";
+import { useStatementRange } from "@/hooks/useStatementRange";
 import { useMemo } from "react";
 
 export const useRealDashboardData = (selectedMonth?: number, selectedYear?: number) => {
   const { profile } = useUserProfile();
+  const { data: statementRange } = useStatementRange();
   
-  // PERÍODO FIXO - maio 2025 - usar exatamente como nas Movimentações
+  // Usar mês/ano selecionado ou maio 2025 como fallback
+  const targetMonth = selectedMonth || 5;
+  const targetYear = selectedYear || 2025;
+  
+  // Buscar transações do mês/ano selecionado
   const { data: transactions, isLoading } = useInvoiceTransactions({
-    month: 5,
-    year: 2025,
-    selectedStatements: [] // Usar todos os statements
+    month: targetMonth,
+    year: targetYear,
+    selectedStatements: [] // Usar todos os statements do mês
   });
   
-  // Debug
-  console.log('[DASHBOARD] Transações encontradas:', transactions?.length);
-  console.log('[DASHBOARD] Loading:', isLoading);
+  // Debug com informações dinâmicas
+  if (import.meta.env.DEV) {
+    console.log('[DASHBOARD] Mês selecionado:', targetMonth, targetYear);
+    console.log('[DASHBOARD] Range de extratos:', statementRange);
+    console.log('[DASHBOARD] Transações encontradas:', transactions?.length);
+    console.log('[DASHBOARD] Loading:', isLoading);
+  }
   
-  // Calcular ciclo para maio 2025
-  const currentCycle = profile ? 
-    calculateInvoiceCycle(profile.invoice_closing_day, new Date(2025, 4)) : null;
-    
-  const currentCycleRange = currentCycle ? { from: currentCycle.startDate, to: currentCycle.endDate } : null;
+  // Próximo mês para cálculo de parcelas
+  const nextMonth = targetMonth === 12 ? 1 : targetMonth + 1;
+  const nextYear = targetMonth === 12 ? targetYear + 1 : targetYear;
   
-  // Próximo período (junho 2025)
-  const nextCycle = profile ? 
-    calculateInvoiceCycle(profile.invoice_closing_day, new Date(2025, 5)) : null;
+  // Parcelas do período atual - mês dinâmico
+  const { data: currentInstallments = [] } = useInstallmentTransactions(targetMonth, targetYear);
   
-  // Dados reais usando as mesmas transações das Movimentações
-  const fallbackRange = { from: new Date(), to: new Date() };
-  
-  // Parcelas do período atual - passar mês e ano (maio 2025)
-  const { data: currentInstallments = [] } = useInstallmentTransactions(5, 2025);
-  
-  // Parcelas do próximo período - passar mês e ano (junho 2025)  
-  const { data: nextInstallments = [] } = useInstallmentTransactions(6, 2025);
-  
-  // Todas as parcelas pendentes - passar mês e ano atual para frente
-  const { data: allPendingInstallments = [] } = useInstallmentTransactions(5, 2025);
+  // Parcelas do próximo período - mês dinâmico  
+  const { data: nextInstallments = [] } = useInstallmentTransactions(nextMonth, nextYear);
   
   // Debug parcelas
-  console.log('[DASHBOARD] Parcelas atuais (maio):', currentInstallments?.length, 'valor:', currentInstallments?.reduce((sum, t) => sum + Math.abs(t.amount), 0));
-  console.log('[DASHBOARD] Parcelas próximo mês (junho):', nextInstallments?.length, 'valor:', nextInstallments?.reduce((sum, t) => sum + Math.abs(t.amount), 0));
+  if (import.meta.env.DEV) {
+    console.log(`[DASHBOARD] Parcelas atuais (${targetMonth}/${targetYear}):`, currentInstallments?.length, 'valor:', currentInstallments?.reduce((sum, t) => sum + Math.abs(t.amount), 0));
+    console.log(`[DASHBOARD] Parcelas próximo mês (${nextMonth}/${nextYear}):`, nextInstallments?.length, 'valor:', nextInstallments?.reduce((sum, t) => sum + Math.abs(t.amount), 0));
+  }
 
   // CALCULAR TOTAIS USANDO AS MESMAS TRANSAÇÕES DAS MOVIMENTAÇÕES
   const calculatedData = useMemo(() => {
@@ -134,36 +134,54 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
   const currentMonthInstallments = currentInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
   const nextMonthInstallments = nextInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
   
-  // VALOR FIXO TEMPORÁRIO - parcelas futuras
+  // Calcular parcelas futuras dinamicamente
   const totalPendingInstallments = useMemo(() => {
-    // Debug: verificar se há parcelas no sistema
-    const hasInstallments = transactions?.some(t => t.installment_number);
-    console.log('[DASHBOARD] Há parcelas no sistema?', hasInstallments);
-    console.log('[DASHBOARD] Total de transações:', transactions?.length);
+    if (!transactions || !statementRange) return 0;
     
-    if (hasInstallments) {
-      // Parcela 9/12 encontrada = R$ 396,66
-      // Parcelas restantes: 10/12, 11/12, 12/12 = 3 parcelas
-      // Total futuras: 3 × R$ 396,66 = R$ 1.189,98
-      const valorFuturas = 1189.98;
-      console.log('[DASHBOARD] Valor de Parcelas Futuras (fixo):', valorFuturas);
-      return valorFuturas;
+    // Buscar todas as parcelas que são depois do próximo mês
+    const afterNextMonth = nextMonth === 12 ? 1 : nextMonth + 1;
+    const afterNextYear = nextMonth === 12 ? nextYear + 1 : nextYear;
+    
+    // Para calcular futuras, precisamos somar todas as parcelas de meses posteriores
+    // que ainda não foram processadas (sem statement_id)
+    const futureInstallments = transactions.filter(t => 
+      t.installment_number && 
+      !t.statement_id && 
+      (
+        (t.transaction_date && new Date(t.transaction_date) > new Date(afterNextYear, afterNextMonth - 1)) ||
+        // Ou parcelas que sabemos que são futuras pelo installment_number
+        (t.installment_total && t.installment_number && t.installment_number > 2)
+      )
+    );
+    
+    const totalFuture = futureInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    
+    if (import.meta.env.DEV) {
+      console.log('[DASHBOARD] Parcelas futuras calculadas:', futureInstallments.length, 'valor:', totalFuture);
     }
     
-    return 0;
-  }, [transactions]);
+    return totalFuture;
+  }, [transactions, statementRange, nextMonth, nextYear]);
   
-  console.log('[DASHBOARD] Parcelas calculadas:', {
-    atual: currentMonthInstallments,
-    proximo: nextMonthInstallments,
-    futuras: totalPendingInstallments
-  });
+  // Nome do período dinâmico
+  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const currentPeriodName = `${monthNames[targetMonth - 1]} ${targetYear}`;
+
+  if (import.meta.env.DEV) {
+    console.log('[DASHBOARD] Parcelas calculadas:', {
+      atual: currentMonthInstallments,
+      proximo: nextMonthInstallments,
+      futuras: totalPendingInstallments,
+      periodo: currentPeriodName
+    });
+  }
 
   return {
     ...calculatedData,
     currentMonthInstallments,
     nextMonthInstallments, 
     totalPendingInstallments,
-    currentPeriodName: 'Maio 2025'
+    currentPeriodName,
+    statementRange
   };
 };
