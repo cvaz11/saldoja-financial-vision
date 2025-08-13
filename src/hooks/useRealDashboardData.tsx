@@ -3,6 +3,7 @@ import { useInvoiceTransactions } from "@/hooks/useInvoiceTransactions";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
 import { useInstallmentTransactions } from "@/hooks/useInstallmentTransactions";
 import { useStatementRange } from "@/hooks/useStatementRange";
+import { filterTransactionsByCompetency, calculateCompetencyMonth } from "@/lib/invoice-competency";
 import { useMemo } from "react";
 
 export const useRealDashboardData = (selectedMonth?: number, selectedYear?: number) => {
@@ -13,18 +14,29 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
   const targetMonth = selectedMonth || 5;
   const targetYear = selectedYear || 2025;
   
-  // Buscar transações do mês/ano selecionado
-  const { data: transactions, isLoading } = useInvoiceTransactions({
+  // Dia de fechamento da fatura do perfil
+  const closingDay = profile?.invoice_closing_day || 5;
+  
+  // Buscar TODAS as transações para poder filtrar por competência
+  const { data: allTransactions, isLoading } = useInvoiceTransactions({
     month: targetMonth,
     year: targetYear,
     selectedStatements: [] // Usar todos os statements do mês
   });
   
+  // Filtrar transações por competência usando o dia de fechamento
+  const transactions = useMemo(() => {
+    if (!allTransactions || !profile) return [];
+    return filterTransactionsByCompetency(allTransactions, targetMonth, targetYear, closingDay);
+  }, [allTransactions, targetMonth, targetYear, closingDay, profile]);
+
   // Debug com informações dinâmicas
   if (import.meta.env.DEV) {
     console.log('[DASHBOARD] Mês selecionado:', targetMonth, targetYear);
+    console.log('[DASHBOARD] Dia de fechamento:', closingDay);
     console.log('[DASHBOARD] Range de extratos:', statementRange);
-    console.log('[DASHBOARD] Transações encontradas:', transactions?.length);
+    console.log('[DASHBOARD] Todas as transações:', allTransactions?.length);
+    console.log('[DASHBOARD] Transações por competência:', transactions?.length);
     console.log('[DASHBOARD] Loading:', isLoading);
   }
   
@@ -32,11 +44,20 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
   const nextMonth = targetMonth === 12 ? 1 : targetMonth + 1;
   const nextYear = targetMonth === 12 ? targetYear + 1 : targetYear;
   
-  // Parcelas do período atual - mês dinâmico
-  const { data: currentInstallments = [] } = useInstallmentTransactions(targetMonth, targetYear);
+  // Buscar TODAS as parcelas e filtrar por competência
+  const { data: allCurrentInstallments = [] } = useInstallmentTransactions(targetMonth, targetYear);
+  const { data: allNextInstallments = [] } = useInstallmentTransactions(nextMonth, nextYear);
   
-  // Parcelas do próximo período - mês dinâmico  
-  const { data: nextInstallments = [] } = useInstallmentTransactions(nextMonth, nextYear);
+  // Filtrar parcelas por competência
+  const currentInstallments = useMemo(() => {
+    if (!allCurrentInstallments || !profile) return [];
+    return filterTransactionsByCompetency(allCurrentInstallments, targetMonth, targetYear, closingDay);
+  }, [allCurrentInstallments, targetMonth, targetYear, closingDay, profile]);
+  
+  const nextInstallments = useMemo(() => {
+    if (!allNextInstallments || !profile) return [];
+    return filterTransactionsByCompetency(allNextInstallments, nextMonth, nextYear, closingDay);
+  }, [allNextInstallments, nextMonth, nextYear, closingDay, profile]);
   
   // Debug parcelas
   if (import.meta.env.DEV) {
@@ -134,41 +155,47 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
   const currentMonthInstallments = currentInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
   const nextMonthInstallments = nextInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
   
-  // Calcular parcelas futuras dinamicamente (M+1 em diante)
+  // Calcular parcelas futuras dinamicamente (M+1 em diante) por competência
   const totalPendingInstallments = useMemo(() => {
-    if (!transactions || !statementRange) return 0;
+    if (!allTransactions || !statementRange || !profile) return 0;
     
-    // Calcular o primeiro dia do próximo mês (M+1)
-    const fromNextMonthDate = new Date(nextYear, nextMonth - 1, 1); // Primeiro dia de M+1
+    // Buscar todas as parcelas pendentes (sem statement_id)
+    const pendingInstallments = allTransactions.filter(t => {
+      return t.installment_number && !t.statement_id;
+    });
     
-    // Buscar todas as parcelas pendentes (sem statement_id) a partir do próximo mês
-    const futureInstallments = transactions.filter(t => {
-      if (!t.installment_number || t.statement_id) return false;
+    // Filtrar por competência: a partir do próximo mês (M+1)
+    const futureInstallments = pendingInstallments.filter(t => {
+      const competency = calculateCompetencyMonth(t.transaction_date, closingDay);
       
-      // Verificar se a data da transação é a partir do próximo mês (M+1)
-      const transactionDate = new Date(t.transaction_date);
-      return transactionDate >= fromNextMonthDate;
+      // Verificar se a competência é a partir do próximo mês
+      if (competency.year > targetYear) return true;
+      if (competency.year === targetYear && competency.month > targetMonth) return true;
+      
+      return false;
     });
     
     const totalFuture = futureInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
     
     if (import.meta.env.DEV) {
-      const firstMonth = futureInstallments.length > 0 ? 
-        Math.min(...futureInstallments.map(t => new Date(t.transaction_date).getMonth() + 1)) : nextMonth;
-      const lastMonth = futureInstallments.length > 0 ? 
-        Math.max(...futureInstallments.map(t => new Date(t.transaction_date).getMonth() + 1)) : nextMonth;
+      const competencies = futureInstallments.map(t => calculateCompetencyMonth(t.transaction_date, closingDay));
+      const firstComp = competencies.length > 0 ? 
+        Math.min(...competencies.map(c => c.year * 12 + c.month)) : nextYear * 12 + nextMonth;
+      const lastComp = competencies.length > 0 ? 
+        Math.max(...competencies.map(c => c.year * 12 + c.month)) : nextYear * 12 + nextMonth;
       
-      console.log('[DASHBOARD] Parcelas futuras (M+1 em diante):', {
+      console.log('[DASHBOARD] Parcelas futuras (M+1 em diante por competência):', {
         mesSelecionado: `${targetMonth}/${targetYear}`,
         corteDe: `${nextMonth}/${nextYear}`,
+        diaFechamento: closingDay,
         parcelasEncontradas: futureInstallments.length,
         valorTotal: totalFuture,
-        intervaloMeses: `${firstMonth}/${nextYear} a ${lastMonth}/${nextYear}`
+        intervaloCompetencia: `${Math.floor(firstComp / 12)}/${(firstComp % 12) || 12} a ${Math.floor(lastComp / 12)}/${(lastComp % 12) || 12}`
       });
     }
     
     return totalFuture;
-  }, [transactions, statementRange, nextMonth, nextYear, targetMonth, targetYear]);
+  }, [allTransactions, statementRange, nextMonth, nextYear, targetMonth, targetYear, closingDay, profile]);
   
   // Nome do período dinâmico
   const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];

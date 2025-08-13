@@ -2,6 +2,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { useUserProfile } from "./useUserProfile";
+import { filterTransactionsByCompetency } from "@/lib/invoice-competency";
 import type { FilterConfig } from "@/components/FilterButton";
 import { useEffect, useRef } from "react";
 
@@ -25,14 +27,15 @@ interface Transaction {
 
 export const useFilteredTransactions = (config: FilterConfig, enabled: boolean = true) => {
   const { user } = useAuth();
+  const { profile } = useUserProfile();
   const queryClient = useQueryClient();
   const channelRef = useRef<any>(null);
 
   const query = useQuery({
-    queryKey: ['filtered-transactions', config, user?.id],
+    queryKey: ['filtered-transactions', config, user?.id, profile?.invoice_closing_day],
     queryFn: async (): Promise<Transaction[]> => {
-      if (!user) {
-        console.log('[FILTERED_QUERY] No user found');
+      if (!user || !profile) {
+        console.log('[FILTERED_QUERY] No user or profile found');
         return [];
       }
 
@@ -125,17 +128,29 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
           created_at: transaction.created_at
         }));
 
-        console.log('[FILTERED_QUERY] Transformed transactions:', transformedData.length);
-        console.log('[FILTERED_QUERY] Income transactions:', transformedData.filter(t => t.is_credit).length);
-        console.log('[FILTERED_QUERY] Expense transactions:', transformedData.filter(t => !t.is_credit).length);
+        // Filtrar por competência
+        const closingDay = profile.invoice_closing_day || 5;
+        const competencyFilteredData = filterTransactionsByCompetency(
+          transformedData, 
+          month, 
+          year, 
+          closingDay
+        );
         
-        return transformedData;
+        console.log('[FILTERED_QUERY] Transformed transactions:', transformedData.length);
+        console.log('[FILTERED_QUERY] Filtered by competency:', competencyFilteredData.length);
+        console.log('[FILTERED_QUERY] Closing day:', closingDay);
+        console.log('[FILTERED_QUERY] Target month/year:', month, year);
+        console.log('[FILTERED_QUERY] Income transactions:', competencyFilteredData.filter(t => t.is_credit).length);
+        console.log('[FILTERED_QUERY] Expense transactions:', competencyFilteredData.filter(t => !t.is_credit).length);
+        
+        return competencyFilteredData;
       }
 
       console.log('[FILTERED_QUERY] No valid config provided');
       return [];
     },
-    enabled: enabled && !!user,
+    enabled: enabled && !!user && !!profile,
     staleTime: 0,
     refetchOnWindowFocus: true,
     refetchOnMount: true,

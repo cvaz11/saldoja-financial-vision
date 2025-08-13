@@ -1,17 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { useUserProfile } from "./useUserProfile";
 import { useStatementRange } from "./useStatementRange";
+import { groupTransactionsByCompetency, getCompetencyRange } from "@/lib/invoice-competency";
 import { useMemo } from "react";
 
 export const useHistoricalCashFlow = () => {
   const { user } = useAuth();
+  const { profile } = useUserProfile();
   const { data: statementRange } = useStatementRange();
+  
+  // Dia de fechamento da fatura do perfil
+  const closingDay = profile?.invoice_closing_day || 5;
 
   return useQuery({
-    queryKey: ['historical-cash-flow', user?.id, statementRange],
+    queryKey: ['historical-cash-flow', user?.id, statementRange, closingDay],
     queryFn: async () => {
-      if (!user || !statementRange) return [];
+      if (!user || !statementRange || !profile) return [];
 
       // Buscar todas as transações reais (com statement_id) do histórico completo
       const { data: transactions, error } = await supabase
@@ -28,12 +34,23 @@ export const useHistoricalCashFlow = () => {
 
       if (!transactions || transactions.length === 0) return [];
 
-      // Criar array de todos os meses do primeiro ao último extrato
+      // Agrupar transações por competência usando o dia de fechamento
+      const competencyGroups = groupTransactionsByCompetency(transactions, closingDay);
+      
+      // Calcular range de competências
+      const competencyRange = getCompetencyRange(transactions, closingDay);
+      
+      if (!competencyRange) {
+        console.log('[HISTORICAL_CASH_FLOW] No competency range found');
+        return [];
+      }
+
+      // Criar array de todos os meses do range de competência
       const monthlyData: Record<string, { receitas: number; despesas: number }> = {};
       
       // Inicializar todos os meses no range com zeros
-      let currentDate = new Date(statementRange.firstYear, statementRange.firstMonth - 1, 1);
-      const lastDate = new Date(statementRange.lastYear, statementRange.lastMonth - 1, 1);
+      let currentDate = new Date(competencyRange.firstYear, competencyRange.firstMonth - 1, 1);
+      const lastDate = new Date(competencyRange.lastYear, competencyRange.lastMonth - 1, 1);
       
       while (currentDate <= lastDate) {
         const month = currentDate.getMonth() + 1;
@@ -46,19 +63,19 @@ export const useHistoricalCashFlow = () => {
         currentDate.setMonth(currentDate.getMonth() + 1);
       }
 
-      // Agrupar transações por mês/ano
-      transactions.forEach(transaction => {
-        const date = new Date(transaction.transaction_date);
-        const month = date.getMonth() + 1;
-        const year = date.getFullYear();
-        const key = `${month}/${year}`;
+      // Somar valores por competência
+      Object.entries(competencyGroups).forEach(([monthKey, monthTransactions]) => {
+        const [year, month] = monthKey.split('-');
+        const key = `${parseInt(month)}/${year}`;
         
         if (monthlyData[key]) {
-          if (transaction.is_credit) {
-            monthlyData[key].receitas += Math.abs(transaction.amount);
-          } else {
-            monthlyData[key].despesas += Math.abs(transaction.amount);
-          }
+          monthTransactions.forEach(transaction => {
+            if (transaction.is_credit) {
+              monthlyData[key].receitas += Math.abs(transaction.amount);
+            } else {
+              monthlyData[key].despesas += Math.abs(transaction.amount);
+            }
+          });
         }
       });
 
@@ -66,7 +83,7 @@ export const useHistoricalCashFlow = () => {
       const chartData = [];
       const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       
-      currentDate = new Date(statementRange.firstYear, statementRange.firstMonth - 1, 1);
+      currentDate = new Date(competencyRange.firstYear, competencyRange.firstMonth - 1, 1);
       
       while (currentDate <= lastDate) {
         const month = currentDate.getMonth() + 1;
@@ -89,9 +106,10 @@ export const useHistoricalCashFlow = () => {
       }
 
       if (import.meta.env.DEV) {
-        console.log('[HISTORICAL_CASH_FLOW] Dados históricos calculados:', {
-          primeiroMes: `${statementRange.firstMonth}/${statementRange.firstYear}`,
-          ultimoMes: `${statementRange.lastMonth}/${statementRange.lastYear}`,
+        console.log('[HISTORICAL_CASH_FLOW] Dados históricos por competência:', {
+          diaFechamento: closingDay,
+          primeiroMes: `${competencyRange.firstMonth}/${competencyRange.firstYear}`,
+          ultimoMes: `${competencyRange.lastMonth}/${competencyRange.lastYear}`,
           totalMesesPlotados: chartData.length,
           transacoesProcessadas: transactions.length
         });
@@ -99,7 +117,7 @@ export const useHistoricalCashFlow = () => {
 
       return chartData;
     },
-    enabled: !!user && !!statementRange,
+    enabled: !!user && !!statementRange && !!profile,
     staleTime: 5 * 60 * 1000, // 5 minutos
   });
 };
