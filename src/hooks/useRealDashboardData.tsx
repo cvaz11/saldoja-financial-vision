@@ -134,30 +134,31 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
   const currentMonthInstallments = currentInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
   const nextMonthInstallments = nextInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
   
-  // Calcular parcelas futuras dinamicamente
+  // Calcular parcelas futuras dinamicamente (apenas após M+1)
   const totalPendingInstallments = useMemo(() => {
     if (!transactions || !statementRange) return 0;
     
-    // Buscar todas as parcelas que são depois do próximo mês
-    const afterNextMonth = nextMonth === 12 ? 1 : nextMonth + 1;
-    const afterNextYear = nextMonth === 12 ? nextYear + 1 : nextYear;
+    // Calcular o último dia do próximo mês (M+1)
+    const afterNextMonthDate = new Date(nextYear, nextMonth, 1); // Primeiro dia de M+2
     
-    // Para calcular futuras, precisamos somar todas as parcelas de meses posteriores
-    // que ainda não foram processadas (sem statement_id)
-    const futureInstallments = transactions.filter(t => 
-      t.installment_number && 
-      !t.statement_id && 
-      (
-        (t.transaction_date && new Date(t.transaction_date) > new Date(afterNextYear, afterNextMonth - 1)) ||
-        // Ou parcelas que sabemos que são futuras pelo installment_number
-        (t.installment_total && t.installment_number && t.installment_number > 2)
-      )
-    );
+    // Buscar todas as parcelas pendentes (sem statement_id) depois do próximo mês
+    const futureInstallments = transactions.filter(t => {
+      if (!t.installment_number || t.statement_id) return false;
+      
+      // Verificar se a data da transação é estritamente após o próximo mês
+      const transactionDate = new Date(t.transaction_date);
+      return transactionDate >= afterNextMonthDate;
+    });
     
     const totalFuture = futureInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
     
     if (import.meta.env.DEV) {
-      console.log('[DASHBOARD] Parcelas futuras calculadas:', futureInstallments.length, 'valor:', totalFuture);
+      console.log('[DASHBOARD] Parcelas futuras (após M+1):', {
+        mesesConsiderados: `a partir de ${afterNextMonthDate.getMonth() + 1}/${afterNextMonthDate.getFullYear()}`,
+        parcelasEncontradas: futureInstallments.length,
+        valorTotal: totalFuture,
+        intervaloData: `depois de ${nextMonth}/${nextYear}`
+      });
     }
     
     return totalFuture;

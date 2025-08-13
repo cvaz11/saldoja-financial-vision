@@ -1,6 +1,6 @@
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, ReferenceLine } from 'recharts';
-import { useRealDashboardData } from '@/hooks/useRealDashboardData';
+import { useHistoricalCashFlow } from '@/hooks/useHistoricalCashFlow';
 
 interface CashFlowChartProps {
   selectedMonth?: number;
@@ -8,47 +8,19 @@ interface CashFlowChartProps {
 }
 
 const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
-  const { monthlyData, hasData } = useRealDashboardData(selectedMonth, selectedYear);
+  const { data: chartData = [], isLoading } = useHistoricalCashFlow();
   
-  // Definir array de meses 
-  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  
-  // Para agora, mostrar apenas o mês selecionado (será expandido depois)
-  const chartData = monthNames.map((monthName, index) => {
-    const monthNumber = index + 1;
-    const isCurrentMonth = monthNumber === selectedMonth;
-    
-    if (isCurrentMonth && monthlyData && monthlyData.length > 0) {
-      const data = monthlyData[0];
-      return {
-        month: monthName,
-        receitas: data.receitas || 0,
-        despesas: data.despesas ? -Math.abs(data.despesas) : 0,
-        receitasDisplay: data.receitas || 0,
-        despesasDisplay: data.despesas || 0
-      };
-    }
-    
-    return {
-      month: monthName,
-      receitas: 0,
-      despesas: 0,
-      receitasDisplay: 0,
-      despesasDisplay: 0
-    };
-  });
+  // Identificar mês selecionado para destaque sutil
+  const selectedMonthKey = selectedMonth && selectedYear ? `${selectedMonth}/${selectedYear}` : null;
 
   const CustomTooltip = ({ active, payload, label }: any) => {
-    const currentMonthIndex = monthNames.indexOf(label);
-    const isSelectedMonth = selectedMonth ? currentMonthIndex + 1 === selectedMonth : false;
-    
-    if ((active && payload && payload.length) || isSelectedMonth) {
+    if (active && payload && payload.length) {
       const receitas = payload?.find((p: any) => p.dataKey === 'receitas')?.payload?.receitasDisplay || 0;
       const despesas = payload?.find((p: any) => p.dataKey === 'despesas')?.payload?.despesasDisplay || 0;
       
       return (
         <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-medium text-gray-800 mb-2">{label} de 2025</p>
+          <p className="font-medium text-gray-800 mb-2">{label}</p>
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-4">
               <span className="text-sm">Receita</span>
@@ -59,7 +31,7 @@ const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
             <div className="flex items-center justify-between gap-4">
               <span className="text-sm">Despesas</span>
               <span className="text-sm font-medium">
-                -R$ {despesas.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                R$ {despesas.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
               </span>
             </div>
           </div>
@@ -124,13 +96,13 @@ const CashFlowChart = ({ selectedMonth, selectedYear }: CashFlowChartProps) => {
               fill="#DDD5CC" 
               radius={[0, 0, 4, 4]}
               stroke="none"
-              maxBarSize={60}
+              maxBarSize={40}
             />
           </BarChart>
         </ResponsiveContainer>
       </div>
       
-      {!hasData && (
+      {chartData.length === 0 && (
         <div className="mt-4 text-center text-sm text-gray-500">
           📊 Dados serão exibidos após processar extratos
         </div>
