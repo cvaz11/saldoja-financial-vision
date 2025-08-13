@@ -134,35 +134,41 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
   const currentMonthInstallments = currentInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
   const nextMonthInstallments = nextInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
   
-  // Calcular parcelas futuras dinamicamente (apenas após M+1)
+  // Calcular parcelas futuras dinamicamente (M+1 em diante)
   const totalPendingInstallments = useMemo(() => {
     if (!transactions || !statementRange) return 0;
     
-    // Calcular o último dia do próximo mês (M+1)
-    const afterNextMonthDate = new Date(nextYear, nextMonth, 1); // Primeiro dia de M+2
+    // Calcular o primeiro dia do próximo mês (M+1)
+    const fromNextMonthDate = new Date(nextYear, nextMonth - 1, 1); // Primeiro dia de M+1
     
-    // Buscar todas as parcelas pendentes (sem statement_id) depois do próximo mês
+    // Buscar todas as parcelas pendentes (sem statement_id) a partir do próximo mês
     const futureInstallments = transactions.filter(t => {
       if (!t.installment_number || t.statement_id) return false;
       
-      // Verificar se a data da transação é estritamente após o próximo mês
+      // Verificar se a data da transação é a partir do próximo mês (M+1)
       const transactionDate = new Date(t.transaction_date);
-      return transactionDate >= afterNextMonthDate;
+      return transactionDate >= fromNextMonthDate;
     });
     
     const totalFuture = futureInstallments.reduce((sum, t) => sum + Math.abs(t.amount), 0);
     
     if (import.meta.env.DEV) {
-      console.log('[DASHBOARD] Parcelas futuras (após M+1):', {
-        mesesConsiderados: `a partir de ${afterNextMonthDate.getMonth() + 1}/${afterNextMonthDate.getFullYear()}`,
+      const firstMonth = futureInstallments.length > 0 ? 
+        Math.min(...futureInstallments.map(t => new Date(t.transaction_date).getMonth() + 1)) : nextMonth;
+      const lastMonth = futureInstallments.length > 0 ? 
+        Math.max(...futureInstallments.map(t => new Date(t.transaction_date).getMonth() + 1)) : nextMonth;
+      
+      console.log('[DASHBOARD] Parcelas futuras (M+1 em diante):', {
+        mesSelecionado: `${targetMonth}/${targetYear}`,
+        corteDe: `${nextMonth}/${nextYear}`,
         parcelasEncontradas: futureInstallments.length,
         valorTotal: totalFuture,
-        intervaloData: `depois de ${nextMonth}/${nextYear}`
+        intervaloMeses: `${firstMonth}/${nextYear} a ${lastMonth}/${nextYear}`
       });
     }
     
     return totalFuture;
-  }, [transactions, statementRange, nextMonth, nextYear]);
+  }, [transactions, statementRange, nextMonth, nextYear, targetMonth, targetYear]);
   
   // Nome do período dinâmico
   const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
