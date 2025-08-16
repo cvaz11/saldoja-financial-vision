@@ -3,12 +3,14 @@ import { useInvoiceTransactions } from "@/hooks/useInvoiceTransactions";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
 import { useInstallmentTransactions } from "@/hooks/useInstallmentTransactions";
 import { useStatementRange } from "@/hooks/useStatementRange";
+import { useStatementNavigationRange } from "@/hooks/useStatementNavigationRange";
 import { filterTransactionsByCompetency, calculateCompetencyMonth } from "@/lib/invoice-competency";
 import { useMemo } from "react";
 
 export const useRealDashboardData = (selectedMonth?: number, selectedYear?: number) => {
   const { profile } = useUserProfile();
   const { data: statementRange } = useStatementRange();
+  const { data: navigationRange } = useStatementNavigationRange();
   
   // Usar mês/ano selecionado ou maio 2025 como fallback
   const targetMonth = selectedMonth || 5;
@@ -210,12 +212,21 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
     });
   }
 
+  // Debug info temporário
+  if (import.meta.env.DEV) {
+    console.log('[DASHBOARD] RANGES:', {
+      navegacao: navigationRange ? `${navigationRange.firstMonth}/${navigationRange.firstYear} - ${navigationRange.lastMonth}/${navigationRange.lastYear}` : null,
+      competencia: statementRange ? `${statementRange.firstMonth}/${statementRange.firstYear} - ${statementRange.lastMonth}/${statementRange.lastYear}` : null
+    });
+  }
+
   return {
     ...calculatedData,
     currentMonthInstallments,
     nextMonthInstallments, 
     totalPendingInstallments,
     currentPeriodName,
-    statementRange
+    statementRange,
+    navigationRange
   };
 };

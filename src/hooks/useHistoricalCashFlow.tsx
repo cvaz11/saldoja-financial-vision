@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { useUserProfile } from "./useUserProfile";
 import { useStatementRange } from "./useStatementRange";
+import { useStatementNavigationRange } from "./useStatementNavigationRange";
 import { groupTransactionsByCompetency, getCompetencyRange } from "@/lib/invoice-competency";
 import { useMemo } from "react";
 
@@ -10,6 +11,7 @@ export const useHistoricalCashFlow = () => {
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { data: statementRange } = useStatementRange();
+  const { data: navigationRange } = useStatementNavigationRange();
   
   // Dia de fechamento da fatura do perfil
   const closingDay = profile?.invoice_closing_day || 5;
@@ -17,7 +19,7 @@ export const useHistoricalCashFlow = () => {
   return useQuery({
     queryKey: ['historical-cash-flow', user?.id, statementRange, closingDay],
     queryFn: async () => {
-      if (!user || !statementRange || !profile) return [];
+      if (!user || !navigationRange || !profile) return [];
 
       // Buscar todas as transações reais (com statement_id) do histórico completo
       const { data: transactions, error } = await supabase
@@ -45,12 +47,12 @@ export const useHistoricalCashFlow = () => {
         return [];
       }
 
-      // Criar array de todos os meses do range de competência
+      // Criar array com todos os meses no intervalo dos extratos (navegação)
       const monthlyData: Record<string, { receitas: number; despesas: number }> = {};
       
-      // Inicializar todos os meses no range com zeros
-      let currentDate = new Date(competencyRange.firstYear, competencyRange.firstMonth - 1, 1);
-      const lastDate = new Date(competencyRange.lastYear, competencyRange.lastMonth - 1, 1);
+      // Inicializar todos os meses no range de navegação com zeros
+      let currentDate = new Date(navigationRange.firstYear, navigationRange.firstMonth - 1, 1);
+      const lastDate = new Date(navigationRange.lastYear, navigationRange.lastMonth - 1, 1);
       
       while (currentDate <= lastDate) {
         const month = currentDate.getMonth() + 1;
@@ -83,7 +85,7 @@ export const useHistoricalCashFlow = () => {
       const chartData = [];
       const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       
-      currentDate = new Date(competencyRange.firstYear, competencyRange.firstMonth - 1, 1);
+      currentDate = new Date(navigationRange.firstYear, navigationRange.firstMonth - 1, 1);
       
       while (currentDate <= lastDate) {
         const month = currentDate.getMonth() + 1;
@@ -108,8 +110,8 @@ export const useHistoricalCashFlow = () => {
       if (import.meta.env.DEV) {
         console.log('[HISTORICAL_CASH_FLOW] Dados históricos por competência:', {
           diaFechamento: closingDay,
-          primeiroMes: `${competencyRange.firstMonth}/${competencyRange.firstYear}`,
-          ultimoMes: `${competencyRange.lastMonth}/${competencyRange.lastYear}`,
+          intervaloNavegacao: `${navigationRange.firstMonth}/${navigationRange.firstYear} - ${navigationRange.lastMonth}/${navigationRange.lastYear}`,
+          intervaloCompetencia: `${competencyRange.firstMonth}/${competencyRange.firstYear} - ${competencyRange.lastMonth}/${competencyRange.lastYear}`,
           totalMesesPlotados: chartData.length,
           transacoesProcessadas: transactions.length
         });
@@ -117,7 +119,7 @@ export const useHistoricalCashFlow = () => {
 
       return chartData;
     },
-    enabled: !!user && !!statementRange && !!profile,
+    enabled: !!user && !!navigationRange && !!profile,
     staleTime: 5 * 60 * 1000, // 5 minutos
   });
 };
