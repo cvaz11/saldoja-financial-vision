@@ -3,7 +3,9 @@ import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLatestTransactionMonth } from "@/hooks/useLatestTransactionMonth";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import { supabase } from "@/integrations/supabase/client";
+import { getCompetencyRange } from "@/lib/invoice-competency";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -28,49 +30,87 @@ const MonthNavigator = ({
   className 
 }: MonthNavigatorProps) => {
   const { user } = useAuth();
+  const { profile } = useUserProfile();
   const { data: latestTransaction } = useLatestTransactionMonth();
   const [availableMonths, setAvailableMonths] = useState<AvailableMonth[]>([]);
 
-  // Buscar meses disponíveis com extratos processados
+  // Buscar meses disponíveis baseados na competência
   useEffect(() => {
     const fetchAvailableMonths = async () => {
-      if (!user) return;
+      if (!user || !profile?.invoice_closing_day) return;
 
-      const { data, error } = await supabase
+      // Buscar extratos para ter limite máximo de navegação
+      const { data: statements, error: stmtError } = await supabase
         .from('statements')
         .select('month, year')
         .eq('user_id', user.id)
-        .eq('status', 'ready')
-        .not('month', 'is', null)
-        .not('year', 'is', null);
+        .eq('status', 'ready');
 
-      if (error) {
-        console.error('Error fetching available months:', error);
+      if (stmtError) {
+        console.error('Error fetching statements:', stmtError);
         return;
       }
 
-      // Agrupar por mês/ano únicos
-      const monthMap = new Map<string, AvailableMonth>();
-      data.forEach(statement => {
-        const key = `${statement.year}-${statement.month}`;
-        if (!monthMap.has(key)) {
-          monthMap.set(key, {
-            month: statement.month,
-            year: statement.year
-          });
-        }
-      });
+      // Buscar transações para calcular competência
+      const { data: transactions, error: transError } = await supabase
+        .from('transactions')
+        .select('transaction_date')
+        .eq('user_id', user.id);
 
-      const months = Array.from(monthMap.values()).sort((a, b) => {
+      if (transError) {
+        console.error('Error fetching transactions:', transError);
+        return;
+      }
+
+      if (!statements || statements.length === 0) {
+        setAvailableMonths([]);
+        return;
+      }
+
+      // Calcular range de competência se temos transações
+      let competencyRange = null;
+      if (transactions && transactions.length > 0) {
+        competencyRange = getCompetencyRange(transactions, profile.invoice_closing_day);
+      }
+
+      // Usar range dos extratos como limite de navegação
+      const statementMonths = statements.map(s => ({ month: s.month, year: s.year }));
+      statementMonths.sort((a, b) => {
         if (a.year !== b.year) return a.year - b.year;
         return a.month - b.month;
       });
+
+      const firstStatement = statementMonths[0];
+      const lastStatement = statementMonths[statementMonths.length - 1];
+
+      // Gerar todos os meses entre primeiro e último extrato
+      const months: AvailableMonth[] = [];
+      let currentMonth = firstStatement.month;
+      let currentYear = firstStatement.year;
+
+      while (
+        currentYear < lastStatement.year || 
+        (currentYear === lastStatement.year && currentMonth <= lastStatement.month)
+      ) {
+        months.push({ month: currentMonth, year: currentYear });
+        
+        currentMonth++;
+        if (currentMonth > 12) {
+          currentMonth = 1;
+          currentYear++;
+        }
+      }
+
+      console.log('[MONTH_NAVIGATOR] Available months (statement range):', months);
+      if (competencyRange) {
+        console.log('[MONTH_NAVIGATOR] Competency range:', competencyRange);
+      }
 
       setAvailableMonths(months);
     };
 
     fetchAvailableMonths();
-  }, [user]);
+  }, [user, profile?.invoice_closing_day]);
 
   const canNavigatePrevious = () => {
     if (allowFutureMonths) return true; // Parcelas podem navegar livremente

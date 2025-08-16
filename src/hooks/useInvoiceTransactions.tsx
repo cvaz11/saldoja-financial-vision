@@ -2,8 +2,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { useUserProfile } from "./useUserProfile";
 import type { FilterConfig } from "@/components/FilterButton";
 import { useEffect, useRef } from "react";
+import { filterTransactionsByCompetency } from "@/lib/invoice-competency";
 
 interface Transaction {
   id: string;
@@ -25,6 +27,7 @@ interface Transaction {
 
 export const useFilteredTransactions = (config: FilterConfig, enabled: boolean = true) => {
   const { user } = useAuth();
+  const { profile } = useUserProfile();
   const queryClient = useQueryClient();
   const channelRef = useRef<any>(null);
 
@@ -64,6 +67,10 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
       if (config.type === 'invoices' && config.invoiceConfig) {
         const { selectedStatements, month, year } = config.invoiceConfig;
         
+        console.log('[FILTERED_QUERY] Fetching transactions for competency period:', month, year);
+        console.log('[FILTERED_QUERY] Closing day:', profile?.invoice_closing_day);
+        
+        // Buscar TODAS as transações do usuário para aplicar filtro de competência
         let query = supabase
           .from('transactions')
           .select('*')
@@ -73,33 +80,6 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
           // Usar extratos específicos se selecionados
           console.log('[FILTERED_QUERY] Fetching transactions for statements:', selectedStatements);
           query = query.in('statement_id', selectedStatements);
-        } else {
-          // Buscar por extrato do período selecionado
-          console.log('[FILTERED_QUERY] Fetching transactions for period:', month, year);
-          
-          // Primeiro buscar o extrato do período
-          const { data: statements } = await supabase
-            .from('statements')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('month', month)
-            .eq('year', year);
-          
-          if (statements && statements.length > 0) {
-            // Se existe extrato para o período, usar todas as transações dele
-            const statementIds = statements.map(s => s.id);
-            console.log('[FILTERED_QUERY] Using statement IDs:', statementIds);
-            query = query.in('statement_id', statementIds);
-          } else {
-            // Fallback: usar período calculado se não houver extrato específico
-            console.log('[FILTERED_QUERY] No statement found, using date range fallback');
-            const invoiceStartDate = new Date(year, month - 2, 16);
-            const invoiceEndDate = new Date(year, month - 1, 15);
-            
-            query = query
-              .gte('transaction_date', invoiceStartDate.toISOString().split('T')[0])
-              .lte('transaction_date', invoiceEndDate.toISOString().split('T')[0]);
-          }
         }
 
         const { data, error } = await query.order('created_at', { ascending: false });
@@ -125,7 +105,23 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
           created_at: transaction.created_at
         }));
 
-        console.log('[FILTERED_QUERY] Transformed transactions:', transformedData.length);
+        // Aplicar filtro de competência se temos o closing day
+        if (profile?.invoice_closing_day !== undefined) {
+          const filteredByCompetency = filterTransactionsByCompetency(
+            transformedData,
+            month,
+            year,
+            profile.invoice_closing_day
+          );
+          
+          console.log('[FILTERED_QUERY] After competency filter:', filteredByCompetency.length);
+          console.log('[FILTERED_QUERY] Income transactions:', filteredByCompetency.filter(t => t.is_credit).length);
+          console.log('[FILTERED_QUERY] Expense transactions:', filteredByCompetency.filter(t => !t.is_credit).length);
+          
+          return filteredByCompetency;
+        }
+
+        console.log('[FILTERED_QUERY] No closing day, returning all transactions');
         console.log('[FILTERED_QUERY] Income transactions:', transformedData.filter(t => t.is_credit).length);
         console.log('[FILTERED_QUERY] Expense transactions:', transformedData.filter(t => !t.is_credit).length);
         
