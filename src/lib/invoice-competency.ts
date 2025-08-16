@@ -4,9 +4,9 @@
 
 /**
  * Calculate the competency month for a transaction based on the closing day
- * Rules:
- * - If transaction day > closing day: belongs to current month
- * - If transaction day <= closing day: belongs to previous month
+ * REGRA FIXA: A fatura de um mês SEMPRE representa gastos do mês ANTERIOR
+ * Exemplo: Fatura de Agosto = Gastos de Julho
+ * Esta lógica é aplicada independente da data da transação
  */
 export const calculateCompetencyMonth = (
   transactionDate: Date | string,
@@ -21,29 +21,22 @@ export const calculateCompetencyMonth = (
     closingDay
   });
   
-  if (transactionDay > closingDay) {
-    // Transaction belongs to current month
-    console.log('[COMPETENCY] Transaction belongs to current month');
-    return {
-      month: date.getMonth() + 1, // JavaScript months are 0-based
-      year: date.getFullYear()
-    };
-  } else {
-    // Transaction belongs to previous month
-    const prevMonth = date.getMonth(); // Already 0-based, so this is previous month
-    const prevYear = prevMonth === -1 ? date.getFullYear() - 1 : date.getFullYear();
-    const adjustedMonth = prevMonth === -1 ? 12 : prevMonth + 1;
-    
-    console.log('[COMPETENCY] Transaction belongs to previous month:', {
-      prevMonth: adjustedMonth,
-      prevYear
-    });
-    
-    return {
-      month: adjustedMonth,
-      year: prevYear
-    };
-  }
+  // REGRA FIXA: Transação SEMPRE pertence ao mês ANTERIOR ao da sua data
+  // Isso representa que a fatura do mês seguinte conterá esses gastos
+  const prevMonth = date.getMonth(); // JavaScript months são 0-based, então getMonth() já é o mês anterior
+  const prevYear = prevMonth === -1 ? date.getFullYear() - 1 : date.getFullYear();
+  const adjustedMonth = prevMonth === -1 ? 12 : prevMonth + 1;
+  
+  console.log('[COMPETENCY] Transaction belongs to previous month (FIXED RULE):', {
+    originalMonth: date.getMonth() + 1,
+    competencyMonth: adjustedMonth,
+    competencyYear: prevYear
+  });
+  
+  return {
+    month: adjustedMonth,
+    year: prevYear
+  };
 };
 
 /**
