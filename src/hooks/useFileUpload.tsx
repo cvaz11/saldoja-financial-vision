@@ -12,6 +12,12 @@ interface UploadData {
   isInvoicePaid: boolean;
 }
 
+interface MultiUploadData {
+  files: File[];
+  bankName: string;
+  isInvoicePaid: boolean;
+}
+
 export const useFileUpload = () => {
   const [uploading, setUploading] = useState(false);
   const { user } = useAuth();
@@ -130,5 +136,83 @@ export const useFileUpload = () => {
     }
   };
 
-  return { uploadFile, uploading } as const;
+  const uploadMultipleFiles = async (data: MultiUploadData) => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive",
+      });
+      return { success: false, successCount: 0 } as const;
+    }
+
+    if (data.files.length === 0) {
+      toast({
+        title: "Erro",
+        description: "Nenhum arquivo selecionado",
+        variant: "destructive",
+      });
+      return { success: false, successCount: 0 } as const;
+    }
+
+    setUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (let i = 0; i < data.files.length; i++) {
+        const file = data.files[i];
+        
+        toast({
+          title: `📤 Enviando arquivo ${i + 1} de ${data.files.length}`,
+          description: `Processando: ${file.name}`,
+          duration: 3000,
+        });
+
+        const result = await uploadFile({
+          file,
+          bankName: data.bankName,
+          isInvoicePaid: data.isInvoicePaid
+        });
+
+        if (result.success) {
+          successCount++;
+        } else {
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: `✅ Upload concluído!`,
+          description: `${successCount} arquivo(s) enviado(s) com sucesso${errorCount > 0 ? `, ${errorCount} erro(s)` : ''}. Processamento iniciado.`,
+          duration: 8000,
+        });
+
+        // Navigate to extratos tab to watch processing
+        navigate('/dashboard', { state: { activeSection: 'extratos' } });
+
+        return { success: true, successCount } as const;
+      } else {
+        toast({
+          title: "Erro no upload",
+          description: "Nenhum arquivo foi enviado com sucesso",
+          variant: "destructive",
+        });
+        return { success: false, successCount: 0 } as const;
+      }
+    } catch (err) {
+      console.error('Unexpected error in multiple file upload:', err);
+      toast({
+        title: "Erro inesperado",
+        description: "Ocorreu um erro durante o upload múltiplo.",
+        variant: "destructive",
+      });
+      return { success: false, successCount } as const;
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return { uploadFile, uploadMultipleFiles, uploading } as const;
 };
