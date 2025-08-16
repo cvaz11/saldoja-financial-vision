@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLatestTransactionMonth } from "@/hooks/useLatestTransactionMonth";
-import { useStatementNavigationRange } from "@/hooks/useStatementNavigationRange";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -30,34 +29,48 @@ const MonthNavigator = ({
 }: MonthNavigatorProps) => {
   const { user } = useAuth();
   const { data: latestTransaction } = useLatestTransactionMonth();
-  const { data: navigationRange } = useStatementNavigationRange();
   const [availableMonths, setAvailableMonths] = useState<AvailableMonth[]>([]);
 
-  // Gerar todos os meses no intervalo de navegação
+  // Buscar meses disponíveis com extratos processados
   useEffect(() => {
-    if (!navigationRange) {
-      setAvailableMonths([]);
-      return;
-    }
+    const fetchAvailableMonths = async () => {
+      if (!user) return;
 
-    const months: AvailableMonth[] = [];
-    let currentDate = new Date(navigationRange.firstYear, navigationRange.firstMonth - 1, 1);
-    const endDate = new Date(navigationRange.lastYear, navigationRange.lastMonth - 1, 1);
+      const { data, error } = await supabase
+        .from('statements')
+        .select('month, year')
+        .eq('user_id', user.id)
+        .eq('status', 'ready')
+        .not('month', 'is', null)
+        .not('year', 'is', null);
 
-    while (currentDate <= endDate) {
-      months.push({
-        month: currentDate.getMonth() + 1,
-        year: currentDate.getFullYear()
+      if (error) {
+        console.error('Error fetching available months:', error);
+        return;
+      }
+
+      // Agrupar por mês/ano únicos
+      const monthMap = new Map<string, AvailableMonth>();
+      data.forEach(statement => {
+        const key = `${statement.year}-${statement.month}`;
+        if (!monthMap.has(key)) {
+          monthMap.set(key, {
+            month: statement.month,
+            year: statement.year
+          });
+        }
       });
-      currentDate.setMonth(currentDate.getMonth() + 1);
-    }
 
-    setAvailableMonths(months);
+      const months = Array.from(monthMap.values()).sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        return a.month - b.month;
+      });
 
-    if (import.meta.env.DEV) {
-      console.log('[MONTH_NAVIGATOR] Meses disponíveis para navegação:', months);
-    }
-  }, [navigationRange]);
+      setAvailableMonths(months);
+    };
+
+    fetchAvailableMonths();
+  }, [user]);
 
   const canNavigatePrevious = () => {
     if (allowFutureMonths) return true; // Parcelas podem navegar livremente
@@ -132,8 +145,8 @@ const MonthNavigator = ({
     return format(date, "MMMM yyyy", { locale: ptBR });
   };
 
-  // Verificar se estamos dentro do range de navegação
-  const isInRange = availableMonths.some(m => m.month === month && m.year === year);
+  // Verificar se o mês atual tem extrato (para aba Todos)
+  const hasStatement = availableMonths.some(m => m.month === month && m.year === year);
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
@@ -152,6 +165,9 @@ const MonthNavigator = ({
         <span className="font-medium text-sm">
           {formatCurrentMonth()}
         </span>
+        {!allowFutureMonths && !hasStatement && (
+          <span className="text-xs text-muted-foreground">(sem extrato)</span>
+        )}
       </div>
       
       <Button
