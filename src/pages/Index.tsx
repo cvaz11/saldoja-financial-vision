@@ -60,6 +60,11 @@ const Index = () => {
     setIsUploadModalOpen(false);
   };
 
+  const handleUploadClick = () => {
+    console.log("[UPLOAD] Opening upload modal");
+    setIsUploadModalOpen(true);
+  };
+
   const handleNavigateToMovimentacoes = () => {
     console.log("Navigating to movimentacoes...");
     navigate('/movimentacoes');
@@ -79,14 +84,14 @@ const Index = () => {
       case "visao-geral":
         return (
           <DashboardView 
-            onUploadClick={() => setIsUploadModalOpen(true)}
+            onUploadClick={handleUploadClick}
             onProfileClick={() => setIsProfileOpen(true)}
           />
         );
       case "extratos":
         return (
           <StatementsView 
-            onUploadClick={() => setIsUploadModalOpen(true)}
+            onUploadClick={handleUploadClick}
             onProfileClick={() => setIsProfileOpen(true)}
             onNavigateToMovimentacoes={handleNavigateToMovimentacoes}
           />
@@ -108,7 +113,7 @@ const Index = () => {
       default:
         return (
           <DashboardView 
-            onUploadClick={() => setIsUploadModalOpen(true)}
+            onUploadClick={handleUploadClick}
             onProfileClick={() => setIsProfileOpen(true)}
           />
         );
@@ -158,7 +163,10 @@ const Index = () => {
 
       <UploadModal
         isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
+        onClose={() => {
+          console.log("[UPLOAD] Closing upload modal");
+          setIsUploadModalOpen(false);
+        }}
         onSubmit={handleUploadSubmit}
         onNavigateToMovimentacoes={handleNavigateToMovimentacoes}
       />

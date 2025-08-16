@@ -24,16 +24,20 @@ const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: U
   });
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
+    console.log("[UPLOAD_MODAL] Files selected:", fileList?.length || 0);
     if (fileList) {
       const files = Array.from(fileList);
       setFormData({ ...formData, files });
+      console.log("[UPLOAD_MODAL] Files set:", files.map(f => f.name));
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("[UPLOAD_MODAL] Form submitted with", formData.files.length, "files");
     
     if (formData.files.length === 0 || !formData.bankName) {
+      console.log("[UPLOAD_MODAL] Missing files or bank name");
       return;
     }
 
@@ -70,7 +74,12 @@ const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: U
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    console.log("[UPLOAD_MODAL] Modal is closed");
+    return null;
+  }
+
+  console.log("[UPLOAD_MODAL] Modal is open, rendering...");
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -84,7 +93,19 @@ const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: U
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Upload Area */}
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+          <div 
+            className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-sage-400 transition-colors"
+            onDrop={(e) => {
+              e.preventDefault();
+              const files = Array.from(e.dataTransfer.files);
+              console.log("[UPLOAD_MODAL] Files dropped:", files.length);
+              if (files.length > 0) {
+                setFormData({ ...formData, files });
+              }
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            onDragEnter={(e) => e.preventDefault()}
+          >
             <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
             <p className="text-gray-600 mb-2">Arraste e solte ou escolha os arquivos para enviar</p>
             <p className="text-sm text-gray-500 mb-4">OFX, CSV, XLS ou XLSX (múltiplos arquivos permitidos)</p>
@@ -107,11 +128,13 @@ const UploadModal = ({ isOpen, onClose, onSubmit, onNavigateToMovimentacoes }: U
                 <p className="text-sm font-medium text-green-600">
                   {formData.files.length} arquivo(s) selecionado(s):
                 </p>
-                {formData.files.map((file, index) => (
-                  <p key={index} className="text-xs text-gray-600">
-                    {file.name}
-                  </p>
-                ))}
+                <div className="max-h-32 overflow-y-auto">
+                  {formData.files.map((file, index) => (
+                    <p key={index} className="text-xs text-gray-600">
+                      {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                  ))}
+                </div>
               </div>
             )}
           </div>

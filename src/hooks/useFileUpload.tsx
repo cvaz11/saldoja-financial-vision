@@ -137,7 +137,10 @@ export const useFileUpload = () => {
   };
 
   const uploadMultipleFiles = async (data: MultiUploadData) => {
+    console.log("[MULTI_UPLOAD] Starting upload for", data.files.length, "files");
+    
     if (!user) {
+      console.log("[MULTI_UPLOAD] No user found");
       toast({
         title: "Erro",
         description: "Usuário não autenticado",
@@ -147,6 +150,7 @@ export const useFileUpload = () => {
     }
 
     if (data.files.length === 0) {
+      console.log("[MULTI_UPLOAD] No files provided");
       toast({
         title: "Erro",
         description: "Nenhum arquivo selecionado",
@@ -155,6 +159,7 @@ export const useFileUpload = () => {
       return { success: false, successCount: 0 } as const;
     }
 
+    console.log("[MULTI_UPLOAD] Setting uploading state to true");
     setUploading(true);
     let successCount = 0;
     let errorCount = 0;
