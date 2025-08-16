@@ -1,10 +1,9 @@
-
 import { useState, useEffect } from "react";
 import { useAuth } from "./useAuth";
 import { useUserProfile } from "./useUserProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { type FilterConfig } from "@/components/FilterButton";
-import { getCompetencyRange } from "@/lib/invoice-competency";
+import { calculateStatementCompetency } from "@/lib/invoice-competency";
 
 interface DefaultFilterResult {
   filterConfig: FilterConfig;
@@ -32,48 +31,41 @@ export const useDefaultInvoiceFilter = (): DefaultFilterResult => {
       }
 
       try {
-        console.log('[DEFAULT_FILTER] Using latest competency month as default');
+        console.log('[DEFAULT_FILTER] NEW LOGIC: Using statement competency as default');
         
-        // Buscar todas as transações para calcular competência
-        const { data: transactions, error: transError } = await supabase
-          .from('transactions')
-          .select('transaction_date')
+        // NEW LOGIC: Buscar o último extrato para calcular competência
+        const { data: latestStatement } = await supabase
+          .from('statements')
+          .select('month, year')
           .eq('user_id', user.id)
-          .order('transaction_date', { ascending: true });
-
-        if (transError) {
-          console.error('[DEFAULT_FILTER] Error fetching transactions:', transError);
-        }
+          .eq('status', 'ready')
+          .order('year', { ascending: false })
+          .order('month', { ascending: false })
+          .limit(1);
 
         let targetMonth, targetYear;
 
-        if (transactions && transactions.length > 0 && profile.invoice_closing_day) {
-          // Usar competência baseada no closing day
-          const range = getCompetencyRange(transactions, profile.invoice_closing_day);
-          if (range.last) {
-            targetMonth = range.last.month;
-            targetYear = range.last.year;
-            console.log('[DEFAULT_FILTER] Using competency range last:', targetMonth, targetYear);
-          } else {
-            // Fallback para data atual
-            targetMonth = new Date().getMonth() + 1;
-            targetYear = new Date().getFullYear();
-            console.log('[DEFAULT_FILTER] No competency range, using current date:', targetMonth, targetYear);
-          }
+        if (latestStatement && latestStatement.length > 0) {
+          // NEW LOGIC: Calcular competência baseada no mês do extrato
+          const competency = calculateStatementCompetency(
+            latestStatement[0].month, 
+            latestStatement[0].year
+          );
+          
+          targetMonth = competency.month;
+          targetYear = competency.year;
+          
+          console.log('[DEFAULT_FILTER] NEW LOGIC: Statement competency calculated:', {
+            statementMonth: latestStatement[0].month,
+            statementYear: latestStatement[0].year,
+            competencyMonth: targetMonth,
+            competencyYear: targetYear
+          });
         } else {
-          // Fallback para o último extrato se não tem transações
-          const { data: latestStatement } = await supabase
-            .from('statements')
-            .select('month, year')
-            .eq('user_id', user.id)
-            .eq('status', 'ready')
-            .order('year', { ascending: false })
-            .order('month', { ascending: false })
-            .limit(1);
-
-          targetMonth = latestStatement?.[0]?.month || new Date().getMonth() + 1;
-          targetYear = latestStatement?.[0]?.year || new Date().getFullYear();
-          console.log('[DEFAULT_FILTER] Fallback to latest statement:', targetMonth, targetYear);
+          // Fallback para mês atual se não há extratos
+          targetMonth = new Date().getMonth() + 1;
+          targetYear = new Date().getFullYear();
+          console.log('[DEFAULT_FILTER] No statements found, using current date:', targetMonth, targetYear);
         }
 
         setFilterConfig({

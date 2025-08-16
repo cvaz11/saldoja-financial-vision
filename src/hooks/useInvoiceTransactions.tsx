@@ -5,7 +5,7 @@ import { useAuth } from "./useAuth";
 import { useUserProfile } from "./useUserProfile";
 import type { FilterConfig } from "@/components/FilterButton";
 import { useEffect, useRef } from "react";
-import { filterTransactionsByCompetency } from "@/lib/invoice-competency";
+import { filterTransactionsByCompetency, filterTransactionsByStatementCompetency } from "@/lib/invoice-competency";
 
 interface Transaction {
   id: string;
@@ -67,18 +67,20 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
       if (config.type === 'invoices' && config.invoiceConfig) {
         const { selectedStatements, month, year } = config.invoiceConfig;
         
-        console.log('[FILTERED_QUERY] Fetching transactions for competency period:', month, year);
-        console.log('[FILTERED_QUERY] Closing day:', profile?.invoice_closing_day);
+        console.log('[FILTERED_QUERY] NEW LOGIC: Fetching transactions for statement competency period:', month, year);
         
-        // Buscar TODAS as transações do usuário para aplicar filtro de competência
+        // NEW LOGIC: Buscar transações com informações do extrato
         let query = supabase
           .from('transactions')
-          .select('*')
+          .select(`
+            *,
+            statement:statements!inner(month, year, bank)
+          `)
           .eq('user_id', user.id);
 
         if (selectedStatements.length > 0) {
           // Usar extratos específicos se selecionados
-          console.log('[FILTERED_QUERY] Fetching transactions for statements:', selectedStatements);
+          console.log('[FILTERED_QUERY] Filtering by specific statements:', selectedStatements);
           query = query.in('statement_id', selectedStatements);
         }
 
@@ -105,27 +107,42 @@ export const useFilteredTransactions = (config: FilterConfig, enabled: boolean =
           created_at: transaction.created_at
         }));
 
-        // Aplicar filtro de competência se temos o closing day
-        if (profile?.invoice_closing_day !== undefined) {
-          const filteredByCompetency = filterTransactionsByCompetency(
-            transformedData,
-            month,
-            year,
-            profile.invoice_closing_day
-          );
-          
-          console.log('[FILTERED_QUERY] After competency filter:', filteredByCompetency.length);
-          console.log('[FILTERED_QUERY] Income transactions:', filteredByCompetency.filter(t => t.is_credit).length);
-          console.log('[FILTERED_QUERY] Expense transactions:', filteredByCompetency.filter(t => !t.is_credit).length);
-          
-          return filteredByCompetency;
-        }
+        // NEW LOGIC: Aplicar filtro de competência baseado no extrato
+        const filteredByStatementCompetency = filterTransactionsByStatementCompetency(
+          data || [], // Use original data with statement info
+          month,
+          year
+        );
 
-        console.log('[FILTERED_QUERY] No closing day, returning all transactions');
-        console.log('[FILTERED_QUERY] Income transactions:', transformedData.filter(t => t.is_credit).length);
-        console.log('[FILTERED_QUERY] Expense transactions:', transformedData.filter(t => !t.is_credit).length);
+        console.log('[FILTERED_QUERY] NEW LOGIC: Statement competency filtering result:', {
+          total: data?.length || 0,
+          filtered: filteredByStatementCompetency.length,
+          targetPeriod: `${month}/${year}`,
+          statements: [...new Set((data || []).map(t => t.statement ? `${t.statement.month}/${t.statement.year}` : 'no-statement'))]
+        });
+
+        // Transform the filtered data
+        const finalTransactions: Transaction[] = filteredByStatementCompetency.map(transaction => ({
+          id: transaction.id,
+          description: transaction.description || '',
+          amount: Number(transaction.amount),
+          transaction_date: transaction.transaction_date,
+          is_credit: Boolean(transaction.is_credit),
+          installment_number: transaction.installment_number,
+          installment_total: transaction.installment_total,
+          category: transaction.category || 'Outros',
+          statement_id: transaction.statement_id || '',
+          user_id: transaction.user_id,
+          created_at: transaction.created_at
+        }));
+
+        console.log('[FILTERED_QUERY] Final result:', {
+          income: finalTransactions.filter(t => t.is_credit).length,
+          expenses: finalTransactions.filter(t => !t.is_credit).length,
+          total: finalTransactions.length
+        });
         
-        return transformedData;
+        return finalTransactions;
       }
 
       console.log('[FILTERED_QUERY] No valid config provided');

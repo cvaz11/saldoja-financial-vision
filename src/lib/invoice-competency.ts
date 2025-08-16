@@ -1,12 +1,39 @@
 /**
- * Utilities for calculating invoice competency based on closing day
+ * Utilities for calculating invoice competency based on statement date
  */
 
 /**
- * Calculate the competency month for a transaction based on the closing day
+ * NEW LOGIC: Calculate competency based on statement month/year
  * REGRA FIXA: A fatura de um mês SEMPRE representa gastos do mês ANTERIOR
- * Exemplo: Fatura de Agosto = Gastos de Julho
- * Esta lógica é aplicada independente da data da transação
+ * Exemplo: Fatura/Extrato de Agosto = Competência de Julho
+ * Esta lógica é aplicada baseada no mês do extrato, não na data da transação
+ */
+export const calculateStatementCompetency = (
+  statementMonth: number,
+  statementYear: number
+): { month: number; year: number } => {
+  // REGRA FIXA: Extrato de mês X = Competência de mês X-1
+  const competencyMonth = statementMonth === 1 ? 12 : statementMonth - 1;
+  const competencyYear = statementMonth === 1 ? statementYear - 1 : statementYear;
+  
+  if (import.meta.env.DEV) {
+    console.log('[STATEMENT_COMPETENCY] Calculated competency:', {
+      statementMonth,
+      statementYear,
+      competencyMonth,
+      competencyYear
+    });
+  }
+  
+  return {
+    month: competencyMonth,
+    year: competencyYear
+  };
+};
+
+/**
+ * DEPRECATED: Old transaction-based competency logic
+ * Kept for backward compatibility but will be replaced by statement-based logic
  */
 export const calculateCompetencyMonth = (
   transactionDate: Date | string,
@@ -40,7 +67,27 @@ export const calculateCompetencyMonth = (
 };
 
 /**
- * Filter transactions by competency month
+ * Filter transactions by statement competency (NEW LOGIC)
+ */
+export const filterTransactionsByStatementCompetency = (
+  transactions: any[],
+  targetMonth: number,
+  targetYear: number
+) => {
+  return transactions.filter(transaction => {
+    if (!transaction.statement) return false;
+    
+    const competency = calculateStatementCompetency(
+      transaction.statement.month,
+      transaction.statement.year
+    );
+    
+    return competency.month === targetMonth && competency.year === targetYear;
+  });
+};
+
+/**
+ * DEPRECATED: Filter transactions by competency month (old logic)
  */
 export const filterTransactionsByCompetency = (
   transactions: any[],
@@ -55,7 +102,33 @@ export const filterTransactionsByCompetency = (
 };
 
 /**
- * Get the range of competency months from transactions
+ * Get the range of competency months from statements (NEW LOGIC)
+ */
+export const getStatementCompetencyRange = (
+  statements: any[]
+): { first: { month: number; year: number } | null; last: { month: number; year: number } | null } => {
+  if (!statements || statements.length === 0) {
+    return { first: null, last: null };
+  }
+
+  const competencyMonths = statements.map(statement => 
+    calculateStatementCompetency(statement.month, statement.year)
+  );
+
+  // Sort by year then month
+  competencyMonths.sort((a, b) => {
+    if (a.year !== b.year) return a.year - b.year;
+    return a.month - b.month;
+  });
+
+  return {
+    first: competencyMonths[0],
+    last: competencyMonths[competencyMonths.length - 1]
+  };
+};
+
+/**
+ * DEPRECATED: Get the range of competency months from transactions (old logic)
  */
 export const getCompetencyRange = (
   transactions: any[],

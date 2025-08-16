@@ -1,6 +1,5 @@
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { useInvoiceTransactions } from "@/hooks/useInvoiceTransactions";
-import { calculateInvoiceCycle } from "@/lib/invoice-utils";
+import { useTransactionsByStatementCompetency } from "@/hooks/useStatementCompetency";
 import { useInstallmentTransactions } from "@/hooks/useInstallmentTransactions";
 import { useStatementRange } from "@/hooks/useStatementRange";
 import { useMemo } from "react";
@@ -13,18 +12,17 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
   const targetMonth = selectedMonth || 5;
   const targetYear = selectedYear || 2025;
   
-  // Buscar transações do mês/ano selecionado
-  const { data: transactions, isLoading } = useInvoiceTransactions({
-    month: targetMonth,
-    year: targetYear,
-    selectedStatements: [] // Usar todos os statements do mês
-  });
+  // NEW LOGIC: Buscar transações baseado na competência de extratos
+  const { data: transactions, isLoading } = useTransactionsByStatementCompetency(
+    targetMonth, 
+    targetYear
+  );
   
   // Debug com informações dinâmicas
   if (import.meta.env.DEV) {
-    console.log('[DASHBOARD] Mês selecionado:', targetMonth, targetYear);
+    console.log('[DASHBOARD] NEW LOGIC: Competência selecionada:', targetMonth, targetYear);
     console.log('[DASHBOARD] Range de extratos:', statementRange);
-    console.log('[DASHBOARD] Transações encontradas:', transactions?.length);
+    console.log('[DASHBOARD] Transações por competência encontradas:', transactions?.length);
     console.log('[DASHBOARD] Loading:', isLoading);
   }
   

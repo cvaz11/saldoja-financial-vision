@@ -13,7 +13,14 @@ const TransactionsView = ({ onAddTransaction, onProfileClick, onRefresh }: Trans
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Movimentações</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Movimentações</h1>
+          {import.meta.env.DEV && (
+            <div className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+              Competência por Extrato
+            </div>
+          )}
+        </div>
         <div className="flex items-center space-x-2">
           <Button 
             variant="outline" 

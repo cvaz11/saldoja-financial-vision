@@ -99,6 +99,11 @@ const DashboardView = ({ onUploadClick, onProfileClick }: DashboardViewProps) =>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Visão Geral</h1>
+          {import.meta.env.DEV && selectedMonth && selectedYear && (
+            <div className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+              Competência: {selectedMonth.toString().padStart(2, '0')}/{selectedYear}
+            </div>
+          )}
           {selectedMonth && selectedYear && (
             <MonthNavigator 
               month={selectedMonth}
