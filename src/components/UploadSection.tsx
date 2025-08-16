@@ -1,11 +1,11 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, FileText, Trash2, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDeleteStatement } from "@/hooks/useDeleteStatement";
@@ -20,6 +20,8 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
   const { user } = useAuth();
   const { toast } = useToast();
   const { deleteStatement, isDeleting } = useDeleteStatement();
+  const queryClient = useQueryClient();
+  const channelRef = useRef<any>(null);
 
   const { data: statements, isLoading, refetch } = useQuery({
     queryKey: ['statements', user?.id],
@@ -36,7 +38,81 @@ const UploadSection = ({ onUpload, onNavigateToMovimentacoes }: UploadSectionPro
       return data || [];
     },
     enabled: !!user,
+    staleTime: 0, // Always consider data stale for real-time updates
+    refetchOnWindowFocus: true,
   });
+
+  // Setup realtime subscription for statements
+  useEffect(() => {
+    if (!user) return;
+
+    // Clean up previous channel if exists
+    if (channelRef.current) {
+      console.log('[STATEMENTS_REALTIME] Cleaning up previous channel');
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    console.log('[STATEMENTS_REALTIME] Setting up realtime subscription for user:', user.id);
+    
+    const channel = supabase
+      .channel(`statements-${user.id}-${Date.now()}`) // Unique channel name
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'statements',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('[STATEMENTS_REALTIME] Realtime update received:', payload.eventType, payload);
+          
+          // Show toast for status updates
+          if (payload.eventType === 'UPDATE' && payload.new && payload.old) {
+            const newStatus = payload.new.status;
+            const oldStatus = payload.old.status;
+            const filename = payload.new.filename;
+            
+            if (oldStatus === 'processing' && newStatus === 'ready') {
+              toast({
+                title: "✅ Extrato processado!",
+                description: `${filename} foi analisado com sucesso pela IA.`,
+                duration: 5000,
+              });
+            } else if (oldStatus === 'processing' && newStatus === 'error') {
+              toast({
+                title: "❌ Erro no processamento",
+                description: `Houve um erro ao processar ${filename}.`,
+                variant: "destructive",
+                duration: 8000,
+              });
+            }
+          }
+          
+          // Invalidate and refetch the statements query
+          queryClient.invalidateQueries({ queryKey: ['statements', user.id] });
+          
+          // Force refetch after a small delay to ensure data is up to date
+          setTimeout(() => {
+            refetch();
+          }, 500);
+        }
+      )
+      .subscribe((status) => {
+        console.log('[STATEMENTS_REALTIME] Subscription status:', status);
+      });
+
+    channelRef.current = channel;
+
+    return () => {
+      if (channelRef.current) {
+        console.log('[STATEMENTS_REALTIME] Cleaning up realtime subscription');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [user?.id, queryClient, refetch, toast]);
 
   const handleDelete = async (statementId: string) => {
     const success = await deleteStatement(statementId);
