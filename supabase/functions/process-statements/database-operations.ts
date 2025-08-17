@@ -1,6 +1,19 @@
 
 import { NubankTransaction } from './libs/nubank-transaction-parser.ts';
 
+// Classificação inteligente de receita vs despesa
+const INCOME_INDICATORS = [
+  'pagamento recebido', 'estorno', 'reembolso', 'credito', 'crédito', 'ajuste',
+  'transferencia recebida', 'transferência recebida', 'pix recebido', 'deposito', 'depósito'
+];
+
+const classifyTransactionType = (description: string, amount: number): boolean => {
+  const normalized = description.toLowerCase();
+  const hasIncomeIndicator = INCOME_INDICATORS.some(term => normalized.includes(term));
+  if (hasIncomeIndicator) return true;
+  return amount > 0;
+};
+
 // Interface para transações do sistema
 interface Transaction {
   date: string;
@@ -109,7 +122,7 @@ export const insertTransactions = async (
       installment_number: transaction.installment_number || null,
       installment_total: transaction.installment_total || null,
       installment_id: computedInstallmentId,
-      is_credit: false, // Todas são débitos
+      is_credit: classifyTransactionType(transaction.description, transaction.amount)
     } as any;
   });
 
@@ -308,7 +321,7 @@ const generateFutureInstallments = async (
       installment_number: i,
       installment_total: totalInstallments,
       installment_id: futureInstallmentId,
-      is_credit: false,
+      is_credit: classifyTransactionType(baseTransaction.description, baseTransaction.amount),
     });
   }
 
