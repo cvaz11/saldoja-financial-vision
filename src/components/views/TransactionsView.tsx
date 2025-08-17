@@ -15,11 +15,11 @@ interface TransactionsViewProps {
 
 const TransactionsView = ({ onAddTransaction, onProfileClick, onRefresh }: TransactionsViewProps) => {
   // Buscar filtro padrão e transações para conciliação
-  const defaultFilter = useDefaultInvoiceFilter();
+  const { filterConfig: defaultFilter, isLoading } = useDefaultInvoiceFilter();
   
   const { data: transactions = [] } = useFilteredTransactions(
-    defaultFilter && 'type' in defaultFilter ? defaultFilter : { type: 'invoices', invoiceConfig: { month: new Date().getMonth() + 1, year: new Date().getFullYear(), selectedStatements: [] } },
-    !!defaultFilter
+    defaultFilter,
+    !isLoading
   );
 
   // Extrair extratos das transações para conciliação
@@ -39,8 +39,8 @@ const TransactionsView = ({ onAddTransaction, onProfileClick, onRefresh }: Trans
           bank: transaction.statements?.bank || 'Banco',
           total_debit: totalDebit,
           total_credit: totalCredit,
-          month: (defaultFilter && 'invoiceConfig' in defaultFilter) ? defaultFilter.invoiceConfig.month : new Date().getMonth() + 1,
-          year: (defaultFilter && 'invoiceConfig' in defaultFilter) ? defaultFilter.invoiceConfig.year : new Date().getFullYear()
+          month: defaultFilter?.invoiceConfig?.month || new Date().getMonth() + 1,
+          year: defaultFilter?.invoiceConfig?.year || new Date().getFullYear()
         });
       }
     });
@@ -90,8 +90,8 @@ const TransactionsView = ({ onAddTransaction, onProfileClick, onRefresh }: Trans
         <StatementReconciliation
           statements={statements}
           transactions={transactions}
-          competencyMonth={(defaultFilter && 'invoiceConfig' in defaultFilter) ? defaultFilter.invoiceConfig.month : new Date().getMonth() + 1}
-          competencyYear={(defaultFilter && 'invoiceConfig' in defaultFilter) ? defaultFilter.invoiceConfig.year : new Date().getFullYear()}
+          competencyMonth={defaultFilter?.invoiceConfig?.month || new Date().getMonth() + 1}
+          competencyYear={defaultFilter?.invoiceConfig?.year || new Date().getFullYear()}
         />
       )}
 
