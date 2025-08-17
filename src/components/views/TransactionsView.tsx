@@ -1,11 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { User } from "lucide-react";
 import TransactionTable from "@/components/TransactionTable";
-import StatementReconciliation from "@/components/StatementReconciliation";
-import TransactionReclassificationDialog from "@/components/TransactionReclassificationDialog";
 import { useFilteredTransactions } from "@/hooks/useInvoiceTransactions";
 import { useDefaultInvoiceFilter } from "@/hooks/useDefaultInvoiceFilter";
-import { useMemo } from "react";
 
 interface TransactionsViewProps {
   onAddTransaction: () => void;
@@ -22,32 +19,6 @@ const TransactionsView = ({ onAddTransaction, onProfileClick, onRefresh }: Trans
     !isLoading
   );
 
-  // Extrair extratos das transações para conciliação
-  const statements = useMemo(() => {
-    if (!transactions || transactions.length === 0) return [];
-    
-    const uniqueStatements = new Map();
-    transactions.forEach((transaction: any) => {
-      if (transaction.statement_id && !uniqueStatements.has(transaction.statement_id)) {
-        // Simular dados do statement baseado nas transações
-        const statementTransactions = transactions.filter((t: any) => t.statement_id === transaction.statement_id);
-        const totalDebit = statementTransactions.filter((t: any) => !t.is_credit).reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0);
-        const totalCredit = statementTransactions.filter((t: any) => t.is_credit).reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0);
-        
-        uniqueStatements.set(transaction.statement_id, {
-          id: transaction.statement_id,
-          bank: transaction.statements?.bank || 'Banco',
-          total_debit: totalDebit,
-          total_credit: totalCredit,
-          month: defaultFilter?.invoiceConfig?.month || new Date().getMonth() + 1,
-          year: defaultFilter?.invoiceConfig?.year || new Date().getFullYear()
-        });
-      }
-    });
-    
-    return Array.from(uniqueStatements.values());
-  }, [transactions, defaultFilter]);
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -61,10 +32,6 @@ const TransactionsView = ({ onAddTransaction, onProfileClick, onRefresh }: Trans
           )}
         </div>
         <div className="flex items-center space-x-2">
-          <TransactionReclassificationDialog 
-            transactions={transactions}
-            onSuccess={onRefresh}
-          />
           <Button 
             variant="outline" 
             size="sm" 
@@ -84,16 +51,6 @@ const TransactionsView = ({ onAddTransaction, onProfileClick, onRefresh }: Trans
           </Button>
         </div>
       </div>
-
-      {/* Conciliação de Extratos */}
-      {statements.length > 0 && transactions.length > 0 && (
-        <StatementReconciliation
-          statements={statements}
-          transactions={transactions}
-          competencyMonth={defaultFilter?.invoiceConfig?.month || new Date().getMonth() + 1}
-          competencyYear={defaultFilter?.invoiceConfig?.year || new Date().getFullYear()}
-        />
-      )}
 
       {/* Transaction Table with unified handlers */}
       <TransactionTable 

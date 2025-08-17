@@ -2,6 +2,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { useTransactionsByStatementCompetency } from "@/hooks/useStatementCompetency";
 import { useInstallmentTransactions } from "@/hooks/useInstallmentTransactions";
 import { useStatementRange } from "@/hooks/useStatementRange";
+import { shouldIncludeInTotals } from "@/utils/paymentClassifier";
 import { useMemo } from "react";
 
 export const useRealDashboardData = (selectedMonth?: number, selectedYear?: number) => {
@@ -62,9 +63,15 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
 
     console.log('[DASHBOARD] Calculando com', transactions.length, 'transações');
     
-    // Filtrar e calcular exatamente como nas Movimentações
-    const expenses = transactions.filter(t => !t.is_credit && t.amount > 0);
-    const incomes = transactions.filter(t => t.is_credit && t.amount > 0);
+    // Filtrar e calcular exatamente como nas Movimentações + excluir pagamentos neutros
+    const expenses = transactions.filter(t => !t.is_credit && t.amount > 0 && shouldIncludeInTotals(t));
+    const incomes = transactions.filter(t => t.is_credit && t.amount > 0 && shouldIncludeInTotals(t));
+    
+    // Log para debug (apenas em dev)
+    if (import.meta.env.DEV) {
+      const neutralPayments = transactions.filter(t => !shouldIncludeInTotals(t));
+      console.log(`[DASHBOARD] ${neutralPayments.length} pagamentos neutros excluídos dos totais`);
+    }
     
     const totalExpenses = expenses.reduce((sum, t) => sum + Math.abs(t.amount), 0);
     const totalIncomes = incomes.reduce((sum, t) => sum + Math.abs(t.amount), 0);
@@ -141,6 +148,7 @@ export const useRealDashboardData = (selectedMonth?: number, selectedYear?: numb
     
     // Buscar todas as parcelas pendentes (sem statement_id) a partir do próximo mês
     const futureInstallments = transactions.filter(t => {
+      if (!shouldIncludeInTotals(t)) return false; // Excluir pagamentos neutros
       if (!t.installment_number || t.statement_id) return false;
       
       // Verificar se a data da transação é a partir do próximo mês (M+1)

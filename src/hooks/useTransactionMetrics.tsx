@@ -2,6 +2,7 @@
 import { useUserProfile } from "./useUserProfile";
 import { useTransactions } from "./useTransactions";
 import { calculateInvoiceCycle } from "@/lib/invoice-utils";
+import { shouldIncludeInTotals } from "@/utils/paymentClassifier";
 import { useMemo } from "react";
 
 export const useTransactionMetrics = () => {
@@ -35,24 +36,24 @@ export const useTransactionMetrics = () => {
   const metrics = useMemo(() => {
     console.log('[METRICS] Calculating metrics...');
 
-    // Usar EXATAMENTE a mesma lógica da tabela de transações
+    // Usar EXATAMENTE a mesma lógica da tabela de transações + filtro de pagamentos neutros
     const totalCurrentDebits = currentTransactions
-      .filter(t => !t.is_credit)
+      .filter(t => !t.is_credit && shouldIncludeInTotals(t))
       .reduce((sum, t) => sum + Number(t.amount), 0);
     
     const totalCurrentCredits = currentTransactions
-      .filter(t => t.is_credit)
+      .filter(t => t.is_credit && shouldIncludeInTotals(t))
       .reduce((sum, t) => sum + Number(t.amount), 0);
     
     const currentBalance = totalCurrentCredits - totalCurrentDebits;
 
     // Métricas do ciclo anterior - mesma lógica
     const totalPreviousDebits = previousTransactions
-      .filter(t => !t.is_credit)
+      .filter(t => !t.is_credit && shouldIncludeInTotals(t))
       .reduce((sum, t) => sum + Number(t.amount), 0);
     
     const totalPreviousCredits = previousTransactions
-      .filter(t => t.is_credit)
+      .filter(t => t.is_credit && shouldIncludeInTotals(t))
       .reduce((sum, t) => sum + Number(t.amount), 0);
     
     // Calcular variações percentuais
