@@ -3,7 +3,7 @@ import { NubankTransaction } from './libs/nubank-transaction-parser.ts';
 
 // Classificação inteligente de receita vs despesa
 const INCOME_INDICATORS = [
-  'pagamento recebido', 'estorno', 'reembolso', 'credito', 'crédito', 'ajuste',
+  'estorno', 'reembolso', 'ajuste',
   'transferencia recebida', 'transferência recebida', 'pix recebido', 'deposito', 'depósito'
 ];
 
@@ -11,6 +11,8 @@ const classifyTransactionType = (description: string, amount: number): boolean =
   const normalized = description.toLowerCase();
   const hasIncomeIndicator = INCOME_INDICATORS.some(term => normalized.includes(term));
   if (hasIncomeIndicator) return true;
+  
+  // Regra principal: valor negativo = despesa, valor positivo = receita
   return amount > 0;
 };
 
